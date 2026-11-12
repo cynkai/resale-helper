@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>직접 담기</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>직접 담기</h1>
+    <p class="hint">지금 보고 있는 매물 <strong>한 건</strong>을, 버튼을 눌렀을 때만 읽어 내 컴퓨터의 ‘얼마에 팔까’에 저장합니다.</p>
+
+    <section id="setup">
+      <label for="token">가져오기 토큰</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="앱의 설정 화면에서 만든 토큰" />
+      <div class="row">
+        <button id="saveToken" type="button">토큰 저장</button>
+        <button id="clearToken" type="button" class="plain">지우기</button>
+        <span id="tokenStatus" role="status"></span>
+      </div>
+      <p class="hint">이 확장의 ID: <code id="extId"></code><br />앱의 설정 화면 “허용할 확장 ID”에 넣어 주세요.</p>
+    </section>
+
+    <section id="read">
+      <button id="readPage" type="button" class="primary">이 페이지 읽기</button>
+    </section>
+
+    <form id="preview" hidden novalidate>
+      <ul id="problems" class="warn" hidden></ul>
+
+      <fieldset>
+        <legend>연결할 물건</legend>
+        <div class="row">
+          <input id="itemQuery" type="search" placeholder="물건 이름·ISBN·모델명" aria-label="물건 검색" />
+          <button id="findItems" type="button">찾기</button>
+        </div>
+        <div id="items" role="radiogroup" aria-label="물건 선택"></div>
+      </fieldset>
+
+      <label for="priceType">가격 유형 (페이지를 보고 확인)</label>
+      <select id="priceType" required>
+        <option value="">고르세요</option>
+        <option value="ASKING">판매 중 희망가</option>
+        <option value="SOLD_LISTING">판매완료 게시가</option>
+      </select>
+      <p id="typeNote" class="hint"></p>
+
+      <label for="amount">가격 (원)</label>
+      <input id="amount" inputmode="numeric" required />
+
+      <label for="condition">상태 등급 (모르면 비워 두기)</label>
+      <select id="condition">
+        <option value="">모름</option>
+        <option value="UNOPENED">미개봉</option>
+        <option value="LIKE_NEW">사용감 거의 없음</option>
+        <option value="GOOD">사용감 적음</option>
+        <option value="FAIR">사용감 있음</option>
+        <option value="POOR">사용감 많음</option>
+        <option value="BROKEN">고장·부품용</option>
+      </select>
+
+      <label for="checkedDate">확인일</label>
+      <input id="checkedDate" type="date" required />
+
+      <label for="sourceName">출처 이름</label>
+      <input id="sourceName" required />
+
+      <label for="sourceUrl">원문 URL</label>
+      <input id="sourceUrl" />
+
+      <label for="externalId">매물 번호</label>
+      <input id="externalId" />
+
+      <label for="memo">메모 (제목 등)</label>
+      <input id="memo" maxlength="200" />
+
+      <label class="check"><input id="confirm" type="checkbox" /> 위 내용을 페이지와 대조해 확인했습니다</label>
+      <button id="save" type="submit" class="primary">앱에 저장</button>
+    </form>
+
+    <p id="message" role="status"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>
