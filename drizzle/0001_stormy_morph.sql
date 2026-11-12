@@ -1,0 +1,1 @@
+ALTER TABLE `cost_scenarios` ADD `basis_price_type` text;

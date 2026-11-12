@@ -1,0 +1,6 @@
+price_type,amount,currency,source_name,source_url,external_id,checked_date,condition,bundle_type,shipping_included,quote_valid_until,deduction_terms,memo
+ASKING,15000,KRW,예시마켓,https://example.com/items/101,101,2026-11-01,GOOD,SINGLE,NO,,,
+ASKING,17000,KRW,예시마켓,https://example.com/items/102,102,2026-11-02,GOOD,SINGLE,YES,,,
+SOLD_LISTING,13000,KRW,예시마켓,https://example.com/items/77,77,2026-10-20,GOOD,SINGLE,UNKNOWN,,,판매완료 표시 확인
+BUYBACK_QUOTE,6000,KRW,예시서점,,,2026-11-05,GOOD,SINGLE,UNKNOWN,2026-11-12,필기 발견 시 감액,매장 방문 견적
+USER_REPORTED,12000,KRW,직거래,,,2026-09-15,GOOD,SINGLE,UNKNOWN,,,작년에 같은 책을 판 금액

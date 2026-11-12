@@ -1,0 +1,32 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# 환경변수·비밀값
+.env
+.env.*
+!.env.example
+
+# 개인 데이터: DB, CSV, 업로드, 백업
+data/*
+!data/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.csv
+!examples/*.csv
+uploads/
+backups/
+
+# 테스트 산출물
+test-results/
+playwright-report/
+coverage/
+
+.DS_Store
+
+# 로컬 도구 설정
+.claude/
