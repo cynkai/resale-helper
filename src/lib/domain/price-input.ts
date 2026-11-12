@@ -146,11 +146,11 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
   }
   const d = parsed.success ? parsed.data : null;
 
-  // 유형 승격 방지: 직접 입력·CSV는 어떤 경우에도 VERIFIED_SALE이 될 수 없다.
+  // 유형 승격 방지: 앱 내 공식 제공자(API) 외의 경로(직접 입력·CSV·확장·가져오기 API)는 어떤 경우에도 VERIFIED_SALE이 될 수 없다.
   if (withDefaults.priceType === "VERIFIED_SALE") {
     if (ctx.route !== "API") {
       errors.priceType =
-        "직접 입력·CSV 자료는 '검증된 체결가'로 저장할 수 없습니다. 직접 거래한 금액이면 USER_REPORTED(직접 입력한 거래가), 판매완료 게시글이면 SOLD_LISTING(판매완료 게시가)을 사용해 주세요.";
+        "직접 입력·CSV·확장·가져오기 API 자료는 '검증된 체결가'로 저장할 수 없습니다. 직접 거래한 금액이면 USER_REPORTED(직접 입력한 거래가), 판매완료 게시글이면 SOLD_LISTING(판매완료 게시가)을 사용해 주세요.";
     } else if (!ctx.providerAttestsVerifiedSales) {
       errors.priceType = "이 출처는 실제 체결가격 제공이 확인되지 않아 '검증된 체결가'로 저장할 수 없습니다.";
     } else if (!withDefaults.verificationMethod.trim()) {

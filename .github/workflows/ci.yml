@@ -24,6 +24,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: 브라우저 확장(타입·테스트·빌드)
+        run: pnpm ext:typecheck && pnpm ext:test && pnpm ext:build
       - name: Playwright 브라우저 설치
         run: pnpm exec playwright install --with-deps chromium
       - name: 핵심 사용자 흐름(E2E)

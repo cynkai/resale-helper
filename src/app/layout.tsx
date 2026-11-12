@@ -61,6 +61,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </a>{" "}
             — 복구는 앱을 끈 뒤 <code>pnpm db:restore &lt;파일&gt;</code>
           </p>
+          <p className="mt-2">
+            <Link href="/settings" className="underline underline-offset-2 hover:text-stone-900">
+              설정(가져오기 API·브라우저 확장)
+            </Link>
+          </p>
           {!demo ? (
             <form action={enterDemoAction} className="mt-2">
               <button type="submit" className="underline underline-offset-2 hover:text-stone-900">

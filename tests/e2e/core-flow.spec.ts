@@ -348,3 +348,86 @@ test("물건 배분: 물건마다 직접 판매·업체·판단 보류를 나누
   await expect(page.getByTestId(`verdict-${slow}`)).toHaveText("판단 보류");
   await expect(page.locator("main")).toContainText("실제 판매·매입 금액을 보장하지 않으며");
 });
+
+test("가져오기 API: 토큰이 없으면 꺼져 있고, 토큰·Origin 검사를 통과한 요청만 저장한다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("ELECTRONICS");
+  await page.locator("#name").fill("가져오기 테스트 키보드");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const itemId = Number(page.url().split("/").pop());
+
+  const body = {
+    itemId,
+    records: [
+      { price_type: "ASKING", amount: 30000, source_name: "테스트마켓", external_id: "IMP-1", checked_date: "2026-01-05" },
+      { price_type: "VERIFIED_SALE", amount: 30000, source_name: "테스트마켓", external_id: "IMP-2", checked_date: "2026-01-05" },
+    ],
+  };
+  const post = (headers: Record<string, string>) => page.request.post("/api/import/prices", { data: body, headers });
+
+  // 기본 상태: 토큰이 없어 API가 꺼져 있다
+  await page.goto("/settings");
+  await expect(page.getByTestId("token-status")).toHaveText("토큰 없음");
+  expect((await post({ Authorization: "Bearer rh_guess" })).status()).toBe(403);
+
+  await page.getByRole("button", { name: "토큰 만들기" }).click();
+  const token = (await page.getByTestId("token-value").textContent())!.trim();
+  expect(token).toMatch(/^rh_[A-Za-z0-9_-]{43}$/);
+  await expect(page.getByTestId("token-status")).toContainText("토큰 있음");
+  // 새로 고치면 토큰 원문은 다시 볼 수 없다
+  await page.reload();
+  await expect(page.getByTestId("token-value")).toHaveCount(0);
+  expect(await page.content()).not.toContain(token);
+
+  expect((await post({})).status()).toBe(401);
+  expect((await post({ Authorization: "Bearer rh_wrong" })).status()).toBe(401);
+  // 일반 웹사이트에서 온 요청은 토큰이 맞아도 거부하고 CORS 헤더를 주지 않는다
+  const web = await post({ Authorization: `Bearer ${token}`, Origin: "https://evil.example" });
+  expect(web.status()).toBe(403);
+  expect(web.headers()["access-control-allow-origin"]).toBeUndefined();
+  const pre = await page.request.fetch("/api/import/prices", { method: "OPTIONS", headers: { Origin: "https://evil.example" } });
+  expect(pre.status()).toBe(403);
+
+  const ok = await post({ Authorization: `Bearer ${token}` });
+  expect(ok.status()).toBe(200);
+  const json = await ok.json();
+  expect(json.imported).toBe(1);
+  expect(json.results[1]).toMatchObject({ index: 1, ok: false });
+  expect(JSON.stringify(json)).not.toContain(token);
+
+  const list = await page.request.get("/api/import/items?q=키보드", { headers: { Authorization: `Bearer ${token}` } });
+  expect((await list.json()).items).toEqual([expect.objectContaining({ id: itemId, name: "가져오기 테스트 키보드" })]);
+  expect((await page.request.get("/api/import/items")).status()).toBe(401);
+
+  await page.goto(`/items/${itemId}`);
+  await expect(page.locator("#prices")).toContainText("외부 도구 가져오기");
+  await expect(page.locator("#prices")).toContainText("30,000원");
+  await expect(page.locator("#prices")).not.toContainText("검증된 체결가 중앙값");
+
+  // 등록한 확장 origin은 허용하고 입력 경로를 '확장으로 직접 담기'로 남긴다
+  const ext = "abcdefghijklmnopabcdefghijklmnop";
+  await page.goto("/settings");
+  await page.locator("#extensionId").fill("not-an-id");
+  await page.getByRole("button", { name: "확장 ID 저장" }).click();
+  await expect(page.locator("#extensionId-error")).toContainText("32자");
+  await page.locator("#extensionId").fill(ext);
+  await page.getByRole("button", { name: "확장 ID 저장" }).click();
+  await expect(page.getByText("저장했습니다.")).toBeVisible();
+  const clip = await page.request.post("/api/import/prices", {
+    data: { itemId, records: [{ price_type: "SOLD_LISTING", amount: 28000, source_name: "테스트마켓", external_id: "IMP-3", checked_date: "2026-01-05" }] },
+    headers: { Authorization: `Bearer ${token}`, Origin: `chrome-extension://${ext}` },
+  });
+  expect(clip.status()).toBe(200);
+  expect(clip.headers()["access-control-allow-origin"]).toBe(`chrome-extension://${ext}`);
+  await page.goto(`/items/${itemId}`);
+  await expect(page.locator("#prices")).toContainText("확장으로 직접 담기");
+
+  // 폐기하면 다시 꺼진다
+  await page.goto("/settings");
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "토큰 폐기" }).click();
+  await expect(page.getByTestId("token-status")).toHaveText("토큰 없음");
+  expect((await post({ Authorization: `Bearer ${token}` })).status()).toBe(403);
+});

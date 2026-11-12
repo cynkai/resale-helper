@@ -18,7 +18,10 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed:demo": "tsx scripts/seed-demo.ts",
-    "db:restore": "tsx scripts/restore.ts"
+    "db:restore": "tsx scripts/restore.ts",
+    "ext:build": "pnpm --filter resale-helper-clipper build",
+    "ext:typecheck": "pnpm --filter resale-helper-clipper typecheck",
+    "ext:test": "pnpm --filter resale-helper-clipper test"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",
