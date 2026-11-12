@@ -143,6 +143,10 @@ export const saleResults = sqliteTable("sale_results", {
 export const userSettings = sqliteTable("user_settings", {
   isDemo: integer("is_demo", { mode: "boolean" }).primaryKey(),
   timeValuePerHour: integer("time_value_per_hour"), // 원/시간. null = 모름, 0 = 시간을 공짜로 봄
+  // 가져오기 API 접근 설정(실제 모드 행에서만 쓴다). 토큰 원문은 저장하지 않고 SHA-256 해시만 둔다.
+  importTokenHash: text("import_token_hash"), // null = 토큰 없음 → 가져오기 API 비활성
+  importTokenCreatedAt: text("import_token_created_at"),
+  importExtensionId: text("import_extension_id"), // 허용할 브라우저 확장 ID. null = 확장 요청 거부
   ...timestamps,
 });
 

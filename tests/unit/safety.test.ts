@@ -1,4 +1,20 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { openDb } from "@/lib/db/client";
+import { seedDemo } from "@/lib/db/demo-seed";
+import { createItem, listItems, listPrices } from "@/lib/db/repo";
+import {
+  authorizeImport,
+  classifyOrigin,
+  corsHeaders,
+  generateImportToken,
+  hashImportToken,
+  verifyImportToken,
+} from "@/lib/import/access";
+import { readJsonBody } from "@/lib/import/http";
+import { importRecords, MAX_IMPORT_BODY_BYTES, MAX_IMPORT_RECORDS } from "@/lib/import/records";
 import { buildComparison } from "@/lib/domain/compare";
 import { isLoopbackHost } from "@/lib/host";
 import { basisIssues, isChoiceOutdated } from "@/lib/domain/scenario";
@@ -103,5 +119,194 @@ describe("오래된 자료 표시", () => {
     const c = buildComparison(item, [rec("2026-01-01")], TODAY, 180);
     expect(c.groups[0]!.excluded[0]!.exclusions).toEqual(["OUT_OF_WINDOW"]);
     expect(c.groups[0]!.excluded[0]!.warnings).not.toContain("OLD_DATA");
+  });
+});
+
+describe("가져오기 API 접근 통제", () => {
+  const EXT = "abcdefghijklmnopabcdefghijklmnop";
+  const { token, hash } = generateImportToken();
+  const settings = { tokenHash: hash, extensionId: EXT };
+  const bearer = `Bearer ${token}`;
+
+  it("토큰은 해시로만 저장되고, 해시에서 원문을 알 수 없다", () => {
+    expect(token.startsWith("rh_")).toBe(true);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(hash).not.toContain(token);
+    expect(hashImportToken(token)).toBe(hash);
+    expect(verifyImportToken(token, hash)).toBe(true);
+    expect(verifyImportToken(token + "x", hash)).toBe(false);
+    expect(generateImportToken().token).not.toBe(token);
+  });
+
+  it("토큰을 만들지 않은 상태(기본)에서는 올바른 형식의 토큰을 보내도 꺼져 있다", () => {
+    const r = authorizeImport({ authorization: bearer, origin: null }, { tokenHash: null, extensionId: null });
+    expect(r).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it("토큰이 없거나 틀리면 거부하고, 오류 문구에 토큰을 넣지 않는다", () => {
+    for (const authorization of [null, "", "Bearer ", "Bearer wrong-token", `Basic ${token}`, token, `bearer ${token} extra`]) {
+      const r = authorizeImport({ authorization, origin: null }, settings);
+      expect(r, String(authorization)).toMatchObject({ ok: false, status: 401 });
+      if (!r.ok) expect(r.error).not.toContain(token);
+    }
+  });
+
+  it("일반 웹 origin은 올바른 토큰이 있어도 거부한다(CSRF 방어)", () => {
+    for (const origin of [
+      "https://evil.example",
+      "http://127.0.0.1:3000", // 이 앱 자신의 화면도 이 API를 쓰지 않는다
+      "http://localhost:3000",
+      "null",
+      "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba", // 등록하지 않은 확장
+      `chrome-extension://${EXT}.evil.example`,
+      `moz-extension://${EXT}`,
+    ]) {
+      const r = authorizeImport({ authorization: bearer, origin }, settings);
+      expect(r, origin).toMatchObject({ ok: false, status: 403, corsOrigin: null });
+    }
+  });
+
+  it("확장 ID를 등록하지 않았으면 확장 origin도 거부한다", () => {
+    expect(classifyOrigin(`chrome-extension://${EXT}`, null)).toEqual({ allowed: false });
+    expect(classifyOrigin(`chrome-extension://${EXT}`, "not-an-id")).toEqual({ allowed: false });
+  });
+
+  it("입력 경로는 서버가 Origin으로 정한다: Origin 없음 → EXTERNAL, 등록된 확장 → CLIP", () => {
+    expect(authorizeImport({ authorization: bearer, origin: null }, settings)).toEqual({ ok: true, route: "EXTERNAL", corsOrigin: null });
+    expect(authorizeImport({ authorization: bearer, origin: `chrome-extension://${EXT}` }, settings)).toEqual({
+      ok: true,
+      route: "CLIP",
+      corsOrigin: `chrome-extension://${EXT}`,
+    });
+  });
+
+  it("CORS 헤더는 허용된 origin에만 붙이고 *를 쓰지 않는다", () => {
+    expect(corsHeaders(null)).toEqual({});
+    const h = corsHeaders(`chrome-extension://${EXT}`);
+    expect(h["Access-Control-Allow-Origin"]).toBe(`chrome-extension://${EXT}`);
+    expect(Object.values(h)).not.toContain("*");
+  });
+});
+
+describe("가져오기 API 본문 처리", () => {
+  const TODAY = "2026-11-11";
+  const rec = (over: Record<string, unknown> = {}) => ({
+    price_type: "ASKING",
+    amount: 12000,
+    source_name: "테스트마켓",
+    external_id: "X-1",
+    checked_date: "2026-11-10",
+    ...over,
+  });
+  function withDb<T>(fn: (db: ReturnType<typeof openDb>["db"], itemId: number) => T): T {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "resale-import-"));
+    const { db, close } = openDb(path.join(dir, "i.db"));
+    try {
+      const itemId = createItem(db, false, {
+        category: "CONSOLE",
+        status: "OWNED",
+        name: "가져오기 대상",
+        identifier: null,
+        condition: "GOOD",
+        defects: null,
+        components: null,
+        memo: null,
+        author: null,
+        publisher: null,
+        edition: null,
+        hasWriting: "UNKNOWN",
+        hasUnderline: "UNKNOWN",
+        hasDamage: "UNKNOWN",
+        hasSupplement: "UNKNOWN",
+      });
+      return fn(db, itemId);
+    } finally {
+      close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("VERIFIED_SALE은 어떤 경로로도 만들 수 없고, 다른 유형으로 바꿔 저장하지도 않는다", () => {
+    withDb((db, itemId) => {
+      for (const route of ["CLIP", "EXTERNAL"] as const) {
+        const out = importRecords(
+          db,
+          { itemId, records: [rec({ price_type: "VERIFIED_SALE", external_id: `V-${route}`, verification_method: "영수증" })] },
+          route,
+          TODAY,
+        );
+        expect(out.ok && out.imported).toBe(0);
+        expect(out.ok && out.results[0]).toMatchObject({ index: 0, ok: false });
+      }
+      expect(listPrices(db, itemId)).toHaveLength(0);
+    });
+  });
+
+  it("행 수 상한을 넘으면 아무것도 저장하지 않고 413", () => {
+    withDb((db, itemId) => {
+      const records = Array.from({ length: MAX_IMPORT_RECORDS + 1 }, (_, i) => rec({ external_id: `N-${i}` }));
+      expect(importRecords(db, { itemId, records }, "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 413 });
+      expect(listPrices(db, itemId)).toHaveLength(0);
+    });
+  });
+
+  it("본문 크기 상한을 넘으면 읽기 단계에서 413, JSON이 아니면 거부한다", async () => {
+    const req = (body: string, headers: Record<string, string> = { "Content-Type": "application/json" }) =>
+      new Request("http://127.0.0.1:3000/api/import/prices", { method: "POST", body, headers });
+    expect(await readJsonBody(req("x".repeat(MAX_IMPORT_BODY_BYTES + 1)))).toMatchObject({ ok: false, status: 413 });
+    expect(await readJsonBody(req("{}", { "Content-Type": "text/plain" }))).toMatchObject({ ok: false, status: 415 });
+    expect(await readJsonBody(req("{not json"))).toMatchObject({ ok: false, status: 400 });
+    expect(await readJsonBody(req('{"itemId":1}'))).toEqual({ ok: true, body: { itemId: 1 } });
+  });
+
+  it("올바른 행만 저장하고 행별 결과를 돌려준다. 중복은 기존 규칙 그대로 거부한다", () => {
+    withDb((db, itemId) => {
+      const out = importRecords(
+        db,
+        {
+          itemId,
+          records: [
+            rec(),
+            rec({ amount: 13000 }), // 같은 출처+매물 번호 → 중복
+            rec({ external_id: "X-2", amount: "1.5만" }),
+            rec({ external_id: "X-3", price_type: "SOLD_LISTING", source_url: "https://example.com/p/3?utm_source=a" }),
+          ],
+        },
+        "EXTERNAL",
+        TODAY,
+      );
+      if (!out.ok) throw new Error(out.error);
+      expect(out.results.map((r) => r.ok)).toEqual([true, false, false, true]);
+      expect(out.results[1]).toMatchObject({ error: expect.stringContaining("이미 등록된 매물") });
+      expect(out).toMatchObject({ imported: 2, rejected: 2 });
+      const saved = listPrices(db, itemId);
+      expect(saved.map((p) => p.inputRoute)).toEqual(["EXTERNAL", "EXTERNAL"]);
+      expect(saved.every((p) => !p.isDemo)).toBe(true);
+      // 다시 보내면 URL 정규화 기준으로도 중복
+      const again = importRecords(db, { itemId, records: [rec({ external_id: "other", price_type: "SOLD_LISTING", source_url: "https://www.example.com/p/3" })] }, "CLIP", TODAY);
+      expect(again.ok && again.imported).toBe(0);
+    });
+  });
+
+  it("가격 자료가 아닌 필드(판매자 정보 등)는 받지 않고 그 행을 거부한다", () => {
+    withDb((db, itemId) => {
+      const out = importRecords(db, { itemId, records: [rec({ seller_nickname: "누군가" }), rec({ input_route: "API", external_id: "X-9" })] }, "EXTERNAL", TODAY);
+      if (!out.ok) throw new Error(out.error);
+      expect(out.imported).toBe(0);
+      expect(out.results[0]).toMatchObject({ error: expect.stringContaining("seller_nickname") });
+      expect(listPrices(db, itemId)).toHaveLength(0);
+    });
+  });
+
+  it("데모 물건에는 저장하지 않는다(항상 실제 모드), 없는 물건·잘못된 본문은 거부", () => {
+    withDb((db, itemId) => {
+      seedDemo(db, TODAY);
+      const demoId = listItems(db, true)[0]!.item.id;
+      expect(importRecords(db, { itemId: demoId, records: [rec()] }, "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 404 });
+      expect(importRecords(db, { itemId: 999999, records: [rec()] }, "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 404 });
+      expect(importRecords(db, { itemId: String(itemId), records: [rec()] }, "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 400 });
+      expect(importRecords(db, { itemId, records: [] }, "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 400 });
+      expect(importRecords(db, [rec()], "EXTERNAL", TODAY)).toMatchObject({ ok: false, status: 400 });
+    });
   });
 });

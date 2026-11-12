@@ -22,7 +22,7 @@ export const PRICE_TYPE_INFO: Record<PriceType, { label: string; help: string; s
   },
   VERIFIED_SALE: {
     label: "검증된 체결가",
-    help: "실제 체결가격을 제공한다고 확인된 출처의 거래가격입니다. 직접 입력·CSV로는 등록할 수 없습니다.",
+    help: "실제 체결가격을 제공한다고 확인된 출처의 거래가격입니다. 직접 입력·CSV·확장·가져오기 API로는 등록할 수 없습니다.",
     summaryLabel: "검증된 체결가 중앙값",
   },
   BUYBACK_QUOTE: {
@@ -37,12 +37,18 @@ export const PRICE_TYPE_INFO: Record<PriceType, { label: string; help: string; s
   },
 };
 
-export const INPUT_ROUTES = ["MANUAL", "CSV", "API"] as const;
+// 입력 경로. 자료가 어떤 길로 들어왔는지를 남긴다(가격 유형과는 별개).
+// - API: 앱 안에 등록된 공식 가격 제공자(PriceProvider)가 서버에서 조회한 자료. 현재 등록된 제공자 없음.
+// - CLIP: 브라우저 확장 "직접 담기". 사용자가 보고 있던 페이지 한 건을 버튼을 눌러 저장.
+// - EXTERNAL: 가져오기 API(POST /api/import/prices)로 외부 도구가 넣은 자료.
+export const INPUT_ROUTES = ["MANUAL", "CSV", "API", "CLIP", "EXTERNAL"] as const;
 export type InputRoute = (typeof INPUT_ROUTES)[number];
 export const INPUT_ROUTE_LABEL: Record<InputRoute, string> = {
   MANUAL: "직접 입력",
   CSV: "CSV 가져오기",
-  API: "API 조회",
+  API: "공식 API 조회(앱 내 연동)",
+  CLIP: "확장으로 직접 담기",
+  EXTERNAL: "외부 도구 가져오기",
 };
 
 export const CATEGORIES = ["BOOK", "CONSOLE", "ELECTRONICS"] as const;

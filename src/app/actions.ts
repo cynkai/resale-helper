@@ -15,6 +15,7 @@ import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from
 import { basisIssues } from "@/lib/domain/scenario";
 import { validateTimeValue } from "@/lib/domain/settings-input";
 import { SALE_METHODS, type PriceType, type SaleMethod } from "@/lib/domain/types";
+import { generateImportToken, isValidExtensionId } from "@/lib/import/access";
 import { isDemoMode, MODE_COOKIE } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
 
@@ -305,6 +306,39 @@ export async function saveTimeValueAction(_prev: FormState, fd: FormData): Promi
     message: r.value === null ? "비워 두었습니다(모름). 시간 대비 판단은 보류됩니다." : "저장했습니다.",
     values: values(fd),
   };
+}
+
+// ---- 가져오기 API 설정 ----
+
+export type ImportTokenState = { token?: string; message?: string };
+
+/** 토큰을 새로 만든다(이미 있으면 재발급: 이전 토큰은 즉시 못 쓰게 된다). 원문은 이 응답에서 한 번만 보여 준다. */
+export async function generateImportTokenAction(_prev: ImportTokenState, _fd: FormData): Promise<ImportTokenState> {
+  void _prev;
+  void _fd;
+  const { token, hash } = generateImportToken();
+  repo.setImportTokenHash(getDb(), hash);
+  revalidatePath("/settings");
+  return { token, message: "새 토큰을 만들었습니다. 지금만 볼 수 있으니 바로 복사해 두세요." };
+}
+
+export async function revokeImportTokenAction(): Promise<void> {
+  repo.setImportTokenHash(getDb(), null);
+  revalidatePath("/settings");
+}
+
+export async function saveExtensionIdAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const raw = s(fd, "extensionId").trim();
+  if (raw !== "" && !isValidExtensionId(raw)) {
+    return {
+      errors: { extensionId: "확장 ID는 영문 소문자 a~p 32자입니다. chrome://extensions 또는 확장 팝업에서 복사해 주세요." },
+      values: values(fd),
+      message: "입력 내용을 확인해 주세요.",
+    };
+  }
+  repo.setImportExtensionId(getDb(), raw === "" ? null : raw);
+  revalidatePath("/settings");
+  return { ok: true, message: raw === "" ? "확장 ID를 지웠습니다. 확장에서 보내는 요청은 거부됩니다." : "저장했습니다.", values: values(fd) };
 }
 
 // ---- 모드 전환 ----

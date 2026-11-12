@@ -262,6 +262,35 @@ export function setTimeValuePerHour(db: Db, isDemo: boolean, value: number | nul
     .run();
 }
 
+// ---- 가져오기 API 접근 설정(실제 모드 행에만 둔다) ----
+
+export type ImportSettings = { tokenHash: string | null; tokenCreatedAt: string | null; extensionId: string | null };
+
+export function getImportSettings(db: Db): ImportSettings {
+  const r = db.select().from(userSettings).where(eq(userSettings.isDemo, false)).get();
+  return {
+    tokenHash: r?.importTokenHash ?? null,
+    tokenCreatedAt: r?.importTokenCreatedAt ?? null,
+    extensionId: r?.importExtensionId ?? null,
+  };
+}
+
+/** 토큰 해시를 저장한다(새 발급·재발급). null이면 폐기 → 가져오기 API가 꺼진다. */
+export function setImportTokenHash(db: Db, hash: string | null): void {
+  const set = { importTokenHash: hash, importTokenCreatedAt: hash ? sql`(datetime('now'))` : null, updatedAt: now };
+  db.insert(userSettings)
+    .values({ isDemo: false, importTokenHash: hash, importTokenCreatedAt: hash ? sql`(datetime('now'))` : null })
+    .onConflictDoUpdate({ target: userSettings.isDemo, set })
+    .run();
+}
+
+export function setImportExtensionId(db: Db, extensionId: string | null): void {
+  db.insert(userSettings)
+    .values({ isDemo: false, importExtensionId: extensionId })
+    .onConflictDoUpdate({ target: userSettings.isDemo, set: { importExtensionId: extensionId, updatedAt: now } })
+    .run();
+}
+
 // ---- 배분 ----
 
 export type TriageCandidate = {
