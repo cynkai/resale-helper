@@ -2,6 +2,7 @@
   "name": "resale-helper-clipper",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "얼마에 팔까 — 직접 담기 (보고 있는 매물 한 건을 버튼을 눌러 로컬 앱에 저장하는 브라우저 확장)",
   "type": "module",
   "scripts": {

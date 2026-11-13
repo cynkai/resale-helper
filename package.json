@@ -2,6 +2,7 @@
   "name": "resale-helper",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "얼마에 팔까 — 개인용 중고 판매 의사결정 도구 (로컬 전용)",
   "packageManager": "pnpm@11.5.2",
   "engines": {
