@@ -1,5 +1,6 @@
 import { bunjang } from "./bunjang";
 import { daangn } from "./daangn";
+import { readGeneric } from "./generic";
 import { joongna } from "./joongna";
 import type { ClipResult, Parser } from "./types";
 
@@ -19,7 +20,15 @@ export function extract(doc: Document, href: string): ExtractResult {
     return { supported: false, url: href };
   }
   const parser = parsers.find((p) => p.matches(url));
-  if (!parser) return { supported: false, url: `${url.protocol}//${url.host}${url.pathname}` };
+  if (!parser) {
+    let generic = null;
+    try {
+      generic = readGeneric(doc, url);
+    } catch {
+      generic = null;
+    }
+    return generic ? { supported: true, clip: generic } : { supported: false, url: `${url.protocol}//${url.host}${url.pathname}` };
+  }
   try {
     return { supported: true, clip: parser.parse(doc, url) };
   } catch {

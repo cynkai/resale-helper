@@ -28,13 +28,40 @@ describe("매물 상세 페이지만 읽는다", () => {
       "https://www.daangn.com/kr/search/buy-sell/?q=x",
       "https://web.joongna.com/search/x",
       "https://m.bunjang.co.kr/search/products?q=x",
-      "https://example.com/product/1",
-      "https://web.joongna.com.evil.example/product/1",
       "not a url",
     ]) {
       const r = extract(page(ld(product({ price: 1000, availability: "https://schema.org/InStock" }))), href);
       expect(r.supported, href).toBe(false);
     }
+  });
+});
+
+describe("그 밖의 사이트(일반 상품 정보)", () => {
+  const OTHER = "https://www.used.example/goods/77?utm_source=x#a";
+  it("상품 정보가 하나면 읽되, 출처 이름은 호스트 이름을 제안하고 확인 안내를 붙인다", () => {
+    const r = extract(page(ld(product({ price: 12000, availability: "https://schema.org/InStock" }))), OTHER);
+    if (!r.supported) throw new Error("unsupported");
+    expect(r.clip).toMatchObject({ sourceName: "used.example", url: "https://www.used.example/goods/77", externalId: null, title: "가상 헤드폰 X1", price: 12000, status: "ON_SALE" });
+    expect(r.clip.problems[0]).toMatch(/전용 지원 사이트가 아니라/);
+    expect(JSON.stringify(r.clip)).not.toContain("가상판매자");
+  });
+  it("전용 사이트와 이름이 비슷한 다른 도메인은 그 사이트 이름을 쓰지 않는다", () => {
+    const r = extract(page(ld(product({ price: 1000, availability: "https://schema.org/InStock" }))), "https://web.joongna.com.evil.example/product/1");
+    expect(r.supported && r.clip.sourceName).toBe("web.joongna.com.evil.example");
+  });
+  it("상품 정보가 없거나 여러 개거나, 가격·상태를 모두 못 읽으면 지원하지 않는 페이지로 처리한다", () => {
+    expect(extract(page(""), OTHER).supported).toBe(false);
+    const two = ld(product({ price: 1000 })) + ld(product({ price: 2000 }));
+    expect(extract(page(two), OTHER).supported).toBe(false);
+    expect(extract(page(ld(product({ price: 1000, priceCurrency: "USD" }))), OTHER).supported).toBe(false);
+  });
+  it("원화가 아니면 가격을 채우지 않는다", () => {
+    const r = extract(page(ld(product({ price: 1000, priceCurrency: "USD", availability: "https://schema.org/InStock" }))), OTHER);
+    expect(r.supported && r.clip.price).toBeNull();
+  });
+  it("전용 사이트의 목록·검색 페이지는 일반 상품 정보로도 읽지 않는다", () => {
+    const r = extract(page(ld(product({ price: 1000, availability: "https://schema.org/InStock" }))), "https://www.daangn.com/kr/buy-sell/");
+    expect(r.supported).toBe(false);
   });
 });
 

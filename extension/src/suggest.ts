@@ -31,7 +31,7 @@ export function buildDraft(r: ExtractResult, today: string): PreviewDraft {
       memo: "",
       condition: "",
       checkedDate: today,
-      problems: ["지원하는 매물 상세 페이지가 아닙니다(당근·번개장터·중고나라의 매물 한 건 페이지만 읽습니다). 값을 직접 입력해 주세요."],
+      problems: ["이 페이지에서 매물 정보를 읽지 못했습니다(당근·번개장터·중고나라는 매물 한 건 페이지, 그 밖의 사이트는 상품 정보를 공개한 페이지만 읽습니다). 값을 직접 입력해 주세요."],
     };
   }
   const c = r.clip;
