@@ -139,6 +139,31 @@ export function updatePrice(db: Db, item: Item, id: number, v: ValidPriceInput):
   return { ok: true, id };
 }
 
+/**
+ * 출처에서 다시 확인했더니 가격이 그대로일 때: 확인일만 오늘로 바꾸고, 이전 확인일을 이력에 남긴다.
+ * 이미 오늘 확인한 자료이거나 확인일이 오늘보다 뒤면 아무것도 하지 않는다.
+ */
+export function recheckPrice(db: Db, itemId: number, id: number, today: string): boolean {
+  const before = getPrice(db, itemId, id);
+  if (!before || before.checkedDate >= today) return false;
+  db.transaction((tx) => {
+    tx.insert(priceHistory)
+      .values({
+        priceRecordId: id,
+        priceType: before.priceType,
+        amountMinor: before.amountMinor,
+        currency: before.currency,
+        checkedDate: before.checkedDate,
+      })
+      .run();
+    tx.update(priceRecords)
+      .set({ checkedDate: today, updatedAt: now })
+      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId)))
+      .run();
+  });
+  return true;
+}
+
 /** 물건의 가격 자료들에 남은 이전 값(가격 자료별, 오래된 것부터). */
 export function listPriceHistory(db: Db, itemId: number): Map<number, PriceHistoryRow[]> {
   const rows = db

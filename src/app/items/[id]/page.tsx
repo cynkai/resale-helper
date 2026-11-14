@@ -4,6 +4,7 @@ import {
   chooseMethodAction,
   deleteItemAction,
   deletePriceAction,
+  recheckPriceAction,
   deleteSaleResultAction,
   togglePriceAction,
 } from "@/app/actions";
@@ -278,7 +279,19 @@ export default async function ItemPage({
                 {p.includedInComparison ? "빼기" : "다시 포함"}
               </button>
             </form>
-            <Link href={`/items/${item.id}/prices/${p.id}/edit`} className="btn px-2 py-1 text-xs">
+            {age > 0 ? (
+              <form action={recheckPriceAction}>
+                <input type="hidden" name="itemId" value={item.id} />
+                <input type="hidden" name="priceId" value={p.id} />
+                <ConfirmSubmit
+                  message="출처에서 다시 확인했더니 가격이 그대로였나요? 확인일을 오늘로 바꾸고 이전 확인일은 '이전 값'에 남깁니다. 가격이 바뀌었다면 '수정'을 눌러 주세요."
+                  className="btn px-2 py-1 text-xs"
+                >
+                  오늘 다시 확인함
+                </ConfirmSubmit>
+              </form>
+            ) : null}
+                        <Link href={`/items/${item.id}/prices/${p.id}/edit`} className="btn px-2 py-1 text-xs">
               수정
             </Link>
             <form action={deletePriceAction}>
