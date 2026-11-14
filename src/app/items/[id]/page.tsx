@@ -22,7 +22,7 @@ import {
   type Classified,
 } from "@/lib/domain/compare";
 import { CSV_COLUMNS } from "@/lib/domain/csv";
-import { buildListingDraft } from "@/lib/domain/listing";
+import { buildListingDraft, charCount } from "@/lib/domain/listing";
 import { bpToPercentString, formatMoney } from "@/lib/domain/money";
 import { COST_LABEL, computeNet, netDifference, type NetResult } from "@/lib/domain/net";
 import { BASIS_ISSUE_LABEL, basisIssues, isChoiceOutdated, type BasisIssue } from "@/lib/domain/scenario";
@@ -569,13 +569,17 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
         ) : null}
         <div className="mt-3 space-y-3">
           <div>
-            <p className="mb-1 text-sm font-medium">제목</p>
+            <p className="mb-1 text-sm font-medium">
+              제목 <span className="font-normal text-stone-600">({charCount(draft.title)}자)</span>
+            </p>
             <p data-testid="draft-title" className="rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm">
               {draft.title}
             </p>
           </div>
           <div>
-            <p className="mb-1 text-sm font-medium">본문</p>
+            <p className="mb-1 text-sm font-medium">
+              본문 — 항목별 <span className="font-normal text-stone-600">({charCount(draft.body)}자)</span>
+            </p>
             <pre data-testid="draft-body" className="whitespace-pre-wrap rounded-md border border-stone-300 bg-stone-50 px-3 py-2 font-sans text-sm">
               {draft.body}
             </pre>
@@ -583,6 +587,20 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
           <div className="flex flex-wrap gap-2">
             <CopyButton text={draft.title} label="제목 복사" />
             <CopyButton text={`${draft.title}\n\n${draft.body}`} label="제목+본문 복사" />
+          </div>
+          <div>
+            <p className="mb-1 text-sm font-medium">
+              본문 — 한 줄 <span className="font-normal text-stone-600">({charCount(draft.compact)}자)</span>
+            </p>
+            <p data-testid="draft-compact" className="rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm">
+              {draft.compact}
+            </p>
+            <p className="mt-1 text-xs text-stone-600">
+              같은 내용을 한 줄로 이은 것입니다(채팅이나 짧은 글용). 판매처마다 글자 수 제한이 다르니 글자 수를 보고 직접 줄여 주세요.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton text={draft.compact} label="한 줄 본문 복사" />
           </div>
         </div>
       </Section>

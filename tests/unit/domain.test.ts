@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildComparison, isSameListing, type ComparableRecord } from "@/lib/domain/compare";
 import { normalizeIdentifier, normalizeIsbn } from "@/lib/domain/isbn";
-import { buildListingDraft } from "@/lib/domain/listing";
+import { buildListingDraft, charCount } from "@/lib/domain/listing";
 import { feeFromRate, formatMoney, medianInt, parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet, netDifference } from "@/lib/domain/net";
 import { validatePriceInput } from "@/lib/domain/price-input";
@@ -377,6 +377,18 @@ describe("판매글 초안", () => {
     expect(d.missing.join()).toContain("밑줄");
     expect(d.missing.join()).toContain("하자");
     expect(d.body).not.toContain("희망 가격");
+  });
+  it("한 줄 본문은 항목별 본문과 같은 사실만 담는다(형식만 다름)", () => {
+    const d = buildListingDraft(book, 15000);
+    expect(d.compact.split(" / ")).toEqual(d.body.split("\n"));
+    expect(d.compact).not.toContain("\n");
+    expect(d.compact).not.toContain("밑줄"); // 모름은 한 줄 본문에도 쓰지 않는다
+  });
+  it("글자 수는 유니코드 문자 단위로 센다", () => {
+    expect(charCount("가나다 abc")).toBe(7);
+    expect(charCount("줄\n바꿈")).toBe(4);
+    expect(charCount("😀a")).toBe(2);
+    expect(charCount("")).toBe(0);
   });
   it("기기는 하자와 구성품을 그대로 옮긴다", () => {
     const d = buildListingDraft(

@@ -19,7 +19,19 @@ export type ListingItem = {
   hasSupplement: TriState;
 };
 
-export type ListingDraft = { title: string; body: string; missing: string[] };
+export type ListingDraft = {
+  title: string;
+  /** 항목마다 한 줄씩 쓴 본문 */
+  body: string;
+  /** 같은 사실을 한 줄로 이은 짧은 본문(채팅·짧은 글용). 내용은 body와 같고 형식만 다르다. */
+  compact: string;
+  missing: string[];
+};
+
+/** 글자 수(공백·줄바꿈 포함, 유니코드 문자 단위). 판매처의 글자 수 제한은 앱이 알지 못하므로 숫자만 보여 준다. */
+export function charCount(text: string): number {
+  return Array.from(text).length;
+}
 
 function tri(label: string, v: TriState): string | null {
   if (v === "YES") return `${label}: 있음`;
@@ -70,5 +82,5 @@ export function buildListingDraft(item: ListingItem, askingPrice: number | null)
   if (askingPrice !== null) lines.push(`희망 가격: ${formatMoney(askingPrice)}`);
   else missing.push("희망 가격(개인 판매 예상 금액을 저장하면 들어갑니다)");
 
-  return { title: title.trim(), body: lines.join("\n"), missing };
+  return { title: title.trim(), body: lines.join("\n"), compact: lines.join(" / "), missing };
 }
