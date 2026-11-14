@@ -252,6 +252,39 @@ test("localhost가 아닌 Host로 들어온 요청은 거부한다(DNS 리바인
   expect(ok.status()).toBe(200);
 });
 
+test("보안 헤더: CSP는 nonce로만 스크립트를 허용하고, 화면들이 CSP 위반 없이 동작한다", async ({ page, request }) => {
+  const res = await request.get("/");
+  const h = res.headers();
+  const csp = h["content-security-policy"] ?? "";
+  expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+  expect(csp).not.toContain("'unsafe-eval'");
+  expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  expect(csp).toContain("frame-ancestors 'none'");
+  expect(csp).toContain("object-src 'none'");
+  expect(h["x-content-type-options"]).toBe("nosniff");
+  expect(h["x-frame-options"]).toBe("DENY");
+  expect(h["referrer-policy"]).toBe("no-referrer");
+  // nonce는 요청마다 다르다
+  const csp2 = (await request.get("/")).headers()["content-security-policy"] ?? "";
+  expect(csp2.match(/nonce-[^']+/)?.[0]).not.toBe(csp.match(/nonce-[^']+/)?.[0]);
+  // API 응답과 거부 응답에도 붙는다
+  expect((await request.get("/api/export/prices")).headers()["x-content-type-options"]).toBe("nosniff");
+  const evil = await request.get("/", { headers: { Host: "evil.example:3217" } });
+  expect(evil.status()).toBe(403);
+  expect(evil.headers()["x-frame-options"]).toBe("DENY");
+
+  const violations: string[] = [];
+  page.on("console", (m) => {
+    if (/Content Security Policy|CSP/i.test(m.text())) violations.push(m.text());
+  });
+  page.on("pageerror", (e) => violations.push(String(e)));
+  for (const path of ["/", "/triage", "/checkup", "/results", "/settings", "/items/new", itemUrl]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: "얼마에 팔까" })).toBeVisible();
+  }
+  expect(violations).toEqual([]);
+});
+
 test("판매 결과 돌아보기: 선택 당시 예상과 실제를 물건별로 비교한다", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "판매 결과", exact: true }).click();
