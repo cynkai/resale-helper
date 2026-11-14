@@ -310,3 +310,22 @@ describe("가져오기 API 본문 처리", () => {
     });
   });
 });
+
+describe("보안 헤더", () => {
+  it("CSP는 nonce로만 스크립트를 허용하고, 운영에서는 eval과 인라인 스크립트를 허용하지 않는다", async () => {
+    const { contentSecurityPolicy, STATIC_SECURITY_HEADERS } = await import("@/lib/security-headers");
+    const prod = contentSecurityPolicy("abc123", false);
+    const script = prod.split("; ").find((d) => d.startsWith("script-src"))!;
+    expect(script).toBe("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
+    expect(prod).not.toContain("unsafe-eval");
+    expect(prod).toContain("default-src 'self'");
+    expect(prod).toContain("connect-src 'self'");
+    expect(prod).toContain("frame-ancestors 'none'");
+    expect(prod).toContain("form-action 'self'");
+    expect(prod).toContain("base-uri 'self'");
+    expect(prod).not.toMatch(/https?:|\*/); // 외부 출처·와일드카드 없음
+    // 개발 모드에서만 eval을 허용한다
+    expect(contentSecurityPolicy("abc123", true)).toContain("'unsafe-eval'");
+    expect(STATIC_SECURITY_HEADERS).toMatchObject({ "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
+  });
+});
