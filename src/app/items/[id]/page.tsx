@@ -8,6 +8,7 @@ import {
   togglePriceAction,
 } from "@/app/actions";
 import { ConfirmSubmit, CopyButton, CsvImportForm, SaleResultForm } from "@/components/client-bits";
+import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { ScenarioForm, type BasisOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -176,6 +177,10 @@ export default async function ItemPage({
     issuesByMethod.DIRECT.length === 0 ? nets.DIRECT : null,
     issuesByMethod.BUYBACK.length === 0 ? nets.BUYBACK : null,
   );
+  // 손익분기: 업체 계산이 믿을 만하고(기준 자료 문제 없음) 개인 판매 비용을 모두 알 때만.
+  const directSc = byMethod("DIRECT");
+  const breakEven =
+    directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
   const choiceOutdated = isChoiceOutdated(item, item.chosenMethod ? byMethod(item.chosenMethod) : undefined);
 
   const usable = prices.filter((p) => p.currency === "KRW" && !isQuoteExpired(p, today));
@@ -522,6 +527,12 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                   ? "두 방법의 예상 실수령액이 같습니다."
                   : `개인에게 직접 팔면 업체 판매보다 예상 실수령액이 ${formatMoney(Math.abs(diff))} ${diff > 0 ? "더 많습니다" : "더 적습니다"}.`}
             </p>
+            {breakEven?.ok && directSc ? (
+              <p data-testid="break-even" className="text-stone-700">
+                지금 입력한 비용대로라면, 개인 판매금액이 <strong>{formatMoney(breakEven.saleAmount)}</strong> 이상일 때 업체 판매와 실수령액이 같거나
+                많아집니다(입력한 개인 판매금액: {formatMoney(directSc.saleAmount)}). 그 금액에 팔린다는 뜻이 아니며, 들이는 시간은 반영하지 않았습니다.
+              </p>
+            ) : null}
             {diff !== null && byMethod("DIRECT")?.expectedMinutes != null && byMethod("BUYBACK")?.expectedMinutes != null ? (
               <p className="text-stone-700">
                 내가 어림한 소요시간은 개인 판매 {byMethod("DIRECT")!.expectedMinutes}분, 업체 판매 {byMethod("BUYBACK")!.expectedMinutes}분입니다.
