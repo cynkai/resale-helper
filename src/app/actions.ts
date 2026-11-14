@@ -111,6 +111,15 @@ export async function deletePriceAction(fd: FormData): Promise<void> {
   revalidatePath(`/items/${item.id}`);
 }
 
+/** 가격이 그대로인 것을 출처에서 다시 확인했을 때 확인일만 오늘로 바꾼다. */
+export async function recheckPriceAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const priceId = intId(s(fd, "priceId"));
+  if (priceId !== null) repo.recheckPrice(db, item.id, priceId, todayYmd());
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/checkup");
+}
+
 export async function togglePriceAction(fd: FormData): Promise<void> {
   const { item, db } = await requireItem(s(fd, "itemId"));
   const priceId = intId(s(fd, "priceId"));

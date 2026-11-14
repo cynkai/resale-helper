@@ -17,6 +17,7 @@ import {
   listPriceHistory,
   listPrices,
   listScenarios,
+  recheckPrice,
   setChosenMethod,
   updatePrice,
   upsertSaleResult,
@@ -131,6 +132,21 @@ describe("같은 매물의 가격 변동 이력", () => {
     const now = listPrices(db, item.id);
     expect(now).toHaveLength(1);
     expect(now[0]!.amountMinor).toBe(15000);
+  });
+  it("가격이 그대로면 확인일만 오늘로 바꾸고 이전 확인일을 이력에 남긴다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    const saved = insertPrice(db, item, price({ externalId: "R1", amount: "20000", checkedDate: "2026-08-01" }), "MANUAL");
+    if (!saved.ok) throw new Error("insert");
+    expect(recheckPrice(db, item.id, saved.id, TODAY)).toBe(true);
+    const now = listPrices(db, item.id)[0]!;
+    expect([now.amountMinor, now.checkedDate]).toEqual([20000, TODAY]);
+    expect(listPriceHistory(db, item.id).get(saved.id)!.map((h) => [h.checkedDate, h.amountMinor])).toEqual([["2026-08-01", 20000]]);
+    // 같은 날 다시 눌러도 이력이 늘지 않는다
+    expect(recheckPrice(db, item.id, saved.id, TODAY)).toBe(false);
+    expect(listPriceHistory(db, item.id).get(saved.id)).toHaveLength(1);
+    // 다른 물건의 번호로는 바꿀 수 없다
+    const other = createItem(db, false, { ...bookInput, name: "다른 책" });
+    expect(recheckPrice(db, other, saved.id, "2026-12-01")).toBe(false);
   });
   it("유형을 바꾸면 당시 유형을 이력에 남기고, 가격 자료를 지우면 이력도 지워진다", () => {
     const item = getItem(db, false, createItem(db, false, bookInput))!;
