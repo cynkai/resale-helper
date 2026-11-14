@@ -3,6 +3,7 @@ import { Fragment } from "react";
 import { TimeValueForm } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
+import { breakEvenDirectSale, directThresholdWithTime } from "@/lib/domain/break-even";
 import { getTimeValuePerHour, listTriageCandidates } from "@/lib/db/repo";
 import { formatMoney } from "@/lib/domain/money";
 import type { NetResult } from "@/lib/domain/net";
@@ -42,11 +43,24 @@ export default async function TriagePage() {
   const timeValue = getTimeValuePerHour(db, demo);
   const today = todayYmd();
   const rows = listTriageCandidates(db, demo)
-    .map((c) => ({
-      ...c,
-      scenarioOf: (m: SaleMethod) => c.scenarios.find((s) => s.method === m),
-      result: triageItem(c, timeValue, today),
-    }))
+    .map((c) => {
+      const result = triageItem(c, timeValue, today);
+      const direct = c.scenarios.find((s) => s.method === "DIRECT");
+      // 기준선: 업체 계산이 믿을 만하고(완전·기준 자료 문제 없음) 개인 판매 비용을 모두 알 때만.
+      const buybackOk = result.buybackNet?.net != null && !result.reasons.some((r) => r.code === "BASIS_ISSUE" && r.method === "BUYBACK");
+      const buybackNet = buybackOk ? result.buybackNet!.net : null;
+      const even = direct && buybackOk ? breakEvenDirectSale(direct, buybackNet) : null;
+      const withTime = direct && buybackOk ? directThresholdWithTime(direct, buybackNet, result.extraMinutes, timeValue) : null;
+      return {
+        ...c,
+        scenarioOf: (m: SaleMethod) => c.scenarios.find((s) => s.method === m),
+        result,
+        lines: {
+          even: even?.ok ? even.saleAmount : null,
+          withTime: withTime?.ok ? withTime.saleAmount : null,
+        },
+      };
+    })
     .sort((a, b) => compareTriage(a.result, b.result) || a.item.id - b.item.id);
   const counts = countVerdicts(rows.map((r) => r.result));
 
@@ -101,7 +115,7 @@ export default async function TriagePage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ item, result, scenarioOf }) => {
+                {rows.map(({ item, result, scenarioOf, lines }) => {
                   const buyback = scenarioOf("BUYBACK");
                   const direct = scenarioOf("DIRECT");
                   const bg = result.verdict === "UNDECIDED" ? "bg-amber-50/40" : "";
@@ -162,6 +176,12 @@ export default async function TriagePage() {
                             </li>
                           ))}
                         </ul>
+                        {lines.even !== null ? (
+                          <p className="mt-1 text-stone-700" data-testid={`lines-${item.id}`}>
+                            기준선(입력한 비용으로 한 산수, 예측 아님): 직접 판매금액이 {formatMoney(lines.even)} 이상이면 업체와 실수령액이 같거나 많음
+                            {lines.withTime !== null ? ` · ${formatMoney(lines.withTime)} 이상이면 내 시간당 가치까지 넘김` : ""}
+                          </p>
+                        ) : null}
                         {result.verdict === "UNDECIDED" && !result.reasons.some((r) => r.code === "NO_TIME_VALUE") ? (
                           <Link href={`/items/${item.id}#net`} className="mt-1 inline-block underline">
                             물건 상세에서 채우기

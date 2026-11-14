@@ -396,6 +396,7 @@ test("물건 배분: 물건마다 직접 판매·업체·판단 보류를 나누
   await page.getByRole("button", { name: "시간당 가치 저장" }).click();
   await expect(page.getByTestId(`verdict-${fast}`)).toHaveText("직접 판매");
   await expect(page.getByTestId(`verdict-${slow}`)).toHaveText("업체에 넘기기");
+  await expect(page.locator('[data-testid^="lines-"]').first()).toContainText("이상이면 업체와 실수령액이 같거나 많음");
   const counts = page.getByTestId("triage-counts");
   await expect(counts).toContainText("직접 판매 1개");
   await expect(counts).toContainText("업체 1개");
