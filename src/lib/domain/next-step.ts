@@ -12,6 +12,8 @@ export type NextStepInput = {
 
 export type NextStepCode = "ADD_PRICES" | "ENTER_COSTS" | "CHOOSE_METHOD" | "POST_LISTING" | "RECORD_RESULT" | "DONE";
 
+export const NEXT_STEP_CODES = ["ADD_PRICES", "ENTER_COSTS", "CHOOSE_METHOD", "POST_LISTING", "RECORD_RESULT", "DONE"] as const satisfies readonly NextStepCode[];
+
 export const NEXT_STEP_LABEL: Record<NextStepCode, string> = {
   ADD_PRICES: "가격 자료 넣기",
   ENTER_COSTS: "판매 금액·비용 입력하기",
@@ -31,4 +33,11 @@ export function nextStep(s: NextStepInput): NextStepCode {
   // 업체에 넘기기로 했으면 판매글이 필요 없다.
   if (s.status === "OWNED" && s.chosenMethod === "DIRECT") return "POST_LISTING";
   return "RECORD_RESULT";
+}
+
+/** 할 일별 건수(목록 화면의 요약). 금액은 다루지 않는다. */
+export function countNextSteps(steps: NextStepCode[]): Record<NextStepCode, number> {
+  const c: Record<NextStepCode, number> = { ADD_PRICES: 0, ENTER_COSTS: 0, CHOOSE_METHOD: 0, POST_LISTING: 0, RECORD_RESULT: 0, DONE: 0 };
+  for (const s of steps) c[s]++;
+  return c;
 }

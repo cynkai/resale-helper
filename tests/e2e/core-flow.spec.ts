@@ -498,6 +498,13 @@ test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준�
   const id = page.url().split("/").pop();
   await page.goto("/");
   await expect(page.getByTestId(`next-step-${id}`)).toHaveText("다음: 가격 자료 넣기");
+  // 할 일로 걸러 보기
+  const filter = page.getByTestId("step-filter");
+  await filter.getByRole("link", { name: /^가격 자료 넣기 \d+$/ }).click();
+  await expect(page).toHaveURL(/step=ADD_PRICES/);
+  await expect(page.getByTestId(`next-step-${id}`)).toBeVisible();
+  await expect(page.locator('[data-testid^="next-step-"]').filter({ hasText: "완료:" })).toHaveCount(0);
+  await filter.getByRole("link", { name: /^전체 \d+$/ }).click();
   // 판매 결과까지 기록한 물건은 완료로 표시
   await expect(page.locator('[data-testid^="next-step-"]').filter({ hasText: "완료: 판매 결과까지 기록함" }).first()).toBeVisible();
 });

@@ -7,7 +7,7 @@ import { feeFromRate, formatMoney, medianInt, parseAmount, parsePercentToBp } fr
 import { computeNet, netDifference } from "@/lib/domain/net";
 import { validatePriceInput } from "@/lib/domain/price-input";
 import { normalizeUrl } from "@/lib/domain/url";
-import { nextStep } from "@/lib/domain/next-step";
+import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep } from "@/lib/domain/next-step";
 
 const TODAY = "2026-11-11";
 
@@ -440,6 +440,10 @@ describe("다음에 할 일", () => {
     expect(nextStep({ ...base, priceCount: 2, scenarioCount: 1 })).toBe("CHOOSE_METHOD");
     expect(nextStep({ ...base, priceCount: 2, scenarioCount: 2, chosenMethod: "DIRECT" })).toBe("POST_LISTING");
     expect(nextStep({ ...base, status: "LISTED", priceCount: 2, scenarioCount: 2, chosenMethod: "DIRECT" })).toBe("RECORD_RESULT");
+  });
+  it("할 일별 건수를 세고, 모든 할 일에 이름이 있다", () => {
+    expect(countNextSteps(["ADD_PRICES", "DONE", "ADD_PRICES"])).toEqual({ ADD_PRICES: 2, ENTER_COSTS: 0, CHOOSE_METHOD: 0, POST_LISTING: 0, RECORD_RESULT: 0, DONE: 1 });
+    expect([...NEXT_STEP_CODES].sort()).toEqual(Object.keys(NEXT_STEP_LABEL).sort());
   });
   it("업체에 넘기기로 했으면 판매글 단계를 건너뛴다", () => {
     expect(nextStep({ ...base, priceCount: 1, scenarioCount: 1, chosenMethod: "BUYBACK" })).toBe("RECORD_RESULT");
