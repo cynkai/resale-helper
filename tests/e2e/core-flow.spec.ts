@@ -272,6 +272,16 @@ test("판매 결과 돌아보기: 선택 당시 예상과 실제를 물건별로
   await expect(groups).not.toContainText("원");
 });
 
+test("자료 점검: 만료된 견적과 다시 확인할 계산을 물건별로 모아 보여 준다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "점검", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "자료 점검" })).toBeVisible();
+  // 금액 합계는 없다. 건수만 요약한다.
+  const counts = page.getByTestId("checkup-counts");
+  if (await counts.count()) await expect(counts).toContainText("손볼 물건");
+  else await expect(page.getByTestId("checkup-empty")).toBeVisible();
+});
+
 test("전체 백업 파일을 SQLite 형식으로 내려받는다", async ({ page }) => {
   await page.goto("/");
   const [download] = await Promise.all([

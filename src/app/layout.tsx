@@ -45,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <nav aria-label="주 메뉴" className="flex items-center gap-2">
               <Link href="/" className="btn">내 물건</Link>
               <Link href="/triage" className="btn">배분</Link>
+              <Link href="/checkup" className="btn">점검</Link>
               <Link href="/results" className="btn">판매 결과</Link>
               <Link href="/items/new" className="btn-primary">물건 등록</Link>
             </nav>

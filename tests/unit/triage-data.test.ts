@@ -154,3 +154,22 @@ describe("배분 대상 조회", () => {
     expect(after.reasons).toEqual([{ code: "BASIS_ISSUE", method: "BUYBACK", issues: ["BASIS_DELETED"] }]);
   });
 });
+
+describe("자료 점검 대상 조회", () => {
+  it("현재 모드의 아직 팔지 않은 물건만, 가격 자료·시나리오와 함께 가져온다", async () => {
+    const { listCheckupSources } = await import("@/lib/db/repo");
+    const owned = createItem(db, false, item("보유"));
+    const sold = createItem(db, false, item("팔림"));
+    upsertSaleResult(db, false, sold, { channel: "장터", soldDate: TODAY, amount: 1000, costTotal: 0, minutesSpent: null, memo: null });
+    seedDemo(db, TODAY);
+    const p = validatePriceInput({ priceType: "ASKING", amount: "5000", sourceName: "장터", checkedDate: TODAY }, { route: "MANUAL", today: TODAY });
+    if (!p.ok) throw new Error("price");
+    insertPrice(db, getItem(db, false, owned)!, p.value, "MANUAL");
+    upsertScenario(db, owned, "DIRECT", scenario({ saleAmount: 5000 }));
+    const real = listCheckupSources(db, false);
+    expect(real.map((r) => r.item.id)).toEqual([owned]);
+    expect(real[0]!.prices).toHaveLength(1);
+    expect(real[0]!.scenarios).toHaveLength(1);
+    expect(listCheckupSources(db, true).every((r) => r.item.isDemo)).toBe(true);
+  });
+});
