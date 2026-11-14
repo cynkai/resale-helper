@@ -263,6 +263,11 @@ test("판매 결과 돌아보기: 선택 당시 예상과 실제를 물건별로
   await expect(row).toContainText("모름 → 50분");
   // 요약은 건수만 보여 주고 금액을 합치지 않는다
   await expect(page.getByTestId("review-counts")).not.toContainText("원");
+  // 묶어 보기도 건수만
+  const groups = page.getByTestId("review-groups");
+  await expect(groups.getByRole("heading", { name: "카테고리별" })).toBeVisible();
+  await expect(groups.getByRole("row", { name: /도서/ })).toContainText("1");
+  await expect(groups).not.toContainText("원");
 });
 
 test("전체 백업 파일을 SQLite 형식으로 내려받는다", async ({ page }) => {

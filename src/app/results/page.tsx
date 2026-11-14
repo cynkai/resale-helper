@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listSaleReviews } from "@/lib/db/repo";
 import { formatMoney } from "@/lib/domain/money";
-import { countOutcomes, reviewRow } from "@/lib/domain/review";
+import { channelKey, countOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 
@@ -16,6 +16,38 @@ function signed(n: number | null, unit: "won" | "min"): string {
 function tone(n: number | null): string {
   if (n === null || n === 0) return "";
   return n > 0 ? "text-teal-900" : "text-red-800";
+}
+
+function GroupTable({ title, head, groups, label }: { title: string; head: string; groups: OutcomeGroup[]; label: (key: string) => string }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <table className="mt-1 w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-stone-300 text-left text-xs text-stone-600">
+            <th scope="col" className="py-1 pr-2 font-medium">{head}</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">기록</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">많음</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">같음</th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">적음</th>
+            <th scope="col" className="py-1 pl-2 text-right font-medium">비교 불가</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-200">
+          {groups.map((g) => (
+            <tr key={g.key}>
+              <th scope="row" className="py-1 pr-2 text-left font-normal">{label(g.key)}</th>
+              <td className="px-2 py-1 text-right">{g.total}</td>
+              <td className="px-2 py-1 text-right">{g.counts.ABOVE}</td>
+              <td className="px-2 py-1 text-right">{g.counts.EQUAL}</td>
+              <td className="px-2 py-1 text-right">{g.counts.BELOW}</td>
+              <td className="py-1 pl-2 text-right">{g.counts.UNKNOWN}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export default async function ResultsPage() {
@@ -32,6 +64,14 @@ export default async function ResultsPage() {
     }),
   }));
   const counts = countOutcomes(rows.map((r) => r.review));
+  type Row = (typeof rows)[number];
+  const review = (r: Row) => r.review;
+  const byCategory = groupOutcomes(rows, (r) => r.item.category, review);
+  const byMethod = groupOutcomes(rows, (r) => r.item.chosenMethod ?? "NONE", review);
+  const byChannel = groupOutcomes(rows, (r) => channelKey(r.result.channel), review);
+  // 판매처 표시 이름은 그 묶음에서 처음 나온 표기
+  const channelName = new Map<string, string>();
+  for (const r of rows) if (!channelName.has(channelKey(r.result.channel))) channelName.set(channelKey(r.result.channel), r.result.channel.trim());
 
   return (
     <div className="space-y-4">
@@ -61,6 +101,25 @@ export default async function ResultsPage() {
                 비교 불가: 판매 방법을 고르지 않았거나, 선택 당시 또는 실제 비용을 모르는 기록입니다.
               </p>
             ) : null}
+          </section>
+
+          <section aria-label="묶어 보기" className="card space-y-4" data-testid="review-groups">
+            <div>
+              <h2 className="font-semibold">묶어 보기</h2>
+              <p className="mt-1 text-xs text-stone-600">
+                실수령액이 예상보다 많았는지·적었는지의 건수만 셉니다. 묶음 안에서도 금액은 더하거나 평균 내지 않습니다. 건수가 적으면 경향이라고 보기 어렵습니다.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <GroupTable title="카테고리별" head="카테고리" groups={byCategory} label={(k) => CATEGORY_LABEL[k as keyof typeof CATEGORY_LABEL] ?? k} />
+              <GroupTable
+                title="고른 방법별"
+                head="방법"
+                groups={byMethod}
+                label={(k) => (k === "NONE" ? "방법 선택 안 함" : SALE_METHOD_LABEL[k as keyof typeof SALE_METHOD_LABEL])}
+              />
+              <GroupTable title="판매처별" head="판매처(내가 적은 이름)" groups={byChannel} label={(k) => channelName.get(k) ?? k} />
+            </div>
           </section>
 
           <div className="card overflow-x-auto p-0">

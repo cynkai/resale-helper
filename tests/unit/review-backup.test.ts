@@ -8,7 +8,7 @@ import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
 import { createItem, listItems, listSaleReviews, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
-import { countOutcomes, reviewRow } from "@/lib/domain/review";
+import { channelKey, countOutcomes, groupOutcomes, reviewRow } from "@/lib/domain/review";
 
 const book: ValidItemInput = {
   category: "BOOK",
@@ -50,6 +50,30 @@ describe("판매 결과 돌아보기", () => {
   it("건수만 센다", () => {
     const rows = [reviewRow(base), reviewRow({ ...base, costTotal: 0 }), reviewRow({ ...base, costTotal: null })];
     expect(countOutcomes(rows)).toEqual({ ABOVE: 1, EQUAL: 0, BELOW: 1, UNKNOWN: 1 });
+  });
+});
+
+describe("판매 결과 묶어 보기", () => {
+  const mk = (cat: string, channel: string, netDiff: number | null) => ({
+    cat,
+    channel,
+    review: { actualNet: null, saleDiff: null, netDiff, minutesDiff: null, outcome: netDiff === null ? "UNKNOWN" : netDiff > 0 ? "ABOVE" : netDiff < 0 ? "BELOW" : "EQUAL" } as const,
+  });
+  const rows = [mk("BOOK", "가상장터", 100), mk("BOOK", " 가상장터 ", -50), mk("CONSOLE", "Market A", null), mk("BOOK", "market  a", 0)];
+  it("묶음별로 건수만 세고, 건수가 많은 묶음부터 보여 준다", () => {
+    const g = groupOutcomes(rows, (r) => r.cat, (r) => r.review);
+    expect(g).toEqual([
+      { key: "BOOK", total: 3, counts: { ABOVE: 1, EQUAL: 1, BELOW: 1, UNKNOWN: 0 } },
+      { key: "CONSOLE", total: 1, counts: { ABOVE: 0, EQUAL: 0, BELOW: 0, UNKNOWN: 1 } },
+    ]);
+    expect(JSON.stringify(g)).not.toMatch(/amount|net|sum|avg/i);
+  });
+  it("판매처는 공백·대소문자 차이를 같은 곳으로 묶는다", () => {
+    const g = groupOutcomes(rows, (r) => channelKey(r.channel), (r) => r.review);
+    expect(Object.fromEntries(g.map((x) => [x.key, x.total]))).toEqual({ "market a": 2, 가상장터: 2 });
+  });
+  it("기록이 없으면 빈 목록", () => {
+    expect(groupOutcomes([], () => "x", () => reviewRow({ chosenSaleAmount: null, chosenNetAmount: null, expectedMinutes: null, amount: 1, costTotal: null, minutesSpent: null }))).toEqual([]);
   });
 });
 

@@ -34,3 +34,27 @@ export function countOutcomes(rows: ReviewRow[]): Record<ReviewRow["outcome"], n
   for (const r of rows) c[r.outcome]++;
   return c;
 }
+
+export type OutcomeGroup = { key: string; total: number; counts: Record<ReviewRow["outcome"], number> };
+
+/**
+ * 묶음별 건수. 금액은 묶음 안에서도 더하지 않는다(물건마다 기준이 다르다).
+ * 건수가 많은 묶음부터, 같으면 이름순.
+ */
+export function groupOutcomes<T>(rows: T[], keyOf: (row: T) => string, reviewOf: (row: T) => ReviewRow): OutcomeGroup[] {
+  const map = new Map<string, ReviewRow[]>();
+  for (const r of rows) {
+    const k = keyOf(r);
+    const list = map.get(k);
+    if (list) list.push(reviewOf(r));
+    else map.set(k, [reviewOf(r)]);
+  }
+  return [...map.entries()]
+    .map(([key, list]) => ({ key, total: list.length, counts: countOutcomes(list) }))
+    .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key, "ko"));
+}
+
+/** 판매처 이름을 묶을 때 쓰는 키: 앞뒤·중복 공백을 정리하고 영문 대소문자를 구분하지 않는다. 표시 이름은 처음 나온 표기를 쓴다. */
+export function channelKey(channel: string): string {
+  return channel.trim().replace(/\s+/g, " ").toLowerCase();
+}
