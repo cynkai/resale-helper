@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildComparison, isSameListing, type ComparableRecord } from "@/lib/domain/compare";
 import { normalizeIdentifier, normalizeIsbn } from "@/lib/domain/isbn";
-import { nextStep } from "@/lib/domain/next-step";
 import { buildListingDraft } from "@/lib/domain/listing";
 import { feeFromRate, formatMoney, medianInt, parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet, netDifference } from "@/lib/domain/net";
 import { validatePriceInput } from "@/lib/domain/price-input";
 import { normalizeUrl } from "@/lib/domain/url";
+import { nextStep } from "@/lib/domain/next-step";
 
 const TODAY = "2026-11-11";
 
