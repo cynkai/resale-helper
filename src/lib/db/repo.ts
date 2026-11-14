@@ -338,3 +338,28 @@ export function clearDemo(db: Db): void {
   db.delete(items).where(eq(items.isDemo, true)).run();
   db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
 }
+
+// ---- 자료 점검 ----
+
+/** 현재 모드에서 아직 팔지 않은 물건과 그 가격 자료·시나리오 전체. */
+export function listCheckupSources(db: Db, isDemo: boolean) {
+  const its = db
+    .select()
+    .from(items)
+    .where(and(eq(items.isDemo, isDemo), inArray(items.status, ["OWNED", "LISTED"])))
+    .orderBy(asc(items.id))
+    .all();
+  if (its.length === 0) return [];
+  const ids = its.map((i) => i.id);
+  const prices = db
+    .select()
+    .from(priceRecords)
+    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
+    .all();
+  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).all();
+  return its.map((item) => ({
+    item,
+    prices: prices.filter((p) => p.itemId === item.id),
+    scenarios: scs.filter((s) => s.itemId === item.id),
+  }));
+}
