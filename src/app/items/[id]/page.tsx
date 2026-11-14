@@ -11,6 +11,7 @@ import { ConfirmSubmit, CopyButton, CsvImportForm, SaleResultForm } from "@/comp
 import { ScenarioForm, type BasisOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
+import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { getItem, getSaleResult, listPrices, listScenarios } from "@/lib/db/repo";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
 import {
@@ -22,7 +23,6 @@ import {
   type Classified,
 } from "@/lib/domain/compare";
 import { CSV_COLUMNS } from "@/lib/domain/csv";
-import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { buildListingDraft } from "@/lib/domain/listing";
 import { bpToPercentString, formatMoney } from "@/lib/domain/money";
 import { COST_LABEL, computeNet, netDifference, type NetResult } from "@/lib/domain/net";
