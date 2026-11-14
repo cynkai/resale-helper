@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listItems } from "@/lib/db/repo";
-import { NEXT_STEP_LABEL, nextStep } from "@/lib/domain/next-step";
+import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -21,8 +21,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const category = CATEGORIES.includes(sp.category as Category) ? (sp.category as Category) : undefined;
   const status = ITEM_STATUSES.includes(sp.status as ItemStatus) ? (sp.status as ItemStatus) : undefined;
   const demo = await isDemoMode();
-  const rows = listItems(getDb(), demo, { q, category, status });
-  const filtered = Boolean(q || category || status);
+  const step = NEXT_STEP_CODES.includes(sp.step as NextStepCode) ? (sp.step as NextStepCode) : undefined;
+  const all = listItems(getDb(), demo, { q, category, status }).map((r) => ({
+    ...r,
+    step: nextStep({ status: r.item.status, priceCount: r.priceCount, scenarioCount: r.scenarioCount, chosenMethod: r.item.chosenMethod, hasResult: r.resultCount > 0 }),
+  }));
+  // 할 일별 건수는 할 일 필터를 걸기 전(다른 조건만 적용한) 목록으로 센다.
+  const stepCounts = countNextSteps(all.map((r) => r.step));
+  const rows = step ? all.filter((r) => r.step === step) : all;
+  const filtered = Boolean(q || category || status || step);
+  const stepHref = (code?: NextStepCode) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (category) p.set("category", category);
+    if (status) p.set("status", status);
+    if (code) p.set("step", code);
+    const qs = p.toString();
+    return qs ? `/?${qs}` : "/";
+  };
 
   return (
     <div className="space-y-4">
@@ -35,6 +51,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       </div>
 
       <form method="get" className="card grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]" role="search">
+        {step ? <input type="hidden" name="step" value={step} /> : null}
         <div>
           <label htmlFor="q" className="sr-only">검색</label>
           <input id="q" name="q" defaultValue={q} className="input" placeholder="이름·ISBN·모델명·저자 검색" />
@@ -63,6 +80,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </form>
 
+      {all.length > 0 ? (
+        <nav aria-label="다음에 할 일로 보기" className="flex flex-wrap gap-2 text-sm" data-testid="step-filter">
+          <Link href={stepHref()} aria-current={step ? undefined : "true"} className={`rounded-full border px-3 py-1 ${step ? "border-stone-300 bg-white hover:bg-stone-100" : "border-teal-800 bg-teal-50 font-medium"}`}>
+            전체 {all.length}
+          </Link>
+          {NEXT_STEP_CODES.filter((c) => stepCounts[c] > 0).map((c) => (
+            <Link
+              key={c}
+              href={stepHref(c)}
+              aria-current={step === c ? "true" : undefined}
+              className={`rounded-full border px-3 py-1 ${step === c ? "border-teal-800 bg-teal-50 font-medium" : "border-stone-300 bg-white hover:bg-stone-100"}`}
+            >
+              {NEXT_STEP_LABEL[c]} {stepCounts[c]}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
       {rows.length === 0 ? (
         <div className="card py-10 text-center">
           {filtered ? (
@@ -77,8 +112,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       ) : (
         <ul className="space-y-2">
-          {rows.map(({ item, priceCount, scenarioCount, resultCount }) => {
-            const step = nextStep({ status: item.status, priceCount, scenarioCount, chosenMethod: item.chosenMethod, hasResult: resultCount > 0 });
+          {rows.map(({ item, priceCount, step }) => {
             return (
             <li key={item.id}>
               <Link href={`/items/${item.id}`} className="card block hover:border-teal-700">
