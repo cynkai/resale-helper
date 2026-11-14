@@ -62,6 +62,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             — 복구는 앱을 끈 뒤 <code>pnpm db:restore &lt;파일&gt;</code>
           </p>
           <p className="mt-2">
+            <a href="/api/export/all" className="underline underline-offset-2 hover:text-stone-900" download>
+              읽을 수 있는 전체 내보내기(.json) 받기
+            </a>{" "}
+            — 지금 모드의 물건·가격 자료·계산·판매 결과(복구용 아님)
+          </p>
+          <p className="mt-2">
             <Link href="/settings" className="underline underline-offset-2 hover:text-stone-900">
               설정(가져오기 API·브라우저 확장)
             </Link>
