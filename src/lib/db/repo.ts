@@ -327,18 +327,6 @@ export function listTriageCandidates(db: Db, isDemo: boolean): TriageCandidate[]
   }));
 }
 
-// ---- 데모 ----
-
-export function countDemoItems(db: Db): number {
-  return db.select({ n: sql<number>`count(*)` }).from(items).where(eq(items.isDemo, true)).get()!.n;
-}
-
-/** 데모 자료만 지운다(가격·시나리오·판매 결과는 FK cascade로 함께 삭제). 데모 설정도 함께 비운다. */
-export function clearDemo(db: Db): void {
-  db.delete(items).where(eq(items.isDemo, true)).run();
-  db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
-}
-
 // ---- 자료 점검 ----
 
 /** 현재 모드에서 아직 팔지 않은 물건과 그 가격 자료·시나리오 전체. */
@@ -362,4 +350,16 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
     prices: prices.filter((p) => p.itemId === item.id),
     scenarios: scs.filter((s) => s.itemId === item.id),
   }));
+}
+
+// ---- 데모 ----
+
+export function countDemoItems(db: Db): number {
+  return db.select({ n: sql<number>`count(*)` }).from(items).where(eq(items.isDemo, true)).get()!.n;
+}
+
+/** 데모 자료만 지운다(가격·시나리오·판매 결과는 FK cascade로 함께 삭제). 데모 설정도 함께 비운다. */
+export function clearDemo(db: Db): void {
+  db.delete(items).where(eq(items.isDemo, true)).run();
+  db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
 }
