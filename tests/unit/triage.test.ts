@@ -232,3 +232,35 @@ describe("정렬과 건수", () => {
     expect(countVerdicts(rs)).toEqual({ DIRECT: 1, BUYBACK: 1, UNDECIDED: 1 });
   });
 });
+
+describe("시간까지 고려한 최저 직접 판매금액", () => {
+  const costs = { feeMode: "RATE" as const, feeAmount: null, feeRateBp: 350, shipping: 4000, packing: 0, transport: 0 };
+  const buyback = { method: "BUYBACK" as const, saleAmount: 60000, feeMode: "AMOUNT" as const, feeAmount: 0, feeRateBp: null, shipping: 0, packing: 0, transport: 2000, expectedMinutes: 40, basisPriceType: null };
+  const verdictAt = (saleAmount: number, tv: number) =>
+    triage({
+      buyback,
+      direct: { method: "DIRECT", saleAmount, ...costs, expectedMinutes: 180, basisPriceType: null },
+      buybackIssues: [],
+      directIssues: [],
+      timeValuePerHour: tv,
+      chosenMethod: null,
+    }).verdict;
+
+  it("그 금액에서 배분 판단이 처음으로 '직접 판매'가 된다(배분과 같은 반올림)", async () => {
+    const { directThresholdWithTime } = await import("@/lib/domain/break-even");
+    for (const tv of [0, 9000, 12000, 15001]) {
+      const r = directThresholdWithTime(costs, 58000, 140, tv);
+      if (!r || !r.ok) throw new Error("no threshold");
+      expect(verdictAt(r.saleAmount, tv), `tv=${tv}`).toBe("DIRECT");
+      expect(verdictAt(r.saleAmount - 1, tv), `tv=${tv}`).toBe("BUYBACK");
+    }
+  });
+  it("추가 소요시간이나 시간당 가치를 모르면, 또는 추가 시간이 0 이하면 시간 기준선은 없다", async () => {
+    const { directThresholdWithTime } = await import("@/lib/domain/break-even");
+    expect(directThresholdWithTime(costs, 58000, null, 9000)).toBeNull();
+    expect(directThresholdWithTime(costs, 58000, 140, null)).toBeNull();
+    expect(directThresholdWithTime(costs, 58000, 0, 9000)).toBeNull();
+    expect(directThresholdWithTime(costs, null, 140, 9000)).toEqual({ ok: false, reason: "BUYBACK_NET_UNKNOWN" });
+    expect(directThresholdWithTime({ ...costs, feeRateBp: null }, 58000, 140, 9000)).toEqual({ ok: false, reason: "DIRECT_COST_UNKNOWN" });
+  });
+});
