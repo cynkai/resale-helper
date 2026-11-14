@@ -252,7 +252,7 @@ test("localhost가 아닌 Host로 들어온 요청은 거부한다(DNS 리바인
 
 test("판매 결과 돌아보기: 선택 당시 예상과 실제를 물건별로 비교한다", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "판매 결과" }).click();
+  await page.getByRole("link", { name: "판매 결과", exact: true }).click();
   await expect(page.getByRole("heading", { name: "판매 결과 돌아보기" })).toBeVisible();
   await expect(page.getByTestId("review-counts")).toContainText("기록 1건");
   await expect(page.getByTestId("review-counts")).toContainText("많음 1건");
@@ -453,4 +453,18 @@ test("가져오기 API: 토큰이 없으면 꺼져 있고, 토큰·Origin 검사
   await page.getByRole("button", { name: "토큰 폐기" }).click();
   await expect(page.getByTestId("token-status")).toHaveText("토큰 없음");
   expect((await post({ Authorization: `Bearer ${token}` })).status()).toBe(403);
+});
+
+test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("ELECTRONICS");
+  await page.locator("#name").fill("다음 단계 확인용 기기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await page.waitForURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop();
+  await page.goto("/");
+  await expect(page.getByTestId(`next-step-${id}`)).toHaveText("다음: 가격 자료 넣기");
+  // 판매 결과까지 기록한 물건은 완료로 표시
+  await expect(page.locator('[data-testid^="next-step-"]').filter({ hasText: "완료: 판매 결과까지 기록함" }).first()).toBeVisible();
 });

@@ -6,6 +6,7 @@ import { feeFromRate, formatMoney, medianInt, parseAmount, parsePercentToBp } fr
 import { computeNet, netDifference } from "@/lib/domain/net";
 import { validatePriceInput } from "@/lib/domain/price-input";
 import { normalizeUrl } from "@/lib/domain/url";
+import { nextStep } from "@/lib/domain/next-step";
 
 const TODAY = "2026-11-11";
 
@@ -398,5 +399,23 @@ describe("판매글 초안", () => {
     expect(d.body).toContain("하자: 스틱 쏠림");
     expect(d.body).toContain("구성품: 본체, 독");
     expect(d.body).not.toContain("필기");
+  });
+});
+
+describe("다음에 할 일", () => {
+  const base = { status: "OWNED" as const, priceCount: 0, scenarioCount: 0, chosenMethod: null, hasResult: false };
+  it("입력된 단계까지만 보고 다음 한 가지를 고른다", () => {
+    expect(nextStep(base)).toBe("ADD_PRICES");
+    expect(nextStep({ ...base, priceCount: 2 })).toBe("ENTER_COSTS");
+    expect(nextStep({ ...base, priceCount: 2, scenarioCount: 1 })).toBe("CHOOSE_METHOD");
+    expect(nextStep({ ...base, priceCount: 2, scenarioCount: 2, chosenMethod: "DIRECT" })).toBe("POST_LISTING");
+    expect(nextStep({ ...base, status: "LISTED", priceCount: 2, scenarioCount: 2, chosenMethod: "DIRECT" })).toBe("RECORD_RESULT");
+  });
+  it("업체에 넘기기로 했으면 판매글 단계를 건너뛴다", () => {
+    expect(nextStep({ ...base, priceCount: 1, scenarioCount: 1, chosenMethod: "BUYBACK" })).toBe("RECORD_RESULT");
+  });
+  it("판매 완료인데 결과 기록이 없으면 기록이 먼저, 기록이 있으면 완료", () => {
+    expect(nextStep({ ...base, status: "SOLD" })).toBe("RECORD_RESULT");
+    expect(nextStep({ ...base, status: "SOLD", hasResult: true })).toBe("DONE");
   });
 });

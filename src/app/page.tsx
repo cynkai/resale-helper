@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listItems } from "@/lib/db/repo";
+import { NEXT_STEP_LABEL, nextStep } from "@/lib/domain/next-step";
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -76,7 +77,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       ) : (
         <ul className="space-y-2">
-          {rows.map(({ item, priceCount }) => (
+          {rows.map(({ item, priceCount, scenarioCount, resultCount }) => {
+            const step = nextStep({ status: item.status, priceCount, scenarioCount, chosenMethod: item.chosenMethod, hasResult: resultCount > 0 });
+            return (
             <li key={item.id}>
               <Link href={`/items/${item.id}`} className="card block hover:border-teal-700">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -98,9 +101,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                   {priceCount > 0 ? `가격 자료 ${priceCount}건` : "가격 자료 없음"}
                   {item.chosenMethod ? ` · 선택: ${SALE_METHOD_LABEL[item.chosenMethod]}` : ""}
                 </p>
+                <p className="mt-1 text-sm" data-testid={`next-step-${item.id}`}>
+                  <span className="text-stone-600">{step === "DONE" ? "완료: " : "다음: "}</span>
+                  <span className={step === "DONE" ? "text-stone-700" : "font-medium text-teal-900"}>{NEXT_STEP_LABEL[step]}</span>
+                </p>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>
