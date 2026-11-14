@@ -5,11 +5,13 @@ import type { Db } from "./client";
 import {
   costScenarios,
   items,
+  priceHistory,
   priceRecords,
   saleResults,
   userSettings,
   type CostScenario,
   type Item,
+  type PriceHistoryRow,
   type PriceRecord,
 } from "./schema";
 import { isSameListing } from "../domain/compare";
@@ -112,11 +114,47 @@ export function insertPrice(db: Db, item: Item, v: ValidPriceInput, route: Input
 export function updatePrice(db: Db, item: Item, id: number, v: ValidPriceInput): SaveResult {
   const others = listPrices(db, item.id).filter((e) => e.id !== id);
   if (others.some((e) => isSameListing(e, v))) return { ok: false, reason: "DUPLICATE" };
-  db.update(priceRecords)
-    .set({ ...v, updatedAt: now })
-    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, item.id)))
-    .run();
+  const before = getPrice(db, item.id, id);
+  db.transaction((tx) => {
+    // 금액·통화·확인일·유형 중 하나라도 바뀌면 바뀌기 전 값을 이력으로 남긴다.
+    if (
+      before &&
+      (before.amountMinor !== v.amountMinor || before.currency !== v.currency || before.checkedDate !== v.checkedDate || before.priceType !== v.priceType)
+    ) {
+      tx.insert(priceHistory)
+        .values({
+          priceRecordId: id,
+          priceType: before.priceType,
+          amountMinor: before.amountMinor,
+          currency: before.currency,
+          checkedDate: before.checkedDate,
+        })
+        .run();
+    }
+    tx.update(priceRecords)
+      .set({ ...v, updatedAt: now })
+      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, item.id)))
+      .run();
+  });
   return { ok: true, id };
+}
+
+/** 물건의 가격 자료들에 남은 이전 값(가격 자료별, 오래된 것부터). */
+export function listPriceHistory(db: Db, itemId: number): Map<number, PriceHistoryRow[]> {
+  const rows = db
+    .select({ h: priceHistory })
+    .from(priceHistory)
+    .innerJoin(priceRecords, eq(priceRecords.id, priceHistory.priceRecordId))
+    .where(eq(priceRecords.itemId, itemId))
+    .orderBy(asc(priceHistory.checkedDate), asc(priceHistory.id))
+    .all();
+  const map = new Map<number, PriceHistoryRow[]>();
+  for (const { h } of rows) {
+    const list = map.get(h.priceRecordId);
+    if (list) list.push(h);
+    else map.set(h.priceRecordId, [h]);
+  }
+  return map;
 }
 
 export function deletePrice(db: Db, itemId: number, id: number): void {
