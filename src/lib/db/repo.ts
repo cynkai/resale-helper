@@ -419,9 +419,25 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const results = db.select().from(saleResults).where(inArray(saleResults.itemId, ids)).all();
+  const histRows =
+    prices.length > 0
+      ? db
+          .select()
+          .from(priceHistory)
+          .where(inArray(priceHistory.priceRecordId, prices.map((p) => p.id)))
+          .orderBy(asc(priceHistory.checkedDate), asc(priceHistory.id))
+          .all()
+      : [];
+  const history = new Map<number, PriceHistoryRow[]>();
+  for (const h of histRows) {
+    const list = history.get(h.priceRecordId);
+    if (list) list.push(h);
+    else history.set(h.priceRecordId, [h]);
+  }
   return its.map((item) => ({
     item,
     prices: prices.filter((p) => p.itemId === item.id),
+    history,
     scenarios: scs.filter((s) => s.itemId === item.id),
     saleResult: results.find((r) => r.itemId === item.id),
   }));
