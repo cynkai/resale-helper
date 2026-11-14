@@ -3,7 +3,7 @@
 // - "모름"은 null로 싣는다(0으로 바꾸지 않는다).
 // - 설정(가져오기 토큰 해시 등)은 싣지 않는다.
 
-import type { CostScenario, Item, PriceRecord, SaleResult } from "../db/schema";
+import type { CostScenario, Item, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
 
@@ -12,6 +12,8 @@ export const FULL_EXPORT_VERSION = 1;
 export type FullExportSource = {
   item: Item;
   prices: PriceRecord[];
+  /** 가격 자료 id → 이전 값(오래된 것부터). 없으면 빈 목록으로 본다. */
+  history?: Map<number, PriceHistoryRow[]>;
   scenarios: CostScenario[];
   saleResult: SaleResult | undefined;
 };
@@ -25,11 +27,12 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
     notes: [
       "금액은 원(KRW) 정수입니다. null은 '모름'이며 0원과 다릅니다.",
       "가격 유형(priceType)이 다른 자료는 서로 비교하거나 합치지 않습니다.",
+      "previousValues는 같은 매물을 고치기 전의 값이며 별도 표본이 아닙니다.",
       "판매 결과는 사용자가 기록한 값이며 외부에서 검증된 체결가가 아닙니다.",
       ...(input.demo ? ["데모 모드의 가상 자료입니다. 실제 시세가 아닙니다."] : []),
     ],
     itemCount: input.sources.length,
-    items: input.sources.map(({ item, prices, scenarios, saleResult }) => {
+    items: input.sources.map(({ item, prices, history, scenarios, saleResult }) => {
       const chosenScenario = scenarios.find((s) => s.method === item.chosenMethod);
       return {
         id: item.id,
@@ -74,6 +77,13 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
           inputRoute: p.inputRoute,
           includedInComparison: p.includedInComparison,
           memo: p.memo,
+          // 같은 매물을 고치기 전의 값. 표본으로 세지 않는다.
+          previousValues: (history?.get(p.id) ?? []).map((h) => ({
+            priceType: h.priceType,
+            amount: h.amountMinor,
+            currency: h.currency,
+            checkedDate: h.checkedDate,
+          })),
         })),
         scenarios: scenarios.map((s) => {
           const net = computeNet(s);

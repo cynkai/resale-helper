@@ -11,6 +11,7 @@ import {
   listFullExportSources,
   setChosenMethod,
   setImportTokenHash,
+  updatePrice,
   upsertSaleResult,
   upsertScenario,
 } from "@/lib/db/repo";
@@ -140,6 +141,22 @@ describe("전체 내보내기", () => {
     expect(out.items[0]!.book).toMatchObject({ author: "가상 저자", hasWriting: "NO", hasUnderline: "UNKNOWN" });
     expect(JSON.stringify(out)).not.toContain("f".repeat(64));
     expect(JSON.stringify(out)).not.toMatch(/token/i);
+  });
+
+  it("고치기 전의 값은 그 가격 자료 아래 previousValues로 싣는다", () => {
+    const id = createItem(db, false, item("가상 게임기"));
+    const pid = addPrice(id, { priceType: "ASKING", amount: "20000", externalId: "h1", checkedDate: "2026-10-01" });
+    const v = validatePriceInput(
+      { priceType: "ASKING", amount: "17000", sourceName: "가상장터", externalId: "h1", checkedDate: TODAY },
+      { route: "MANUAL", today: TODAY },
+    );
+    if (!v.ok) throw new Error("v");
+    updatePrice(db, getItem(db, false, id)!, pid, v.value);
+    const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
+    const p = out.items[0]!.prices;
+    expect(p).toHaveLength(1); // 표본은 한 건
+    expect(p[0]!.amount).toBe(17000);
+    expect(p[0]!.previousValues).toEqual([{ priceType: "ASKING", amount: 20000, currency: "KRW", checkedDate: "2026-10-01" }]);
   });
 
   it("물건이 없으면 빈 목록", () => {
