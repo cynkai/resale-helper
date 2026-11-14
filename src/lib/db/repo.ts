@@ -37,6 +37,8 @@ export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
       item: items,
       // 하위 질의 안에서 열 이름이 모호해지지 않도록 테이블 이름을 직접 적는다.
       priceCount: sql<number>`(select count(*) from price_records p where p.item_id = "items"."id")`,
+      scenarioCount: sql<number>`(select count(*) from cost_scenarios c where c.item_id = "items"."id")`,
+      resultCount: sql<number>`(select count(*) from sale_results r where r.item_id = "items"."id")`,
     })
     .from(items)
     .where(and(...conds))
