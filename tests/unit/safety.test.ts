@@ -329,3 +329,24 @@ describe("보안 헤더", () => {
     expect(STATIC_SECURITY_HEADERS).toMatchObject({ "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
   });
 });
+
+describe("서버가 밖으로 나가는 곳", () => {
+  it("외부 요청 코드는 서지정보 제공자 한 파일뿐이고, 접속 주소는 코드에 고정된 두 곳이다", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const root = path.resolve(import.meta.dirname, "../../src");
+    const files = (fs.readdirSync(root, { recursive: true }) as string[]).filter((f) => /\.(ts|tsx)$/.test(f));
+    const code = (f: string) =>
+      fs
+        .readFileSync(path.join(root, f), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+    // 네트워크로 나갈 수 있는 수단을 쓰는 서버 파일
+    const outbound = files.filter((f) => /\bfetch\b|node:https?|node:net|undici|XMLHttpRequest|WebSocket/.test(code(f))).sort();
+    // ItemForm은 브라우저에서 이 앱 자신의 /api/books/lookup만 부른다.
+    expect(outbound).toEqual(["components/ItemForm.tsx", "lib/providers/bibliographic.ts"]);
+    expect(code("components/ItemForm.tsx")).toMatch(/fetch\(`\/api\/books\/lookup\?/);
+    const hosts = [...code("lib/providers/bibliographic.ts").matchAll(/https?:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]);
+    expect([...new Set(hosts)].sort()).toEqual(["openlibrary.org", "www.nl.go.kr"]);
+  });
+});

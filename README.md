@@ -205,6 +205,8 @@ curl -sS http://127.0.0.1:3000/api/import/prices -H "Authorization: Bearer $RESA
 
 토큰을 아는 로컬 프로그램은 물건 목록을 읽고 가격 자료를 추가할 수 있습니다. 쓰지 않을 때는 설정에서 폐기해 두세요.
 
+무엇을 막고 무엇을 막지 않는지는 [SECURITY.md](SECURITY.md), 날짜별 변화는 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
+
 ## 브라우저 확장 "직접 담기"
 
 중고 매물 페이지를 보다가 **버튼을 눌러 그 한 건**을 가격 자료로 저장합니다. 자동으로 돌아다니며 모으는 도구가 아닙니다. 버튼을 누를 때만, 열려 있는 매물 상세 페이지 하나만 읽고, 매물 사이트로는 아무 요청도 보내지 않습니다([docs/data-sources.md](docs/data-sources.md)).
