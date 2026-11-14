@@ -300,6 +300,7 @@ test("판매 결과 돌아보기: 선택 당시 예상과 실제를 물건별로
   await expect(row).toContainText("모름 → 50분");
   // 요약은 건수만 보여 주고 금액을 합치지 않는다
   await expect(page.getByTestId("review-counts")).not.toContainText("원");
+  await expect(page.getByTestId("time-counts")).toContainText("비교 불가 1건"); // 어림 시간을 적지 않았다
   // 묶어 보기도 건수만
   const groups = page.getByTestId("review-groups");
   await expect(groups.getByRole("heading", { name: "카테고리별" })).toBeVisible();

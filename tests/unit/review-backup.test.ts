@@ -8,7 +8,7 @@ import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
 import { createItem, listItems, listSaleReviews, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
-import { channelKey, countOutcomes, groupOutcomes, reviewRow } from "@/lib/domain/review";
+import { channelKey, countOutcomes, countTimeOutcomes, timeOutcome, groupOutcomes, reviewRow } from "@/lib/domain/review";
 
 const book: ValidItemInput = {
   category: "BOOK",
@@ -50,6 +50,18 @@ describe("판매 결과 돌아보기", () => {
   it("건수만 센다", () => {
     const rows = [reviewRow(base), reviewRow({ ...base, costTotal: 0 }), reviewRow({ ...base, costTotal: null })];
     expect(countOutcomes(rows)).toEqual({ ABOVE: 1, EQUAL: 0, BELOW: 1, UNKNOWN: 1 });
+  });
+});
+
+describe("시간 어림 돌아보기", () => {
+  it("걸린 시간이 어림보다 많음/같음/적음을 가르고, 모르면 비교 불가", () => {
+    expect(timeOutcome({ minutesDiff: 10 })).toBe("OVER");
+    expect(timeOutcome({ minutesDiff: 0 })).toBe("EQUAL");
+    expect(timeOutcome({ minutesDiff: -5 })).toBe("UNDER");
+    expect(timeOutcome({ minutesDiff: null })).toBe("UNKNOWN");
+  });
+  it("건수만 센다", () => {
+    expect(countTimeOutcomes([{ minutesDiff: 10 }, { minutesDiff: 30 }, { minutesDiff: null }, { minutesDiff: -1 }])).toEqual({ OVER: 2, EQUAL: 0, UNDER: 1, UNKNOWN: 1 });
   });
 });
 

@@ -58,3 +58,18 @@ export function groupOutcomes<T>(rows: T[], keyOf: (row: T) => string, reviewOf:
 export function channelKey(channel: string): string {
   return channel.trim().replace(/\s+/g, " ").toLowerCase();
 }
+
+export type TimeOutcome = "OVER" | "EQUAL" | "UNDER" | "UNKNOWN";
+
+/** 걸린 시간이 어림보다 많았는지. 어림이나 실제 시간을 모르면 "UNKNOWN"(0분으로 치지 않는다). */
+export function timeOutcome(r: Pick<ReviewRow, "minutesDiff">): TimeOutcome {
+  if (r.minutesDiff === null) return "UNKNOWN";
+  return r.minutesDiff > 0 ? "OVER" : r.minutesDiff < 0 ? "UNDER" : "EQUAL";
+}
+
+/** 시간 어림 건수. 분을 더하거나 평균 내지 않는다. */
+export function countTimeOutcomes(rows: Pick<ReviewRow, "minutesDiff">[]): Record<TimeOutcome, number> {
+  const c = { OVER: 0, EQUAL: 0, UNDER: 0, UNKNOWN: 0 };
+  for (const r of rows) c[timeOutcome(r)]++;
+  return c;
+}
