@@ -44,6 +44,7 @@
 | `/settings` | 설정 | 가져오기 토큰 생성·재발급·폐기, 허용할 브라우저 확장 ID 등록 |
 | `/api/import/prices`, `/api/import/items` | 가져오기 API | 토큰과 Origin 검사를 통과한 로컬 도구·확장이 가격 자료를 넣고 물건 목록을 읽음([integrations.md](integrations.md)) |
 | `/api/backup` | 백업 다운로드 | DB 파일 전체를 내려받음. 복구는 `pnpm db:restore` |
+| `/api/export/all` | 전체 내보내기(JSON) | 현재 모드의 물건·가격 자료·계산·판매 결과를 물건 단위로. 총액 없음, 설정 제외 |
 
 물건 상세의 단계
 

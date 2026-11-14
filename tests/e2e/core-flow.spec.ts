@@ -278,6 +278,22 @@ test("전체 백업 파일을 SQLite 형식으로 내려받는다", async ({ pag
   expect(body.subarray(0, 16).toString("latin1")).toBe("SQLite format 3\u0000");
 });
 
+test("읽을 수 있는 전체 내보내기(JSON)를 현재 모드 자료로만 내려받는다", async ({ page }) => {
+  await page.goto("/");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "읽을 수 있는 전체 내보내기(.json) 받기" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^resale-export-\d{4}-\d{2}-\d{2}\.json$/);
+  const res = await page.request.get("/api/export/all");
+  expect(res.headers()["cache-control"]).toBe("no-store");
+  const body = (await res.json()) as { format: string; mode: string; itemCount: number; items: { id: number }[] };
+  expect(body.format).toBe("resale-helper-export");
+  expect(body.mode).toBe("REAL");
+  expect(body.items).toHaveLength(body.itemCount);
+  expect(JSON.stringify(body)).not.toMatch(/token/i);
+});
+
 test("물건 배분: 물건마다 직접 판매·업체·판단 보류를 나누고, 건수만 요약한다", async ({ page }) => {
   // 물건 2개 등록 + 각각 업체·직접 판매 금액과 비용 입력
   async function addItem(name: string, direct: { amount: string; minutes: string; buybackMinutes: string }) {

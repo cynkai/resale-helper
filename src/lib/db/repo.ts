@@ -338,3 +338,26 @@ export function clearDemo(db: Db): void {
   db.delete(items).where(eq(items.isDemo, true)).run();
   db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
 }
+
+// ---- 전체 내보내기 ----
+
+/** 현재 모드의 물건 전체와 딸린 자료. 다른 모드의 자료는 섞이지 않는다. */
+export function listFullExportSources(db: Db, isDemo: boolean) {
+  const its = db.select().from(items).where(eq(items.isDemo, isDemo)).orderBy(asc(items.id)).all();
+  if (its.length === 0) return [];
+  const ids = its.map((i) => i.id);
+  const prices = db
+    .select()
+    .from(priceRecords)
+    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
+    .orderBy(asc(priceRecords.id))
+    .all();
+  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
+  const results = db.select().from(saleResults).where(inArray(saleResults.itemId, ids)).all();
+  return its.map((item) => ({
+    item,
+    prices: prices.filter((p) => p.itemId === item.id),
+    scenarios: scs.filter((s) => s.itemId === item.id),
+    saleResult: results.find((r) => r.itemId === item.id),
+  }));
+}
