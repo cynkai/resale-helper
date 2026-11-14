@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listSaleReviews } from "@/lib/db/repo";
 import { formatMoney } from "@/lib/domain/money";
-import { channelKey, countOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
+import { channelKey, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 
@@ -64,6 +64,7 @@ export default async function ResultsPage() {
     }),
   }));
   const counts = countOutcomes(rows.map((r) => r.review));
+  const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
   type Row = (typeof rows)[number];
   const review = (r: Row) => r.review;
   const byCategory = groupOutcomes(rows, (r) => r.item.category, review);
@@ -95,6 +96,10 @@ export default async function ResultsPage() {
             <p>
               기록 {rows.length}건 — 실수령액이 예상보다 <strong>많음 {counts.ABOVE}건</strong>, <strong>같음 {counts.EQUAL}건</strong>,{" "}
               <strong>적음 {counts.BELOW}건</strong>, 비교 불가 {counts.UNKNOWN}건
+            </p>
+            <p className="mt-1" data-testid="time-counts">
+              걸린 시간이 어림보다 <strong>많음 {timeCounts.OVER}건</strong>, <strong>같음 {timeCounts.EQUAL}건</strong>,{" "}
+              <strong>적음 {timeCounts.UNDER}건</strong>, 비교 불가 {timeCounts.UNKNOWN}건
             </p>
             {counts.UNKNOWN > 0 ? (
               <p className="mt-1 text-stone-600">
