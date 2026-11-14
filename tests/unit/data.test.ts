@@ -14,9 +14,11 @@ import {
   importPrices,
   insertPrice,
   listItems,
+  listPriceHistory,
   listPrices,
   listScenarios,
   setChosenMethod,
+  updatePrice,
   upsertSaleResult,
   upsertScenario,
 } from "@/lib/db/repo";
@@ -106,6 +108,46 @@ describe("중복 저장 방지", () => {
     const other = createItem(db, false, { ...bookInput, name: "자료 없는 책" });
     const counts = Object.fromEntries(listItems(db, false).map((r) => [r.item.id, r.priceCount]));
     expect(counts).toEqual({ [item.id]: 4, [other]: 0 });
+  });
+});
+
+describe("같은 매물의 가격 변동 이력", () => {
+  it("금액이나 확인일이 바뀌면 바뀌기 전 값을 남기고, 다른 항목만 고치면 남기지 않는다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    const saved = insertPrice(db, item, price({ externalId: "H1", amount: "20000", checkedDate: "2026-10-01" }), "MANUAL");
+    if (!saved.ok) throw new Error("insert");
+    // 메모만 고침 → 이력 없음
+    updatePrice(db, item, saved.id, price({ externalId: "H1", amount: "20000", checkedDate: "2026-10-01", memo: "메모만" }));
+    expect(listPriceHistory(db, item.id).size).toBe(0);
+    // 가격 인하를 다시 확인
+    updatePrice(db, item, saved.id, price({ externalId: "H1", amount: "17000", checkedDate: "2026-10-20" }));
+    updatePrice(db, item, saved.id, price({ externalId: "H1", amount: "15000", checkedDate: "2026-11-05" }));
+    const h = listPriceHistory(db, item.id).get(saved.id)!;
+    expect(h.map((x) => [x.checkedDate, x.amountMinor, x.priceType])).toEqual([
+      ["2026-10-01", 20000, "ASKING"],
+      ["2026-10-20", 17000, "ASKING"],
+    ]);
+    // 지금 값은 가격 자료에 그대로 한 건
+    const now = listPrices(db, item.id);
+    expect(now).toHaveLength(1);
+    expect(now[0]!.amountMinor).toBe(15000);
+  });
+  it("유형을 바꾸면 당시 유형을 이력에 남기고, 가격 자료를 지우면 이력도 지워진다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    const saved = insertPrice(db, item, price({ externalId: "H2", amount: "20000" }), "MANUAL");
+    if (!saved.ok) throw new Error("insert");
+    updatePrice(db, item, saved.id, price({ externalId: "H2", amount: "20000", priceType: "SOLD_LISTING" }));
+    expect(listPriceHistory(db, item.id).get(saved.id)!.map((x) => x.priceType)).toEqual(["ASKING"]);
+    deletePrice(db, item.id, saved.id);
+    expect(listPriceHistory(db, item.id).size).toBe(0);
+  });
+  it("중복으로 거부된 수정은 이력을 남기지 않는다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    const a = insertPrice(db, item, price({ externalId: "A", amount: "1000" }), "MANUAL");
+    const b = insertPrice(db, item, price({ externalId: "B", amount: "2000" }), "MANUAL");
+    if (!a.ok || !b.ok) throw new Error("insert");
+    expect(updatePrice(db, item, b.id, price({ externalId: "A", amount: "3000" }))).toEqual({ ok: false, reason: "DUPLICATE" });
+    expect(listPriceHistory(db, item.id).size).toBe(0);
   });
 });
 

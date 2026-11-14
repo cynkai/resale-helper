@@ -431,3 +431,24 @@ test("가져오기 API: 토큰이 없으면 꺼져 있고, 토큰·Origin 검사
   await expect(page.getByTestId("token-status")).toHaveText("토큰 없음");
   expect((await post({ Authorization: `Bearer ${token}` })).status()).toBe(403);
 });
+
+test("가격 자료를 고치면 바뀌기 전 값이 '이전 값'으로 남는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("ELECTRONICS");
+  await page.locator("#name").fill("가격 변동 확인용 기기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await page.waitForURL(/\/items\/\d+$/);
+  await addPrice(page, { type: "ASKING", amount: "20000", source: "가상장터", externalId: "hist-1" });
+  await expect(page.locator('[data-testid^="price-history-"]')).toHaveCount(0);
+
+  await page.getByRole("link", { name: "수정", exact: true }).click();
+  await page.locator("#amount").fill("17000");
+  await page.getByRole("button", { name: "가격 자료 저장" }).click();
+  await page.waitForURL(/\/items\/\d+(#prices)?$/);
+  const hist = page.locator('[data-testid^="price-history-"]');
+  await expect(hist).toHaveCount(1);
+  await hist.locator("summary").click();
+  await expect(hist).toContainText("20,000원");
+  await expect(page.getByText("17,000원").first()).toBeVisible();
+});

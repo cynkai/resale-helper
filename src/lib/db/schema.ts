@@ -92,6 +92,26 @@ export const priceRecords = sqliteTable(
   ],
 );
 
+/**
+ * 같은 매물의 이전 값. 가격 자료를 고칠 때 금액이나 확인일이 바뀌면 바뀌기 전 값을 여기에 남긴다.
+ * 유형은 가격 자료를 따른다(이력은 비교·요약에 쓰지 않고 보여 주기만 한다).
+ */
+export const priceHistory = sqliteTable(
+  "price_history",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    priceRecordId: integer("price_record_id")
+      .notNull()
+      .references(() => priceRecords.id, { onDelete: "cascade" }),
+    priceType: text("price_type").$type<PriceType>().notNull(), // 바뀌기 전 유형
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency").$type<Currency>().notNull(),
+    checkedDate: text("checked_date").notNull(),
+    recordedAt: text("recorded_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (t) => [index("price_history_record_idx").on(t.priceRecordId)],
+);
+
 /** 비용 시나리오: 물건별로 판매 방식(업체/개인)마다 하나 */
 export const costScenarios = sqliteTable(
   "cost_scenarios",
@@ -165,6 +185,7 @@ export const lookupCache = sqliteTable(
 
 export type Item = typeof items.$inferSelect;
 export type PriceRecord = typeof priceRecords.$inferSelect;
+export type PriceHistoryRow = typeof priceHistory.$inferSelect;
 export type CostScenario = typeof costScenarios.$inferSelect;
 export type SaleResult = typeof saleResults.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

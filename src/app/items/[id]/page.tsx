@@ -11,7 +11,7 @@ import { ConfirmSubmit, CopyButton, CsvImportForm, SaleResultForm } from "@/comp
 import { ScenarioForm, type BasisOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { getItem, getSaleResult, listPrices, listScenarios } from "@/lib/db/repo";
+import { getItem, getSaleResult, listPriceHistory, listPrices, listScenarios } from "@/lib/db/repo";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
 import {
   buildComparison,
@@ -151,6 +151,7 @@ export default async function ItemPage({
   const windowParam = WINDOWS.some((w) => w.value === sp.days) ? sp.days! : "180";
   const windowDays = windowParam === "all" ? null : Number(windowParam);
   const prices = listPrices(db, item.id);
+  const history = listPriceHistory(db, item.id);
   const comparison = buildComparison(item, prices, today, windowDays);
   const scenarios = listScenarios(db, item.id);
   const result = getSaleResult(db, item.id);
@@ -204,6 +205,20 @@ export default async function ItemPage({
             {p.isDemo ? <Badge tone="amber">가상</Badge> : null}
             {p.bundleType === "BUNDLE" ? <Badge>{BUNDLE_LABEL.BUNDLE}</Badge> : null}
           </div>
+          {history.get(p.id)?.length ? (
+            <details className="mt-1 text-xs font-normal text-stone-600" data-testid={`price-history-${p.id}`}>
+              <summary className="cursor-pointer">이전 값 {history.get(p.id)!.length}건</summary>
+              <ul className="mt-1 space-y-0.5">
+                {history.get(p.id)!.map((h) => (
+                  <li key={h.id}>
+                    {h.checkedDate} 확인: {formatMoney(h.amountMinor, h.currency)}
+                    {h.priceType !== p.priceType ? ` (당시 유형: ${PRICE_TYPE_INFO[h.priceType].label})` : ""}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1">같은 매물을 고치기 전의 값입니다. 비교와 요약에는 지금 값만 씁니다.</p>
+            </details>
+          ) : null}
         </td>
         <td className="px-2 py-2 align-top">
           {p.sourceUrl ? (
