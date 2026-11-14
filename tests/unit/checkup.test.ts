@@ -42,9 +42,9 @@ describe("자료 점검", () => {
       TODAY,
     );
     expect(f).toEqual([
-      { kind: "QUOTE_EXPIRED", priceId: 1, sourceName: "가상장터", amountMinor: 7000, validUntil: "2026-11-10", daysAgo: 4 },
-      { kind: "QUOTE_VALID", priceId: 2, sourceName: "가상장터", amountMinor: 8000, validUntil: "2026-11-14", daysLeft: 0 },
-      { kind: "QUOTE_VALID", priceId: 3, sourceName: "가상장터", amountMinor: 9000, validUntil: "2026-11-20", daysLeft: 6 },
+      { kind: "QUOTE_EXPIRED", priceId: 1, sourceName: "가상장터", amountMinor: 7000, currency: "KRW", validUntil: "2026-11-10", daysAgo: 4 },
+      { kind: "QUOTE_VALID", priceId: 2, sourceName: "가상장터", amountMinor: 8000, currency: "KRW", validUntil: "2026-11-14", daysLeft: 0 },
+      { kind: "QUOTE_VALID", priceId: 3, sourceName: "가상장터", amountMinor: 9000, currency: "KRW", validUntil: "2026-11-20", daysLeft: 6 },
     ]);
   });
 
@@ -56,6 +56,7 @@ describe("자료 점검", () => {
           price({ id: 2, checkedDate: "2026-08-15" }), // 91일 전
           price({ id: 3, checkedDate: "2026-05-01" }),
           price({ id: 4, checkedDate: "2025-01-01", includedInComparison: false }), // 직접 뺀 자료는 세지 않는다
+          price({ id: 5, checkedDate: "2025-01-01", currency: "USD" }), // 외화 자료는 원화 비교에 없으므로 세지 않는다
         ],
         scenarios: [],
       },
@@ -90,6 +91,10 @@ describe("자료 점검", () => {
     expect(countFindings([valid, old])).toEqual({ QUOTE_EXPIRED: 0, QUOTE_VALID: 1, OLD_DATA: 2, BASIS_ISSUE: 0 });
   });
 
+  it("외화 견적은 통화를 함께 알려 준다(원화로 바꿔 보이지 않게)", () => {
+    const f = checkupItem({ prices: [price({ priceType: "BUYBACK_QUOTE", amountMinor: 5000, currency: "USD", quoteValidUntil: "2026-11-01" })], scenarios: [] }, TODAY);
+    expect(f[0]).toMatchObject({ kind: "QUOTE_EXPIRED", amountMinor: 5000, currency: "USD" });
+  });
   it("금액을 평가하는 내용은 없다", () => {
     const f = checkupItem({ prices: [price({ checkedDate: "2026-01-01" })], scenarios: [] }, TODAY);
     expect(JSON.stringify(f)).not.toMatch(/cheap|expensive|싸|비싸|recommend/i);

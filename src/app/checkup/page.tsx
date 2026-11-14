@@ -15,14 +15,14 @@ function findingLine(f: CheckupFinding) {
     case "QUOTE_EXPIRED":
       return (
         <>
-          <strong>견적 만료</strong> — {f.sourceName} {formatMoney(f.amountMinor)} 견적의 유효기간({f.validUntil})이 {f.daysAgo}일 전에 지났습니다. 지금 받을 수 있는
+          <strong>견적 만료</strong> — {f.sourceName} {formatMoney(f.amountMinor, f.currency)} 견적의 유효기간({f.validUntil})이 {f.daysAgo}일 전에 지났습니다. 지금 받을 수 있는
           금액이 아닐 수 있습니다.
         </>
       );
     case "QUOTE_VALID":
       return (
         <>
-          견적 유효기간 — {f.sourceName} {formatMoney(f.amountMinor)}: {f.validUntil}까지 ({f.daysLeft === 0 ? "오늘까지" : `${f.daysLeft}일 남음`})
+          견적 유효기간 — {f.sourceName} {formatMoney(f.amountMinor, f.currency)}: {f.validUntil}까지 ({f.daysLeft === 0 ? "오늘까지" : `${f.daysLeft}일 남음`})
         </>
       );
     case "OLD_DATA":

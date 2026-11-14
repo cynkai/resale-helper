@@ -25,9 +25,9 @@ export type CheckupScenario = {
 
 export type CheckupFinding =
   /** 유효기간이 지난 매입 견적 */
-  | { kind: "QUOTE_EXPIRED"; priceId: number; sourceName: string; amountMinor: number; validUntil: string; daysAgo: number }
+  | { kind: "QUOTE_EXPIRED"; priceId: number; sourceName: string; amountMinor: number; currency: Currency; validUntil: string; daysAgo: number }
   /** 유효기간이 남은 매입 견적(며칠 남았는지만 알려 준다. "임박" 기준은 두지 않는다) */
-  | { kind: "QUOTE_VALID"; priceId: number; sourceName: string; amountMinor: number; validUntil: string; daysLeft: number }
+  | { kind: "QUOTE_VALID"; priceId: number; sourceName: string; amountMinor: number; currency: Currency; validUntil: string; daysLeft: number }
   /** 비교에 포함된 자료 중 확인한 지 오래된 것 */
   | { kind: "OLD_DATA"; count: number; oldestCheckedDate: string; oldestDays: number }
   /** 저장한 계산의 기준 자료에 문제가 있음 */
@@ -41,11 +41,12 @@ export function checkupItem(input: CheckupInput, today: string): CheckupFinding[
     .filter((p) => p.priceType === "BUYBACK_QUOTE" && p.quoteValidUntil !== null)
     .sort((a, b) => a.quoteValidUntil!.localeCompare(b.quoteValidUntil!) || a.id - b.id);
   for (const p of quotes) {
-    const base = { priceId: p.id, sourceName: p.sourceName, amountMinor: p.amountMinor, validUntil: p.quoteValidUntil! };
+    const base = { priceId: p.id, sourceName: p.sourceName, amountMinor: p.amountMinor, currency: p.currency, validUntil: p.quoteValidUntil! };
     if (isQuoteExpired(p, today)) out.push({ kind: "QUOTE_EXPIRED", ...base, daysAgo: daysBetween(p.quoteValidUntil!, today) });
     else out.push({ kind: "QUOTE_VALID", ...base, daysLeft: daysBetween(today, p.quoteValidUntil!) });
   }
-  const old = input.prices.filter((p) => p.includedInComparison && daysBetween(p.checkedDate, today) > OLD_DATA_DAYS);
+  // 외화 자료는 원화 비교에서 원래 빠지므로 세지 않는다.
+  const old = input.prices.filter((p) => p.includedInComparison && p.currency === "KRW" && daysBetween(p.checkedDate, today) > OLD_DATA_DAYS);
   if (old.length > 0) {
     const oldest = old.reduce((a, b) => (a.checkedDate <= b.checkedDate ? a : b));
     out.push({ kind: "OLD_DATA", count: old.length, oldestCheckedDate: oldest.checkedDate, oldestDays: daysBetween(oldest.checkedDate, today) });
