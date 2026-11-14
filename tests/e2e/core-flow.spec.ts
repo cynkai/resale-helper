@@ -130,6 +130,8 @@ test("판매 방법 저장 → 판매글 복사 → 판매 결과 기록", async
   await expect(body).toContainText("하자: 표지 구김");
   await expect(body).toContainText("희망 가격: 19,000원");
   await expect(body).not.toContainText("밑줄");
+  await expect(page.getByTestId("draft-compact")).toContainText("판본: 2판 / ");
+  await expect(page.getByTestId("draft-compact")).not.toContainText("밑줄");
   await page.getByRole("button", { name: "제목+본문 복사" }).click();
   await expect(page.getByText("복사했습니다")).toBeVisible();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
