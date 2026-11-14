@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { buildComparison, isSameListing, type ComparableRecord } from "@/lib/domain/compare";
 import { normalizeIdentifier, normalizeIsbn } from "@/lib/domain/isbn";
 import { buildListingDraft } from "@/lib/domain/listing";
@@ -386,5 +387,34 @@ describe("판매글 초안", () => {
     expect(d.body).toContain("하자: 스틱 쏠림");
     expect(d.body).toContain("구성품: 본체, 독");
     expect(d.body).not.toContain("필기");
+  });
+});
+
+describe("손익분기 개인 판매금액", () => {
+  const amount = { feeMode: "AMOUNT" as const, feeAmount: 1000, feeRateBp: null, shipping: 3000, packing: 500, transport: 0 };
+  it("정액 비용이면 업체 실수령액 + 개인 판매 비용", () => {
+    expect(breakEvenDirectSale(amount, 6500)).toEqual({ ok: true, saleAmount: 11000 });
+  });
+  it("수수료율이면 반올림까지 반영해, 그 금액에서 처음으로 업체 이상이 된다", () => {
+    const rate = { feeMode: "RATE" as const, feeAmount: null, feeRateBp: 350, shipping: 4000, packing: 0, transport: 0 };
+    const r = breakEvenDirectSale(rate, 6500);
+    if (!r.ok) throw new Error("no");
+    const net = (s: number) => computeNet({ ...rate, saleAmount: s }).net!;
+    expect(net(r.saleAmount)).toBeGreaterThanOrEqual(6500);
+    expect(net(r.saleAmount - 1)).toBeLessThan(6500);
+    expect(r.saleAmount).toBe(10881);
+  });
+  it("모르는 값이 있으면 계산하지 않는다(0으로 치지 않음)", () => {
+    expect(breakEvenDirectSale(amount, null)).toEqual({ ok: false, reason: "BUYBACK_NET_UNKNOWN" });
+    expect(breakEvenDirectSale({ ...amount, packing: null }, 6500)).toEqual({ ok: false, reason: "DIRECT_COST_UNKNOWN" });
+    expect(breakEvenDirectSale({ ...amount, feeMode: "RATE", feeRateBp: null }, 6500)).toEqual({ ok: false, reason: "DIRECT_COST_UNKNOWN" });
+  });
+  it("수수료율이 100% 이상이면 도달할 수 없다", () => {
+    expect(breakEvenDirectSale({ ...amount, feeMode: "RATE", feeRateBp: 10000 }, 6500)).toEqual({ ok: false, reason: "UNREACHABLE" });
+  });
+  it("비용이 모두 0이면 업체 실수령액과 같고, 업체 실수령액이 0 이하이면 0원", () => {
+    const zero = { feeMode: "AMOUNT" as const, feeAmount: 0, feeRateBp: null, shipping: 0, packing: 0, transport: 0 };
+    expect(breakEvenDirectSale(zero, 6500)).toEqual({ ok: true, saleAmount: 6500 });
+    expect(breakEvenDirectSale(zero, -100)).toEqual({ ok: true, saleAmount: 0 });
   });
 });

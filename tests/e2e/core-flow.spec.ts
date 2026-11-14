@@ -227,6 +227,8 @@ test("기준 가격 자료가 바뀌면 저장된 계산을 경고하고, 그 �
   await expect(buyback.getByText("저장했습니다.")).toBeVisible();
   await expect(page.getByTestId("basis-issues-BUYBACK")).toHaveCount(0);
   await expect(page.getByTestId("net-diff")).toContainText("7,835원 더 많습니다");
+  // 손익분기: 업체 실수령액과 같아지는 개인 판매금액(입력한 비용으로 한 산수)
+  await expect(page.getByTestId("break-even")).toContainText("이상일 때 업체 판매와 실수령액이 같거나");
 
   // 이미 고른 방법(개인 판매)의 비용을 바꾸면 선택 당시 숫자와 다르다고 알린다
   await expect(page.getByTestId("choice-outdated")).toHaveCount(0);
