@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listItems } from "@/lib/db/repo";
+import { listCheckupSources, listItems } from "@/lib/db/repo";
+import { checkupItem, needsAttention } from "@/lib/domain/checkup";
 import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
 import {
   CATEGORIES,
@@ -14,6 +15,7 @@ import {
   type ItemStatus,
 } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
+import { todayYmd } from "@/lib/today";
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
@@ -22,7 +24,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const status = ITEM_STATUSES.includes(sp.status as ItemStatus) ? (sp.status as ItemStatus) : undefined;
   const demo = await isDemoMode();
   const step = NEXT_STEP_CODES.includes(sp.step as NextStepCode) ? (sp.step as NextStepCode) : undefined;
-  const all = listItems(getDb(), demo, { q, category, status }).map((r) => ({
+  const db = getDb();
+  const all = listItems(db, demo, { q, category, status }).map((r) => ({
     ...r,
     step: nextStep({ status: r.item.status, priceCount: r.priceCount, scenarioCount: r.scenarioCount, chosenMethod: r.item.chosenMethod, hasResult: r.resultCount > 0 }),
   }));
@@ -30,6 +33,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const stepCounts = countNextSteps(all.map((r) => r.step));
   const rows = step ? all.filter((r) => r.step === step) : all;
   const filtered = Boolean(q || category || status || step);
+  // 자료 점검에서 "확인 필요"로 나오는 물건 수(검색 조건과 무관, 현재 모드 전체).
+  const today = todayYmd();
+  const attention = listCheckupSources(db, demo).filter((s) => needsAttention(checkupItem(s, today))).length;
   const stepHref = (code?: NextStepCode) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -46,6 +52,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <h1 className="text-xl font-bold">내 물건{demo ? " (데모)" : ""}</h1>
         <div className="flex items-center gap-3">
           <p className="text-sm text-stone-600">{rows.length}개</p>
+          {attention > 0 ? (
+            <Link href="/checkup" className="btn" data-testid="checkup-link">
+              다시 확인할 물건 {attention}개
+            </Link>
+          ) : null}
           <Link href="/triage" className="btn">어디로 넘길까 (배분)</Link>
         </div>
       </div>
