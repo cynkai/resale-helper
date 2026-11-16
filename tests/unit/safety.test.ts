@@ -288,6 +288,25 @@ describe("가져오기 API 본문 처리", () => {
     });
   });
 
+  it("중복이면 저장하지 않되, 어느 자료와 겹치는지와 가격·유형이 달라졌는지를 알려 준다(저장된 금액은 돌려주지 않음)", () => {
+    withDb((db, itemId) => {
+      const first = importRecords(db, { itemId, records: [rec()] }, "CLIP", TODAY);
+      if (!first.ok || !first.results[0]!.ok) throw new Error("first");
+      const savedId = first.results[0]!.id;
+      const before = listPrices(db, itemId)[0]!.amountMinor;
+      const out = importRecords(db, { itemId, records: [rec(), rec({ amount: before + 1000 }), rec({ price_type: "SOLD_LISTING" })] }, "CLIP", TODAY);
+      if (!out.ok) throw new Error(out.error);
+      expect(out.imported).toBe(0);
+      expect(out.results[0]).toMatchObject({ ok: false, duplicateOf: savedId, changed: false, error: expect.stringContaining("저장된 값과 같습니다") });
+      expect(out.results[1]).toMatchObject({ ok: false, duplicateOf: savedId, changed: true, error: expect.stringContaining("다릅니다") });
+      expect(out.results[2]).toMatchObject({ ok: false, duplicateOf: savedId, changed: true });
+      // 저장된 값은 그대로이고, 응답에 저장된 금액이 들어 있지 않다
+      expect(listPrices(db, itemId)).toHaveLength(1);
+      expect(listPrices(db, itemId)[0]!.amountMinor).toBe(before);
+      expect(JSON.stringify(out.results[1])).not.toContain(String(before));
+    });
+  });
+
   it("가격 자료가 아닌 필드(판매자 정보 등)는 받지 않고 그 행을 거부한다", () => {
     withDb((db, itemId) => {
       const out = importRecords(db, { itemId, records: [rec({ seller_nickname: "누군가" }), rec({ input_route: "API", external_id: "X-9" })] }, "EXTERNAL", TODAY);
