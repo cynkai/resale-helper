@@ -1,7 +1,8 @@
 // 데모 시드. 모든 값은 가상이며 is_demo=true로만 저장된다. 실제 시세와 무관하다.
 
 import type { Db } from "./client";
-import { clearDemo, createItem, getItem, insertPrice, upsertScenario } from "./repo";
+import { clearDemo, createItem, getItem, insertPrice, listPrices, upsertScenario } from "./repo";
+import { priceHistory } from "./schema";
 import { isbn13CheckDigit } from "../domain/isbn";
 import type { ValidPriceInput } from "../domain/price-input";
 import type { PriceType } from "../domain/types";
@@ -102,6 +103,13 @@ export function seedDemo(db: Db, today: string): void {
     }),
   ];
   for (const r of rows) insertPrice(db, book, r, "MANUAL");
+  // 가격 변동 이력 예시: 같은 매물(demo-a-2)이 22,000원이었다가 20,000원으로 내린 것을 다시 확인했다고 가정.
+  const lowered = listPrices(db, bookId).find((p) => p.externalId === "demo-a-2");
+  if (lowered) {
+    db.insert(priceHistory)
+      .values({ priceRecordId: lowered.id, priceType: "ASKING", amountMinor: 22000, currency: "KRW", checkedDate: daysAgo(today, 19) })
+      .run();
+  }
 
   upsertScenario(db, bookId, "BUYBACK", {
     saleAmount: 7500,

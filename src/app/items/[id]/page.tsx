@@ -222,7 +222,7 @@ export default async function ItemPage({
                   </li>
                 ))}
               </ul>
-              <p className="mt-1">같은 매물을 고치기 전의 값입니다. 비교와 요약에는 지금 값만 씁니다.</p>
+              <p className="mt-1">이 매물을 전에 확인했을 때의 값입니다(고치거나 다시 확인하면 남습니다). 비교와 요약에는 지금 값만 씁니다.</p>
             </details>
           ) : null}
         </td>
