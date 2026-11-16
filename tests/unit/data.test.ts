@@ -167,6 +167,20 @@ describe("같은 매물의 가격 변동 이력", () => {
   });
 });
 
+describe("데모의 가격 변동 이력", () => {
+  it("데모 자료에 이력 예시가 있고, 데모를 지우면 이력도 함께 지워진다", () => {
+    seedDemo(db, TODAY);
+    const demoBook = listItems(db, true).find((r) => r.priceCount > 0)!.item;
+    const h = [...listPriceHistory(db, demoBook.id).values()].flat();
+    expect(h.map((x) => x.amountMinor)).toEqual([22000]);
+    clearDemo(db);
+    expect(listItems(db, true)).toHaveLength(0);
+    seedDemo(db, TODAY); // 다시 넣어도 이력이 쌓이지 않는다
+    const again = listItems(db, true).find((r) => r.priceCount > 0)!.item;
+    expect([...listPriceHistory(db, again.id).values()].flat()).toHaveLength(1);
+  });
+});
+
 describe("계산의 기준 자료 삭제", () => {
   it("기준 가격 자료를 지우면 id는 비지만 유형 스냅샷이 남아 '삭제됨'을 알 수 있다", () => {
     const item = getItem(db, false, createItem(db, false, bookInput))!;
