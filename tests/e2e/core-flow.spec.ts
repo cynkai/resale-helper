@@ -188,6 +188,8 @@ test("데모는 명시적으로 들어가야 하고, 가상 데이터 표시가 
 
   await expect(page.getByRole("status").filter({ hasText: "데모 모드" })).toContainText("가상 데이터");
   await expect(page.getByRole("link", { name: /선형대수학 입문/ })).toHaveCount(0);
+  // 데모 자료에는 만료된 견적이 있어 목록에서 점검으로 가는 안내가 보인다
+  await expect(page.getByTestId("checkup-link")).toHaveText("다시 확인할 물건 1개");
   const demoLink = page.getByRole("link", { name: /\(데모\) 가상 전공서/ });
   await expect(demoLink).toContainText("가상 데이터");
   await demoLink.click();
