@@ -1,7 +1,8 @@
 // 가져오기 API 본문 해석과 저장. 검증은 price-input.ts, 중복 판정과 저장은 기존 insertPrice를 그대로 쓴다.
 
 import type { Db } from "../db/client";
-import { getItem, insertPrice } from "../db/repo";
+import { getItem, insertPrice, listPrices } from "../db/repo";
+import { isSameListing } from "../domain/compare";
 import { CSV_COLUMNS } from "../domain/csv";
 import { validatePriceInput, type PriceField, type PriceInputRaw } from "../domain/price-input";
 
@@ -12,7 +13,13 @@ export const MAX_IMPORT_BODY_BYTES = 256_000;
 const FIELD_BY_KEY = new Map<string, PriceField>(CSV_COLUMNS.map((c) => [c.header, c.field]));
 export const IMPORT_RECORD_KEYS = [...FIELD_BY_KEY.keys()];
 
-export type ImportRowResult = { index: number; ok: true; id: number } | { index: number; ok: false; error: string };
+export type ImportRowResult =
+  | { index: number; ok: true; id: number }
+  /**
+   * duplicateOf: 이미 저장된 같은 매물의 가격 자료 번호. changed: 보낸 유형·금액·통화가 저장된 값과 다른지.
+   * 중복은 여전히 저장하지 않는다. 저장된 금액 자체는 돌려주지 않는다.
+   */
+  | { index: number; ok: false; error: string; duplicateOf?: number; changed?: boolean };
 
 export type ImportOutcome =
   | { ok: true; results: ImportRowResult[]; imported: number; rejected: number }
@@ -81,7 +88,21 @@ export function importRecords(db: Db, body: unknown, route: "CLIP" | "EXTERNAL",
     }
     const saved = insertPrice(db, item, v.value, route);
     if (!saved.ok) {
-      results.push({ index, ok: false, error: "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음)." });
+      const existing = listPrices(db, item.id).find((e) => isSameListing(e, v.value));
+      const changed = existing
+        ? existing.amountMinor !== v.value.amountMinor || existing.currency !== v.value.currency || existing.priceType !== v.value.priceType
+        : undefined;
+      results.push({
+        index,
+        ok: false,
+        error:
+          changed === true
+            ? "이미 등록된 매물인데 보낸 가격·유형이 저장된 값과 다릅니다. 저장하지 않았습니다. 가격이 바뀌었다면 앱에서 그 자료를 수정해 주세요(이전 값은 이력에 남습니다)."
+            : changed === false
+              ? "이미 등록된 매물이고 가격·유형이 저장된 값과 같습니다. 저장하지 않았습니다. 다시 확인한 것이라면 앱에서 '오늘 다시 확인함'을 눌러 주세요."
+              : "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음).",
+        ...(existing ? { duplicateOf: existing.id, changed } : {}),
+      });
       return;
     }
     results.push({ index, ok: true, id: saved.id });

@@ -1,5 +1,5 @@
 // 팝업. 모든 동작은 사용자의 클릭에서만 시작한다(백그라운드 스크립트·콘텐츠 스크립트 없음).
-import { AppError, importOne, searchItems } from "./api";
+import { AppError, editUrl, importOne, searchItems } from "./api";
 import type { ExtractResult } from "./parsers";
 import { buildDraft, toRecord, type PreviewDraft } from "./suggest";
 
@@ -10,10 +10,19 @@ function todayYmd(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 }
 
-function say(text: string, kind: "ok" | "error" | "" = ""): void {
+function say(text: string, kind: "ok" | "error" | "" = "", link?: { href: string; label: string }): void {
   const el = $("message");
   el.textContent = text;
   el.className = kind;
+  if (link) {
+    // 로컬 앱 화면으로 가는 링크만 붙인다(새 탭).
+    const a = document.createElement("a");
+    a.href = link.href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = link.label;
+    el.append(" ", a);
+  }
 }
 
 async function getToken(): Promise<string> {
@@ -127,7 +136,10 @@ async function save(ev: Event): Promise<void> {
       }),
     );
     if (row.ok) say("저장했습니다. 앱의 물건 상세 화면에서 확인할 수 있습니다.", "ok");
-    else say(row.error ?? "저장하지 못했습니다.", "error");
+    else {
+      const href = row.duplicateOf !== undefined ? editUrl(Number(picked.value), row.duplicateOf) : null;
+      say(row.error ?? "저장하지 못했습니다.", "error", href ? { href, label: "앱에서 그 자료 열기" } : undefined);
+    }
   } catch (e) {
     say(e instanceof AppError ? e.message : "저장하지 못했습니다.", "error");
   } finally {

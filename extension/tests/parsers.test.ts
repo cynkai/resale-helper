@@ -181,3 +181,18 @@ describe("미리보기 초기값", () => {
     expect(rec).toEqual({ price_type: "ASKING", amount: "1000", source_name: "당근", checked_date: TODAY, external_id: "a1" });
   });
 });
+
+describe("앱 화면 링크", () => {
+  it("이미 저장된 자료를 여는 주소는 로컬 앱 주소와 정수 번호로만 만든다", async () => {
+    const { editUrl } = await import("../src/api");
+    expect(editUrl(3, 12)).toBe("http://127.0.0.1:3000/items/3/prices/12/edit");
+    for (const bad of [
+      [0, 1],
+      [1, -1],
+      [1.5, 2],
+      [Number.NaN, 2],
+    ] as const) {
+      expect(editUrl(bad[0], bad[1])).toBeNull();
+    }
+  });
+});

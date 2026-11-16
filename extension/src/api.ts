@@ -3,7 +3,13 @@
 export const APP_ORIGIN = "http://127.0.0.1:3000";
 
 export type AppItem = { id: number; name: string; identifier: string | null; category: string; condition: string; status: string };
-export type RowResult = { index: number; ok: boolean; id?: number; error?: string };
+export type RowResult = { index: number; ok: boolean; id?: number; error?: string; duplicateOf?: number; changed?: boolean };
+
+/** 이미 저장된 자료를 고치는 앱 화면 주소. 번호는 앱이 돌려준 정수만 쓴다. */
+export function editUrl(itemId: number, priceId: number): string | null {
+  if (!Number.isSafeInteger(itemId) || !Number.isSafeInteger(priceId) || itemId <= 0 || priceId <= 0) return null;
+  return `${APP_ORIGIN}/items/${itemId}/prices/${priceId}/edit`;
+}
 
 export class AppError extends Error {}
 
