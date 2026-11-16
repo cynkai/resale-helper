@@ -132,6 +132,7 @@ async function save(ev: Event): Promise<void> {
         externalId: v("externalId"),
         memo: v("memo"),
         condition: v("condition"),
+        componentsMatch: v("componentsMatch"),
         checkedDate: v("checkedDate"),
       }),
     );

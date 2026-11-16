@@ -57,6 +57,8 @@ export function toRecord(d: {
   externalId: string;
   memo: string;
   condition: string;
+  /** "" = 모름(보내지 않음), "YES", "NO". 추정하지 않고 사용자가 고른 값만 보낸다. */
+  componentsMatch?: string;
   checkedDate: string;
 }): Record<string, string> {
   const rec: Record<string, string> = {
@@ -68,6 +70,7 @@ export function toRecord(d: {
   if (d.sourceUrl.trim()) rec.source_url = d.sourceUrl.trim();
   if (d.externalId.trim()) rec.external_id = d.externalId.trim();
   if (d.condition) rec.condition = d.condition;
+  if (d.componentsMatch === "YES" || d.componentsMatch === "NO") rec.components_match = d.componentsMatch;
   if (d.memo.trim()) rec.memo = d.memo.trim();
   return rec;
 }
