@@ -133,6 +133,13 @@ export function PriceForm({
             ))}
           </select>
         </Field>
+        <Field label="구성이 내 물건과 같은가" name="componentsMatch" error={e.componentsMatch} hint="박스·충전기·부록 등. 다름이면 비교에서 빠집니다.">
+          <select id="componentsMatch" name="componentsMatch" className="input" defaultValue={v.componentsMatch ?? "UNKNOWN"}>
+            <option value="UNKNOWN">모름</option>
+            <option value="YES">같음</option>
+            <option value="NO">다름</option>
+          </select>
+        </Field>
         <Field label="배송비 포함 여부" name="shippingIncluded" error={e.shippingIncluded}>
           <select
             id="shippingIncluded"

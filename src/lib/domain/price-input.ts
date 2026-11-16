@@ -31,6 +31,7 @@ export const PRICE_FIELDS = [
   "productIdentifier",
   "condition",
   "components",
+  "componentsMatch",
   "bundleType",
   "shippingIncluded",
   "verificationMethod",
@@ -53,6 +54,8 @@ export type ValidPriceInput = {
   productIdentifier: string | null;
   condition: Condition | null;
   components: string | null;
+  /** 이 매물의 구성이 내 물건과 같은지. 사용자가 보고 표시한다(앱이 구성품 글자를 비교해 추측하지 않는다). */
+  componentsMatch: TriState;
   bundleType: BundleType;
   shippingIncluded: TriState;
   verificationMethod: string | null;
@@ -105,6 +108,7 @@ const baseSchema = z.object({
     .refine((v) => v === "" || (CONDITIONS as readonly string[]).includes(v), "상태 값이 올바르지 않습니다.")
     .transform((v) => (v === "" ? null : (v as Condition))),
   components: optionalText(500),
+  componentsMatch: z.enum(TRI_STATES, "구성 일치 여부 값이 올바르지 않습니다(YES, NO, UNKNOWN)."),
   bundleType: z.enum(BUNDLE_TYPES, "단품/묶음 값이 올바르지 않습니다(SINGLE 또는 BUNDLE)."),
   shippingIncluded: z.enum(TRI_STATES, "배송비 포함 여부 값이 올바르지 않습니다(YES, NO, UNKNOWN)."),
   verificationMethod: optionalText(500),
@@ -126,6 +130,7 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
     productIdentifier: raw.productIdentifier ?? "",
     condition: raw.condition ?? "",
     components: raw.components ?? "",
+    componentsMatch: (raw.componentsMatch?.trim() || "UNKNOWN").toUpperCase(),
     bundleType: (raw.bundleType?.trim() || "SINGLE").toUpperCase(),
     shippingIncluded: (raw.shippingIncluded?.trim() || "UNKNOWN").toUpperCase(),
     verificationMethod: raw.verificationMethod ?? "",
@@ -214,6 +219,7 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
       productIdentifier: d.productIdentifier,
       condition: d.condition,
       components: d.components,
+      componentsMatch: d.componentsMatch,
       bundleType: d.bundleType,
       shippingIncluded: d.shippingIncluded,
       verificationMethod: d.verificationMethod,

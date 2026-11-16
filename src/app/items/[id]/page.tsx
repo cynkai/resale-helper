@@ -244,6 +244,7 @@ export default async function ItemPage({
         <td className="px-2 py-2 align-top text-xs">
           <div>상태: {p.condition ? CONDITION_LABEL[p.condition] : "모름"}</div>
           <div>배송비: {p.shippingIncluded === "YES" ? "포함" : p.shippingIncluded === "NO" ? "미포함" : "모름"}</div>
+          {p.componentsMatch !== "UNKNOWN" ? <div>구성: {p.componentsMatch === "YES" ? "내 물건과 같음" : "내 물건과 다름"}</div> : null}
           {p.priceType === "BUYBACK_QUOTE" ? (
             <div className={expired ? "font-medium text-red-800" : ""}>
               유효기간: {p.quoteValidUntil ?? "기록 없음"}

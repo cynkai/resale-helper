@@ -252,7 +252,7 @@ BUYBACK_QUOTE,6000,KRW,예시서점,,,2026-11-05,GOOD,SINGLE,UNKNOWN,2026-11-12,
 ```
 
 - 필수 열: `price_type`, `amount`, `source_name`, `checked_date`
-- 선택 열: `currency`(기본 KRW), `source_url`, `external_id`, `trade_date`, `product_identifier`, `condition`, `components`, `bundle_type`(SINGLE/BUNDLE), `shipping_included`(YES/NO/UNKNOWN), `verification_method`, `quote_valid_until`, `deduction_terms`, `memo`
+- 선택 열: `currency`(기본 KRW), `source_url`, `external_id`, `trade_date`, `product_identifier`, `condition`, `components`, `components_match`(구성이 내 물건과 같은지: YES/NO/UNKNOWN, NO면 비교에서 제외), `bundle_type`(SINGLE/BUNDLE), `shipping_included`(YES/NO/UNKNOWN), `verification_method`, `quote_valid_until`, `deduction_terms`, `memo`
 - `price_type`: `ASKING`, `SOLD_LISTING`, `BUYBACK_QUOTE`, `USER_REPORTED`. **`VERIFIED_SALE`은 가져올 수 없습니다.**
 - `condition`: `UNOPENED`, `LIKE_NEW`, `GOOD`, `FAIR`, `POOR`, `BROKEN`
 - 날짜는 `YYYY-MM-DD`, 금액은 숫자만(원화는 정수).

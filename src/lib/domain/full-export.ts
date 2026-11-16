@@ -69,6 +69,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
           tradeDate: p.tradeDate,
           condition: p.condition,
           components: p.components,
+          componentsMatch: p.componentsMatch,
           bundleType: p.bundleType,
           shippingIncluded: p.shippingIncluded,
           verificationMethod: p.verificationMethod,

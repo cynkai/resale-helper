@@ -1,0 +1,1 @@
+ALTER TABLE `price_records` ADD `components_match` text DEFAULT 'UNKNOWN' NOT NULL;

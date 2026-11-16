@@ -10,6 +10,7 @@ import {
   type Condition,
   type Currency,
   type PriceType,
+  type TriState,
 } from "./types";
 
 export type ComparableItem = {
@@ -26,6 +27,8 @@ export type ComparableRecord = {
   productIdentifier: string | null;
   condition: Condition | null;
   bundleType: BundleType;
+  /** 이 매물의 구성이 내 물건과 같은지(사용자 표시). */
+  componentsMatch: TriState;
   quoteValidUntil: string | null;
   includedInComparison: boolean;
 };
@@ -36,6 +39,7 @@ export type ExclusionCode =
   | "DIFFERENT_PRODUCT"
   | "BUNDLE"
   | "DIFFERENT_CONDITION"
+  | "DIFFERENT_COMPONENTS"
   | "QUOTE_EXPIRED"
   | "OUT_OF_WINDOW";
 
@@ -45,6 +49,7 @@ export const EXCLUSION_LABEL: Record<ExclusionCode, string> = {
   DIFFERENT_PRODUCT: "다른 상품(식별정보 불일치)",
   BUNDLE: "묶음 상품",
   DIFFERENT_CONDITION: "상태가 다름",
+  DIFFERENT_COMPONENTS: "구성이 다름(직접 표시함)",
   QUOTE_EXPIRED: "견적 유효기간 만료",
   OUT_OF_WINDOW: "기준 기간보다 오래됨",
 };
@@ -115,6 +120,9 @@ export function classifyRecord<R extends ComparableRecord>(
 
   if (record.condition === null) warnings.push("CONDITION_UNCHECKED");
   else if (record.condition !== item.condition) exclusions.push("DIFFERENT_CONDITION");
+
+  // 구성 일치는 사용자가 "다름"이라고 표시한 경우에만 뺀다. 모름은 그대로 두고, 구성품 글자를 비교해 추측하지 않는다.
+  if (record.componentsMatch === "NO") exclusions.push("DIFFERENT_COMPONENTS");
 
   if (isQuoteExpired(record, today)) exclusions.push("QUOTE_EXPIRED");
   const age = daysBetween(record.checkedDate, today);
