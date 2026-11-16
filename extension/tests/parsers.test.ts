@@ -180,6 +180,12 @@ describe("미리보기 초기값", () => {
     const rec = toRecord({ priceType: "ASKING", amount: " 1000 ", sourceName: "당근", sourceUrl: "", externalId: "a1", memo: "", condition: "", checkedDate: TODAY });
     expect(rec).toEqual({ price_type: "ASKING", amount: "1000", source_name: "당근", checked_date: TODAY, external_id: "a1" });
   });
+  it("구성 일치 여부는 사용자가 고른 경우에만 보낸다", () => {
+    const base = { priceType: "ASKING", amount: "1000", sourceName: "당근", sourceUrl: "", externalId: "", memo: "", condition: "", checkedDate: TODAY };
+    expect(toRecord({ ...base, componentsMatch: "NO" }).components_match).toBe("NO");
+    expect(toRecord({ ...base, componentsMatch: "" })).not.toHaveProperty("components_match");
+    expect(toRecord({ ...base, componentsMatch: "maybe" })).not.toHaveProperty("components_match");
+  });
 });
 
 describe("앱 화면 링크", () => {
