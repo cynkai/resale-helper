@@ -70,6 +70,8 @@ export const priceRecords = sqliteTable(
     productIdentifier: text("product_identifier"),
     condition: text("condition").$type<Condition>(),
     components: text("components"),
+    // 이 매물의 구성이 내 물건과 같은지(사용자 표시). NO면 비교에서 제외한다.
+    componentsMatch: text("components_match").$type<TriState>().notNull().default("UNKNOWN"),
     bundleType: text("bundle_type").$type<BundleType>().notNull().default("SINGLE"),
     shippingIncluded: text("shipping_included").$type<TriState>().notNull().default("UNKNOWN"),
     verificationMethod: text("verification_method"),

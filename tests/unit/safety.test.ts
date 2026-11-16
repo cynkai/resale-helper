@@ -106,6 +106,7 @@ describe("오래된 자료 표시", () => {
     productIdentifier: null,
     condition: "GOOD" as const,
     bundleType: "SINGLE" as const,
+    componentsMatch: "UNKNOWN" as const,
     quoteValidUntil: null,
     includedInComparison: true,
   });

@@ -23,6 +23,7 @@ export const CSV_COLUMNS: { header: string; field: PriceField }[] = [
   { header: "product_identifier", field: "productIdentifier" },
   { header: "condition", field: "condition" },
   { header: "components", field: "components" },
+  { header: "components_match", field: "componentsMatch" },
   { header: "bundle_type", field: "bundleType" },
   { header: "shipping_included", field: "shippingIncluded" },
   { header: "verification_method", field: "verificationMethod" },
@@ -163,6 +164,7 @@ export type ExportRow = {
   productIdentifier: string | null;
   condition: string | null;
   components: string | null;
+  componentsMatch: string;
   bundleType: string;
   shippingIncluded: string;
   verificationMethod: string | null;
@@ -190,6 +192,7 @@ export function buildCsv(rows: ExportRow[]): string {
       r.productIdentifier ?? "",
       r.condition ?? "",
       r.components ?? "",
+      r.componentsMatch,
       r.bundleType,
       r.shippingIncluded,
       r.verificationMethod ?? "",

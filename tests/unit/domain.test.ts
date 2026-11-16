@@ -171,6 +171,7 @@ describe("가격 비교", () => {
     productIdentifier: "9780306406157",
     condition: "GOOD",
     bundleType: "SINGLE",
+    componentsMatch: "UNKNOWN",
     quoteValidUntil: null,
     includedInComparison: true,
     ...over,
@@ -345,6 +346,33 @@ describe("실수령액", () => {
     expect(netDifference(direct, buyback)).toBe(7000);
     expect(netDifference(direct, computeNet({ ...full, packing: null }))).toBeNull();
     expect(netDifference(direct, null)).toBeNull();
+  });
+});
+
+describe("구성이 같은 자료끼리 비교", () => {
+  const item = { identifier: "9780306406157", condition: "GOOD" as const };
+  const base = {
+    priceType: "ASKING" as const,
+    currency: "KRW" as const,
+    checkedDate: "2026-11-01",
+    productIdentifier: "9780306406157",
+    condition: "GOOD" as const,
+    bundleType: "SINGLE" as const,
+    quoteValidUntil: null,
+    includedInComparison: true,
+  };
+  it("사용자가 '다름'이라고 표시한 자료만 빼고, 모름과 같음은 그대로 둔다", () => {
+    const records = [
+      { ...base, id: 1, amountMinor: 10000, componentsMatch: "YES" as const },
+      { ...base, id: 2, amountMinor: 12000, componentsMatch: "UNKNOWN" as const },
+      { ...base, id: 3, amountMinor: 14000, componentsMatch: "UNKNOWN" as const },
+      { ...base, id: 4, amountMinor: 30000, componentsMatch: "NO" as const }, // 박스·구성품이 더 많은 매물
+    ];
+    const g = buildComparison(item, records, "2026-11-10", 180).groups[0]!;
+    expect(g.eligible.map((c) => c.record.id)).toEqual([1, 2, 3]);
+    expect(g.excluded.map((c) => [c.record.id, c.exclusions])).toEqual([[4, ["DIFFERENT_COMPONENTS"]]]);
+    // 구성이 다른 30,000원은 요약에 섞이지 않는다
+    expect(g.summary).toEqual({ count: 3, median: 12000, min: 10000, max: 14000 });
   });
 });
 

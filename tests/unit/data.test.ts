@@ -167,6 +167,25 @@ describe("같은 매물의 가격 변동 이력", () => {
   });
 });
 
+describe("구성 일치 여부 입력", () => {
+  it("빈칸은 모름으로 저장하고, YES/NO만 받으며, CSV로 내보냈다가 다시 읽을 수 있다", () => {
+    expect(price().componentsMatch).toBe("UNKNOWN");
+    expect(price({ componentsMatch: "no" }).componentsMatch).toBe("NO");
+    const bad = validatePriceInput(
+      { priceType: "ASKING", amount: "1000", sourceName: "장터", checkedDate: "2026-11-01", componentsMatch: "아마도" },
+      { route: "MANUAL", today: TODAY },
+    );
+    expect(bad.ok).toBe(false);
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    insertPrice(db, item, price({ externalId: "C1", componentsMatch: "NO" }), "MANUAL");
+    const csv = buildCsv(exportRows(db, false, item.id));
+    expect(csv.split("\n")[0]).toContain("components_match");
+    const plan = planCsvImport(csv, TODAY, []);
+    expect(plan.headerError).toBeNull();
+    expect(plan.valid[0]!.value.componentsMatch).toBe("NO");
+  });
+});
+
 describe("데모의 가격 변동 이력", () => {
   it("데모 자료에 이력 예시가 있고, 데모를 지우면 이력도 함께 지워진다", () => {
     seedDemo(db, TODAY);

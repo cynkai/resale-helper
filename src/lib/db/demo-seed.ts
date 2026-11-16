@@ -74,6 +74,7 @@ export function seedDemo(db: Db, today: string): void {
     productIdentifier: isbn,
     condition: "GOOD",
     components: null,
+    componentsMatch: "UNKNOWN",
     bundleType: "SINGLE",
     shippingIncluded: "UNKNOWN",
     verificationMethod: null,
