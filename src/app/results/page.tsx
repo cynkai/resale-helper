@@ -124,6 +124,12 @@ export default async function ResultsPage() {
         </div>
       ) : (
         <>
+          <p className="text-sm">
+            <a href="/api/export/results" className="underline" download>
+              이 기록을 CSV로 받기
+            </a>{" "}
+            <span className="text-stone-600">— 물건별 값만 담고 합계는 없습니다.</span>
+          </p>
           <section aria-label="요약" className="card text-sm" data-testid="review-counts">
             <p>
               기록 {rows.length}건 — 실수령액이 예상보다 <strong>많음 {counts.ABOVE}건</strong>, <strong>같음 {counts.EQUAL}건</strong>,{" "}

@@ -881,3 +881,22 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   await expect(page.getByTestId(`posted-first-${id}`)).toHaveText("처음 올린 가격 24,000원 · 1번 내림");
   await expect(page.getByTestId("posted-counts")).toContainText("낮게 판 것 1건");
 });
+
+test("배분·판매 결과를 CSV로 내려받는다(물건별 값만, 합계 없음)", async ({ page }) => {
+  await page.goto("/triage");
+  const triage = await page.request.get("/api/export/triage");
+  expect(triage.headers()["content-disposition"]).toMatch(/triage-\d{4}-\d{2}-\d{2}\.csv/);
+  expect(triage.headers()["cache-control"]).toBe("no-store");
+  const tText = await triage.text();
+  expect(tText.split("\r\n")[0]).toContain("item_name,category,status,verdict");
+  expect(tText).not.toMatch(/합계|total/i);
+  await expect(page.getByRole("link", { name: "이 표를 CSV로 받기" })).toBeVisible();
+
+  await page.goto("/results");
+  await expect(page.getByRole("link", { name: "이 기록을 CSV로 받기" })).toBeVisible();
+  const results = await page.request.get("/api/export/results");
+  const rText = await results.text();
+  expect(rText.split("\r\n")[0]).toContain("item_name,category,sold_date,channel");
+  expect(rText).toContain("올린 가격 게임기");
+  expect(rText).not.toContain("(데모)");
+});
