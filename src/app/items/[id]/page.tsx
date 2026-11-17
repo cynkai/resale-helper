@@ -685,7 +685,7 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                         <tr key={sc.id} className="border-t border-stone-200">
                           <th scope="row" className="py-1 pr-3 font-normal">
                             {scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel)}
-                            {byMethod(sc.method)?.id === sc.id ? <span className="ml-1 text-xs text-teal-900">(기준)</span> : null}
+                            {ofMethod(sc.method).length > 1 && byMethod(sc.method)?.id === sc.id ? <span className="ml-1 text-xs text-teal-900">(기준)</span> : null}
                           </th>
                           <td className="whitespace-nowrap py-1 pr-3">{formatMoney(sc.saleAmount)}</td>
                           <td className="whitespace-nowrap py-1 pr-3">
