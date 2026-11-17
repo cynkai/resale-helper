@@ -69,6 +69,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             — 지금 모드의 물건·가격 자료·계산·판매 결과(복구용 아님)
           </p>
           <p className="mt-2">
+            <Link href="/trash" className="underline underline-offset-2 hover:text-stone-900">
+              휴지통
+            </Link>{" "}
+            ·{" "}
             <Link href="/templates" className="underline underline-offset-2 hover:text-stone-900">
               판매글 템플릿
             </Link>{" "}

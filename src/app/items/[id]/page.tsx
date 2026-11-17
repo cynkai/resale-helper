@@ -58,7 +58,7 @@ export default async function ItemPage({
           </form>
           <form action={deleteItemAction}>
             <input type="hidden" name="itemId" value={item.id} />
-            <ConfirmSubmit message="이 물건과 연결된 가격 자료·계산·판매 결과가 모두 삭제됩니다. 삭제할까요?">물건 삭제</ConfirmSubmit>
+            <ConfirmSubmit message="이 물건을 휴지통으로 옮깁니다. 휴지통에서 되살리거나 완전히 지울 수 있습니다. 옮길까요?">물건 삭제</ConfirmSubmit>
           </form>
         </div>
       </div>

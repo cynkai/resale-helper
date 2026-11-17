@@ -79,9 +79,32 @@ export async function saveItemAction(_prev: FormState, fd: FormData): Promise<Fo
 
 export async function deleteItemAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
-  repo.deleteItem(db, isDemo, item.id);
+  // 바로 지우지 않고 휴지통으로 옮긴다(딸린 자료는 그대로 두므로 되살릴 수 있다).
+  repo.trashItem(db, isDemo, item.id);
   revalidatePath("/");
-  redirect("/");
+  redirect("/?trashed=1");
+}
+
+// ---- 휴지통 ----
+
+export async function restoreItemAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "itemId"));
+  if (id === null) return;
+  repo.restoreItem(getDb(), await isDemoMode(), id);
+  revalidatePath("/");
+  revalidatePath("/trash");
+}
+
+export async function purgeItemAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "itemId"));
+  if (id === null) return;
+  repo.purgeItem(getDb(), await isDemoMode(), id);
+  revalidatePath("/trash");
+}
+
+export async function emptyTrashAction(): Promise<void> {
+  repo.emptyTrash(getDb(), await isDemoMode());
+  revalidatePath("/trash");
 }
 
 export async function duplicateItemAction(fd: FormData): Promise<void> {
