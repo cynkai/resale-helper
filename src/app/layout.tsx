@@ -73,6 +73,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               휴지통
             </Link>{" "}
             ·{" "}
+            <Link href="/presets" className="underline underline-offset-2 hover:text-stone-900">
+              내 비용 묶음
+            </Link>{" "}
+            ·{" "}
             <Link href="/templates" className="underline underline-offset-2 hover:text-stone-900">
               판매글 템플릿
             </Link>{" "}

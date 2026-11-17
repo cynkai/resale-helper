@@ -219,6 +219,25 @@ export const postedPrices = sqliteTable(
   (t) => [index("posted_prices_item_idx").on(t.itemId)],
 );
 
+/** 내 비용 묶음: 사용자가 저장해 둔 비용 조합. 데모와 실제 모드가 따로 가진다. null = 모름. */
+export const costPresets = sqliteTable(
+  "cost_presets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+    name: text("name").notNull(),
+    feeMode: text("fee_mode").$type<"AMOUNT" | "RATE">().notNull().default("AMOUNT"),
+    feeAmount: integer("fee_amount"),
+    feeRateBp: integer("fee_rate_bp"),
+    shipping: integer("shipping"),
+    packing: integer("packing"),
+    transport: integer("transport"),
+    expectedMinutes: integer("expected_minutes"),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("cost_preset_name_uq").on(t.isDemo, t.name)],
+);
+
 /** 내가 만든 판매글 템플릿. 데모와 실제 모드가 따로 가진다. 본문은 사용자가 직접 쓴 글이다. */
 export const listingTemplates = sqliteTable(
   "listing_templates",
@@ -267,4 +286,5 @@ export type SaleResult = typeof saleResults.$inferSelect;
 export type Offer = typeof offers.$inferSelect;
 export type PostedPrice = typeof postedPrices.$inferSelect;
 export type ListingTemplate = typeof listingTemplates.$inferSelect;
+export type CostPreset = typeof costPresets.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

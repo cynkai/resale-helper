@@ -97,7 +97,11 @@ export function ScenarioForm({
       </Field>
 
       {copyOptions.length > 0 ? (
-        <Field label="다른 계산의 비용 베껴 오기" name={`${p}-copy`} hint="수수료·배송비·포장비·교통비·소요시간만 가져옵니다. 금액은 가져오지 않습니다.">
+        <Field
+          label="비용 베껴 오기"
+          name={`${p}-copy`}
+          hint="내 비용 묶음이나 다른 계산에서 수수료·배송비·포장비·교통비·소요시간만 가져옵니다. 금액은 가져오지 않고, 가져온 뒤 고칠 수 있습니다."
+        >
           <select
             id={`${p}-copy`}
             className="input"

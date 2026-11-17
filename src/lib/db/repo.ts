@@ -3,6 +3,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import {
+  costPresets,
   costScenarios,
   items,
   listingTemplates,
@@ -20,6 +21,7 @@ import {
 } from "./schema";
 import { isSameListing } from "../domain/compare";
 import type { ExportRow } from "../domain/csv";
+import type { ValidCostPreset } from "../domain/cost-preset";
 import type { ValidItemInput } from "../domain/item-input";
 import type { OfferStatus, ValidOfferInput } from "../domain/offer";
 import type { ValidPostedPriceInput } from "../domain/posted-price";
@@ -569,6 +571,31 @@ export function listPostedPricesByItem(db: Db, isDemo: boolean): Map<number, Pos
   return map;
 }
 
+// ---- 내 비용 묶음 ----
+
+export function listCostPresets(db: Db, isDemo: boolean) {
+  return db.select().from(costPresets).where(eq(costPresets.isDemo, isDemo)).orderBy(asc(costPresets.id)).all();
+}
+
+export type PresetSaveResult = { ok: true; id: number } | { ok: false; reason: "DUPLICATE_NAME" | "NOT_FOUND" };
+
+/** id가 있으면 고치고 없으면 만든다. 같은 모드에 같은 이름이 있으면 저장하지 않는다. */
+export function saveCostPreset(db: Db, isDemo: boolean, id: number | null, v: ValidCostPreset): PresetSaveResult {
+  const all = listCostPresets(db, isDemo);
+  const same = all.find((p) => p.name === v.name);
+  if (same && same.id !== id) return { ok: false, reason: "DUPLICATE_NAME" };
+  if (id === null) {
+    return { ok: true, id: db.insert(costPresets).values({ ...v, isDemo }).returning({ id: costPresets.id }).get().id };
+  }
+  if (!all.some((p) => p.id === id)) return { ok: false, reason: "NOT_FOUND" };
+  db.update(costPresets).set({ ...v, updatedAt: now }).where(and(eq(costPresets.id, id), eq(costPresets.isDemo, isDemo))).run();
+  return { ok: true, id };
+}
+
+export function deleteCostPreset(db: Db, isDemo: boolean, id: number): void {
+  db.delete(costPresets).where(and(eq(costPresets.id, id), eq(costPresets.isDemo, isDemo))).run();
+}
+
 // ---- 판매글 템플릿 ----
 
 export function listTemplates(db: Db, isDemo: boolean) {
@@ -716,6 +743,7 @@ export function clearDemo(db: Db): void {
   db.delete(items).where(eq(items.isDemo, true)).run();
   db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
   db.delete(listingTemplates).where(eq(listingTemplates.isDemo, true)).run();
+  db.delete(costPresets).where(eq(costPresets.isDemo, true)).run();
 }
 
 // ---- 전체 내보내기 ----
