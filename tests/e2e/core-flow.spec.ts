@@ -1481,3 +1481,25 @@ test("물건 배분 거르기: 판단별로 보면 그 판단의 물건만 나�
   await page.goto("/triage?verdict=BOGUS&category=NOPE");
   await expect(page.getByTestId("triage-shown")).toHaveCount(0);
 });
+
+test("가격 자료 폼: 원문 URL을 붙이면 비어 있는 출처 이름·매물 번호만 주소 모양으로 채운다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("주소 제안 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const itemPath = new URL(page.url()).pathname;
+  await page.goto(`${itemPath}/prices/new`);
+  await page.locator("#sourceUrl").fill("https://m.bunjang.co.kr/products/987654");
+  await page.locator("#sourceUrl").blur();
+  await expect(page.locator("#sourceName")).toHaveValue("번개장터");
+  await expect(page.locator("#externalId")).toHaveValue("987654");
+  await expect(page.getByTestId("url-filled")).toContainText("확인해 주세요");
+  // 이미 적은 값은 덮어쓰지 않는다
+  await page.locator("#sourceName").fill("내가 적은 출처");
+  await page.locator("#sourceUrl").fill("https://web.joongna.com/product/555");
+  await page.locator("#sourceUrl").blur();
+  await expect(page.locator("#sourceName")).toHaveValue("내가 적은 출처");
+  await expect(page.locator("#externalId")).toHaveValue("987654");
+});

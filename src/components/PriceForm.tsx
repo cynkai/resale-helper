@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { savePriceAction, type FormState } from "@/app/actions";
 import { Field } from "./ui";
+import { suggestFromUrl } from "@/lib/domain/url-suggest";
 import {
   BUNDLE_LABEL,
   BUNDLE_TYPES,
@@ -35,6 +36,26 @@ export function PriceForm({
   const [type, setType] = useState(v.priceType ?? "ASKING");
   const isQuote = type === "BUYBACK_QUOTE";
   const key = JSON.stringify(state.values ?? {}); // 오류로 돌아오면 입력값을 유지한 채 다시 그린다
+  const [urlFilled, setUrlFilled] = useState<string | null>(null);
+
+  // 원문 URL을 붙이면 비어 있는 출처 이름·매물 번호만 주소 모양으로 채운다(앱은 그 주소에 접속하지 않는다).
+  const fillFromUrl = (ev: React.FocusEvent<HTMLInputElement>) => {
+    const s = suggestFromUrl(ev.currentTarget.value);
+    const form = ev.currentTarget.form;
+    if (!s || !form) return;
+    const filled: string[] = [];
+    const source = form.elements.namedItem("sourceName") as HTMLInputElement | null;
+    if (source && source.value.trim() === "") {
+      source.value = s.sourceName;
+      filled.push(`출처 이름 "${s.sourceName}"`);
+    }
+    const ext = form.elements.namedItem("externalId") as HTMLInputElement | null;
+    if (ext && ext.value.trim() === "" && s.externalId) {
+      ext.value = s.externalId;
+      filled.push(`매물 번호 "${s.externalId}"(추가 정보 안)`);
+    }
+    setUrlFilled(filled.length > 0 ? `주소에서 ${filled.join(", ")}을(를) 채웠습니다. 맞는지 확인해 주세요.` : null);
+  };
 
   const input = (name: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <input
@@ -137,7 +158,12 @@ export function PriceForm({
         error={e.sourceUrl}
         hint="나중에 다시 확인하기 위한 기록입니다. 앱이 이 주소에 접속하지 않으며, URL이 있다고 검증된 가격이 되지도 않습니다."
       >
-        {input("sourceUrl", { type: "url", placeholder: "https://" })}
+        {input("sourceUrl", { type: "url", placeholder: "https://", onBlur: fillFromUrl })}
+        {urlFilled ? (
+          <p className="mt-1 text-xs text-teal-900" role="status" data-testid="url-filled">
+            {urlFilled}
+          </p>
+        ) : null}
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
