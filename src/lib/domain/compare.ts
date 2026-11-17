@@ -184,3 +184,31 @@ export function isSameListing(a: DedupKeyed, b: DedupKeyed): boolean {
   if (a.normalizedUrl && b.normalizedUrl && a.normalizedUrl === b.normalizedUrl) return true;
   return false;
 }
+
+// ---- 목록 보기 순서 ----
+
+export const PRICE_SORTS = ["default", "amount_desc", "checked_desc"] as const;
+export type PriceSort = (typeof PRICE_SORTS)[number];
+
+export const PRICE_SORT_LABEL: Record<PriceSort, string> = {
+  default: "금액 낮은 순", // 기본: 포함된 자료는 금액 낮은 순(요약의 최저·중앙·최고와 같은 순서), 제외된 자료는 저장된 순서
+  amount_desc: "금액 높은 순",
+  checked_desc: "최근 확인한 순",
+};
+
+/**
+ * 한 유형 안에서 자료를 보여 줄 순서. 보기 순서만 바꾸며 요약·포함 여부에는 영향이 없다.
+ * 금액순은 통화가 같은 것끼리만 견준다(원화가 먼저, 외화는 통화별로 뒤에 모은다).
+ */
+export function sortForDisplay<T extends { record: { id: number; amountMinor: number; currency: string; checkedDate: string } }>(
+  list: T[],
+  sort: PriceSort,
+): T[] {
+  if (sort === "default") return list;
+  const cur = (c: string) => (c === "KRW" ? "" : c);
+  const cmp: Record<Exclude<PriceSort, "default">, (a: T, b: T) => number> = {
+    amount_desc: (a, b) => cur(a.record.currency).localeCompare(cur(b.record.currency)) || b.record.amountMinor - a.record.amountMinor,
+    checked_desc: (a, b) => b.record.checkedDate.localeCompare(a.record.checkedDate),
+  };
+  return [...list].sort((a, b) => cmp[sort](a, b) || a.record.id - b.record.id);
+}

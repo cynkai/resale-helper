@@ -976,3 +976,44 @@ test("산 가격: 적어 두면 계산·판매 결과·돌아보기에서 실수
   await expect(page.getByTestId(`purchase-${id}`)).toHaveText("산 가격 30,000원 대비 -14,000원");
   await expect(page.getByTestId("purchase-counts")).toContainText("적음 1건");
 });
+
+test("가격 자료 목록: 보기 순서를 바꾸고 제외된 자료를 숨겨도 요약과 포함 건수는 그대로다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("정렬 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  for (const [amount, source] of [["15000", "가 장터"], ["9000", "나 장터"], ["12000", "다 장터"]] as const) {
+    await addPrice(page, { type: "ASKING", amount, source });
+    await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+  }
+  await page.getByRole("link", { name: "가격 자료 추가" }).click();
+  await page.locator("#priceType").selectOption("ASKING");
+  await page.locator("#amount").fill("10.00");
+  await page.locator("#currency").selectOption("USD");
+  await page.locator("#sourceName").fill("해외 장터");
+  await page.getByRole("button", { name: "가격 자료 저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+
+  const group = page.getByTestId("group-ASKING");
+  const firstCells = () => group.locator("tbody tr td:first-child");
+  await expect(firstCells().first()).toContainText("9,000원"); // 기본: 금액 낮은 순
+  await expect(group).toContainText("포함 3건 · 제외 1건");
+  const summaryBefore = await group.locator("h3").innerText();
+
+  await page.getByTestId("price-sort").getByRole("link", { name: "금액 높은 순" }).click();
+  await expect(page).toHaveURL(/sort=amount_desc/);
+  await expect(firstCells().nth(0)).toContainText("15,000원");
+  await expect(firstCells().nth(1)).toContainText("12,000원");
+  await expect(firstCells().nth(2)).toContainText("9,000원");
+  await expect(firstCells().nth(3)).toContainText("USD 10.00");
+
+  await page.getByTestId("toggle-excluded").click();
+  await expect(page).toHaveURL(/hide=excluded/);
+  await expect(firstCells()).toHaveCount(3);
+  await expect(group).toContainText("포함 3건 · 제외 1건");
+  expect(await group.locator("h3").innerText()).toBe(summaryBefore);
+  await page.getByTestId("toggle-excluded").click();
+  await expect(firstCells()).toHaveCount(4);
+});

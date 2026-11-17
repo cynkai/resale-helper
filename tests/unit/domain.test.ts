@@ -1,3 +1,4 @@
+import { sortForDisplay, type PriceSort } from "@/lib/domain/compare";
 import { describe, expect, it } from "vitest";
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { buildComparison, isSameListing, type ComparableRecord } from "@/lib/domain/compare";
@@ -479,5 +480,25 @@ describe("다음에 할 일", () => {
   it("판매 완료인데 결과 기록이 없으면 기록이 먼저, 기록이 있으면 완료", () => {
     expect(nextStep({ ...base, status: "SOLD" })).toBe("RECORD_RESULT");
     expect(nextStep({ ...base, status: "SOLD", hasResult: true })).toBe("DONE");
+  });
+});
+
+describe("가격 자료 보기 순서", () => {
+  const r = (id: number, amountMinor: number, checkedDate: string, currency = "KRW") => ({ record: { id, amountMinor, currency, checkedDate } });
+  const list = [r(1, 15000, "2026-11-01"), r(2, 9000, "2026-11-10"), r(3, 1250, "2026-11-05", "USD"), r(4, 15000, "2026-11-03"), r(5, 900, "2026-11-02", "USD")];
+  const ids = (sort: PriceSort) => sortForDisplay(list, sort).map((x) => x.record.id);
+
+  it("기본은 받은 순서 그대로(비교 계산이 이미 금액 낮은 순으로 준다)", () => {
+    expect(sortForDisplay(list, "default")).toBe(list);
+  });
+  it("금액 높은 순은 통화가 같은 것끼리만 견준다(원화 먼저, 외화는 뒤에 모음). 같은 금액은 입력 순서", () => {
+    expect(ids("amount_desc")).toEqual([1, 4, 2, 3, 5]);
+  });
+  it("최근 확인한 순", () => {
+    expect(ids("checked_desc")).toEqual([2, 3, 4, 5, 1]);
+  });
+  it("원래 목록을 바꾸지 않는다", () => {
+    ids("amount_desc");
+    expect(list.map((x) => x.record.id)).toEqual([1, 2, 3, 4, 5]);
   });
 });
