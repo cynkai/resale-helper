@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { emptyTrashAction, purgeItemAction, restoreItemAction } from "@/app/actions";
 import { ConfirmSubmit } from "@/components/client-bits";
@@ -7,6 +8,8 @@ import { listTrashedItems } from "@/lib/db/repo";
 import { utcToSeoulYmd } from "@/lib/domain/timeline";
 import { CATEGORY_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "휴지통" };
 
 export default async function TrashPage() {
   const demo = await isDemoMode();

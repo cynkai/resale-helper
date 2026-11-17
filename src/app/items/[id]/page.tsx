@@ -19,6 +19,11 @@ import { OffersSection } from "./_sections/offers";
 import { ResultSection } from "./_sections/result";
 import { TimelineSection } from "./_sections/timeline";
 import { loadItemView } from "./view";
+import { itemTitle } from "./meta";
+
+export function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  return itemTitle(params);
+}
 
 export default async function ItemPage({
   params,

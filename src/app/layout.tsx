@@ -5,7 +5,8 @@ import { enterDemoAction, exitDemoAction, resetDemoAction } from "./actions";
 import { isDemoMode } from "@/lib/mode";
 
 export const metadata: Metadata = {
-  title: "얼마에 팔까",
+  // 화면마다 제목을 달아 브라우저 탭·방문 기록·화면 낭독기에서 어느 화면인지 알 수 있게 한다.
+  title: { default: "얼마에 팔까", template: "%s · 얼마에 팔까" },
   description: "집에 있는 물건을 팔기 전에 가격 자료를 비교하고 실수령액을 계산하는 개인용 도구",
 };
 

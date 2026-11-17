@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { deleteTemplateAction } from "@/app/actions";
 import { ConfirmSubmit, TemplateForm } from "@/components/client-bits";
 import { Section } from "@/components/ui";
@@ -5,6 +6,8 @@ import { getDb } from "@/lib/db/client";
 import { listTemplates } from "@/lib/db/repo";
 import { TEMPLATE_TOKENS } from "@/lib/domain/listing-template";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "판매글 템플릿" };
 
 export default async function TemplatesPage() {
   const demo = await isDemoMode();
