@@ -13,6 +13,7 @@ import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
+import { validateCostPreset } from "@/lib/domain/cost-preset";
 import { planItemsCsvImport } from "@/lib/domain/items-csv";
 import { validateTemplateInput } from "@/lib/domain/listing-template";
 import { validatePostedPriceInput } from "@/lib/domain/posted-price";
@@ -437,6 +438,30 @@ export async function deleteSaleResultAction(fd: FormData): Promise<void> {
   const { item, db } = await requireItem(s(fd, "itemId"));
   repo.deleteSaleResult(db, item.id);
   revalidatePath(`/items/${item.id}`);
+}
+
+// ---- 내 비용 묶음 ----
+
+export async function saveCostPresetAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const isDemo = await isDemoMode();
+  const r = validateCostPreset(values(fd));
+  if (!r.ok) return { errors: r.errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
+  const idRaw = s(fd, "presetId");
+  const saved = repo.saveCostPreset(getDb(), isDemo, idRaw === "" ? null : intId(idRaw), r.value);
+  if (!saved.ok) {
+    return saved.reason === "DUPLICATE_NAME"
+      ? { errors: { name: "같은 이름의 묶음이 이미 있습니다." }, values: values(fd), message: "입력 내용을 확인해 주세요." }
+      : { values: values(fd), message: "고치려는 묶음을 찾을 수 없습니다. 화면을 새로 고쳐 주세요." };
+  }
+  revalidatePath("/presets");
+  return idRaw === "" ? { ok: true, message: "묶음을 만들었습니다." } : { ok: true, message: "저장했습니다.", values: values(fd) };
+}
+
+export async function deleteCostPresetAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "presetId"));
+  if (id === null) return;
+  repo.deleteCostPreset(getDb(), await isDemoMode(), id);
+  revalidatePath("/presets");
 }
 
 // ---- 판매글 템플릿 ----

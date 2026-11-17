@@ -8,7 +8,7 @@ import { NetBox, scenarioInitial } from "./shared";
 import type { ItemView } from "../view";
 
 export function NetSection({ v }: { v: ItemView }) {
-  const { item, scenarios, byMethod, ofMethod, netOf, issuesOf, channelNames, copyOptions, basisOptions } = v;
+  const { item, scenarios, byMethod, ofMethod, netOf, issuesOf, channelNames, presetOptions, copyOptions, basisOptions } = v;
 
   return (
     <Section id="net" step={2} title="실수령액 계산">
@@ -43,6 +43,7 @@ export function NetSection({ v }: { v: ItemView }) {
                     initial={scenarioInitial(only)}
                     basisOptions={basisOptions[m]}
                     channelNames={channelNames}
+                    copyOptions={presetOptions}
                   />
                 </>
               ) : (
@@ -82,6 +83,7 @@ export function NetSection({ v }: { v: ItemView }) {
                               initial={scenarioInitial(sc)}
                               basisOptions={basisOptions[m]}
                               channelNames={channelNames}
+                              copyOptions={presetOptions}
                             />
                             <form action={deleteScenarioAction}>
                               <input type="hidden" name="itemId" value={item.id} />

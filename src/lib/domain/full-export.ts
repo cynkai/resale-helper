@@ -4,6 +4,7 @@
 // - 설정(가져오기 토큰 해시 등)은 싣지 않는다.
 
 import type { CostScenario, Item, Offer, PostedPrice, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
+import type { ValidCostPreset } from "./cost-preset";
 import { convertToKrw, fxRateToPlain } from "./fx";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
@@ -30,6 +31,8 @@ export function buildFullExport(input: {
   sources: FullExportSource[];
   /** 내가 만든 판매글 템플릿(현재 모드). */
   templates?: { name: string; body: string }[];
+  /** 내 비용 묶음(현재 모드). 사용자가 저장한 값이며 null은 모름. */
+  costPresets?: ValidCostPreset[];
 }) {
   return {
     format: "resale-helper-export",
@@ -46,6 +49,16 @@ export function buildFullExport(input: {
       ...(input.demo ? ["데모 모드의 가상 자료입니다. 실제 시세가 아닙니다."] : []),
     ],
     listingTemplates: (input.templates ?? []).map((t) => ({ name: t.name, body: t.body })),
+    costPresets: (input.costPresets ?? []).map((p) => ({
+      name: p.name,
+      feeMode: p.feeMode,
+      feeAmount: p.feeAmount,
+      feeRateBp: p.feeRateBp,
+      shipping: p.shipping,
+      packing: p.packing,
+      transport: p.transport,
+      expectedMinutes: p.expectedMinutes,
+    })),
     itemCount: input.sources.length,
     items: input.sources.map(({ item, prices, history, scenarios, saleResult, offers, postedPrices }) => {
       const chosen = chosenScenario(item, scenarios);

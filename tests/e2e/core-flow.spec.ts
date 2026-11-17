@@ -1127,3 +1127,37 @@ test("물건 목록 정렬: 이름순으로 바꾸면 주소에 남고, 할 일 
   await expect(page).toHaveURL(/sort=name/);
   await expect(page.locator("#sort")).toHaveValue("name");
 });
+
+test("내 비용 묶음: 저장해 둔 비용을 계산에 불러오고, 모름은 모름으로 온다", async ({ page }) => {
+  await page.goto("/presets");
+  await page.locator("#preset-new-name").fill("택배 거래");
+  await page.locator("#preset-new-feeAmount").fill("0");
+  await page.locator("#preset-new-shipping").fill("3500");
+  await page.locator("#preset-new-packing").fill("500");
+  // 교통비와 소요시간은 비워 둔다(모름)
+  await page.getByRole("button", { name: "묶음 만들기" }).click();
+  await expect(page.getByRole("heading", { name: "내 묶음 1개" })).toBeVisible();
+  await page.locator("#preset-new-name").fill("택배 거래");
+  await page.getByRole("button", { name: "묶음 만들기" }).click();
+  await expect(page.locator("#preset-new-name-error")).toContainText("같은 이름의 묶음이 이미 있습니다");
+
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("비용 묶음 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-saleAmount").fill("20000");
+  await direct.locator("#direct-copy").selectOption({ label: "내 비용 묶음: 택배 거래" });
+  await expect(direct.locator("#direct-shipping")).toHaveValue("3500");
+  await expect(direct.locator("#direct-packing")).toHaveValue("500");
+  await expect(direct.locator("#direct-transport")).toHaveValue(""); // 모름은 0으로 바뀌지 않는다
+  await expect(direct.locator("#direct-saleAmount")).toHaveValue("20000"); // 금액은 그대로
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("계산 불완전");
+  await direct.locator("#direct-transport").fill("0");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("16,000원");
+});

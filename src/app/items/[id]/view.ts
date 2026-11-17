@@ -2,7 +2,8 @@
 
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
-import { getSaleResult, listChannelNames, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { getSaleResult, listChannelNames, listCostPresets, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { presetFormValues } from "@/lib/domain/cost-preset";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
 import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
@@ -71,11 +72,21 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const undecidedPrimary = SALE_METHODS.filter((m) => needsPrimary(scenarios, m));
   const chosenSc = chosenScenario(item, scenarios);
   const channelNames = listChannelNames(db, demo);
-  const copyOptions: CopyOption[] = scenarios.map((sc) => ({
-    id: sc.id,
-    label: scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel),
-    values: scenarioInitial(sc),
+  // 비용 베껴 오기: 내가 저장해 둔 비용 묶음(모든 계산 폼)과 이 물건의 다른 계산(새 계산 폼).
+  // 묶음의 id는 계산 id와 겹치지 않게 음수로 준다.
+  const presetOptions: CopyOption[] = listCostPresets(db, demo).map((p) => ({
+    id: -p.id,
+    label: `내 비용 묶음: ${p.name}`,
+    values: presetFormValues(p),
   }));
+  const copyOptions: CopyOption[] = [
+    ...presetOptions,
+    ...scenarios.map((sc) => ({
+      id: sc.id,
+      label: scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel),
+      values: scenarioInitial(sc),
+    })),
+  ];
   // 기준 자료에 문제가 있는 계산은 차액 비교에도 쓰지 않는다.
   const diff = netDifference(
     issuesByMethod.DIRECT.length === 0 ? nets.DIRECT : null,
@@ -144,6 +155,7 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     undecidedPrimary,
     chosenSc,
     channelNames,
+    presetOptions,
     copyOptions,
     diff,
     directSc,

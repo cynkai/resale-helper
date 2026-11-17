@@ -7,6 +7,7 @@ import {
   importItemsCsvAction,
   saveExtensionIdAction,
   createSnapshotAction,
+  saveCostPresetAction,
   saveOfferAction,
   savePostedPriceAction,
   saveTemplateAction,
@@ -175,6 +176,73 @@ export function SaleResultForm({ itemId, initial }: { itemId: number; initial: R
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : "판매 결과 저장"}
+        </button>
+        <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
+          {state.message}
+        </span>
+      </div>
+    </form>
+  );
+}
+
+/** 내 비용 묶음 만들기·고치기. 빈칸은 모름으로 저장한다. */
+export function CostPresetForm({ presetId, initial }: { presetId?: number; initial: Record<string, string> }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveCostPresetAction, {});
+  const v = state.values ?? initial;
+  const e = state.errors ?? {};
+  const p = presetId === undefined ? "preset-new" : `preset-${presetId}`;
+  const [feeMode, setFeeMode] = useState(v.feeMode === "RATE" ? "RATE" : "AMOUNT");
+  const [seq, setSeq] = useState(0);
+  const [seen, setSeen] = useState<FormState>(state);
+  if (seen !== state) {
+    setSeen(state);
+    if (state.ok && presetId === undefined) {
+      setSeq(seq + 1);
+      setFeeMode("AMOUNT");
+    }
+  }
+  const input = (name: string, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, hint?: string) => (
+    <Field label={label} name={`${p}-${name}`} error={e[name]} hint={hint}>
+      <input
+        id={`${p}-${name}`}
+        name={name}
+        className="input"
+        defaultValue={v[name] ?? ""}
+        aria-invalid={e[name] ? true : undefined}
+        aria-describedby={e[name] ? `${p}-${name}-error` : undefined}
+        {...props}
+      />
+    </Field>
+  );
+  return (
+    <form action={action} className="space-y-3" noValidate key={`${seq}-${JSON.stringify(state.values ?? {})}`}>
+      {presetId !== undefined ? <input type="hidden" name="presetId" value={presetId} /> : null}
+      {input("name", "묶음 이름", { maxLength: 50 }, "예: 택배 거래, 편의점 택배, 직거래")}
+      <fieldset>
+        <legend className="mb-1 text-sm font-medium text-stone-800">수수료</legend>
+        <div className="mb-2 flex gap-4 text-sm">
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="feeMode" value="AMOUNT" checked={feeMode === "AMOUNT"} onChange={() => setFeeMode("AMOUNT")} />
+            금액(원)
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" name="feeMode" value="RATE" checked={feeMode === "RATE"} onChange={() => setFeeMode("RATE")} />
+            비율(%)
+          </label>
+        </div>
+        {feeMode === "AMOUNT"
+          ? input("feeAmount", "수수료 금액 (원)", { inputMode: "numeric", placeholder: "모르면 비워 두기" })
+          : input("feeRate", "수수료율 (%)", { inputMode: "decimal", placeholder: "예: 3.5" }, "판매처의 최신 공식 안내를 확인해 직접 입력하세요.")}
+      </fieldset>
+      <div className="grid gap-3 sm:grid-cols-4">
+        {input("shipping", "내가 내는 배송비", { inputMode: "numeric", placeholder: "모르면 비워 두기" })}
+        {input("packing", "포장비", { inputMode: "numeric", placeholder: "모르면 비워 두기" })}
+        {input("transport", "교통비", { inputMode: "numeric", placeholder: "모르면 비워 두기" })}
+        {input("expectedMinutes", "예상 소요시간 (분)", { inputMode: "numeric" })}
+      </div>
+      <div className="flex items-center gap-3">
+        <button type="submit" className={presetId === undefined ? "btn-primary" : "btn"} disabled={pending}>
+          {pending ? "저장 중…" : presetId === undefined ? "묶음 만들기" : "묶음 저장"}
         </button>
         <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
           {state.message}
