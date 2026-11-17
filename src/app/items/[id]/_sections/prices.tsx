@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { deletePriceAction, recheckPriceAction, togglePriceAction } from "@/app/actions";
+import { bulkPriceAction, deletePriceAction, recheckPriceAction, togglePriceAction } from "@/app/actions";
 import { ConfirmSubmit, CsvImportForm } from "@/components/client-bits";
 import { convertToKrw, fxRateToPlain } from "@/lib/domain/fx";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
@@ -92,6 +92,16 @@ export function PricesSection({ v }: { v: ItemView }) {
           ) : null}
         </td>
         <td className="px-2 py-2 align-top">
+          <label className="mb-1 flex items-center gap-1 text-xs text-stone-700">
+            <input
+              type="checkbox"
+              form="bulk-prices"
+              name="priceIds"
+              value={p.id}
+              aria-label={`${p.sourceName} ${formatMoney(p.amountMinor, p.currency)} 선택`}
+            />
+            선택
+          </label>
           <div className="flex flex-wrap gap-1">
             <form action={togglePriceAction}>
               <input type="hidden" name="itemId" value={item.id} />
@@ -210,6 +220,25 @@ export function PricesSection({ v }: { v: ItemView }) {
           <p className="mt-2 text-sm text-stone-700">
             전체 {prices.length}건 중 비교에 포함 {comparison.eligibleCount}건, 제외 {comparison.excludedCount}건. 유형이 다른 가격은 서로 합치지 않습니다.
           </p>
+
+          <form id="bulk-prices" action={bulkPriceAction} className="mt-3 flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-prices">
+            <input type="hidden" name="itemId" value={item.id} />
+            <span className="text-stone-700">‘선택’으로 고른 자료를 한꺼번에:</span>
+            <button type="submit" name="op" value="EXCLUDE" className="btn px-2 py-1 text-xs">
+              비교에서 빼기
+            </button>
+            <button type="submit" name="op" value="INCLUDE" className="btn px-2 py-1 text-xs">
+              다시 포함
+            </button>
+            <ConfirmSubmit
+              name="op"
+              value="DELETE"
+              message="고른 가격 자료를 지웁니다. 되돌릴 수 없습니다. 계속할까요?"
+              className="btn-danger px-2 py-1 text-xs"
+            >
+              삭제
+            </ConfirmSubmit>
+          </form>
 
           <div className="mt-3 space-y-5">
             {comparison.groups.map((g) => (

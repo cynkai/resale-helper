@@ -1053,3 +1053,40 @@ test("휴지통: 삭제한 물건은 목록에서 빠지고, 되살리면 자료
   await expect(page.getByTestId(`trashed-${id}`)).toHaveCount(0);
   expect((await page.request.get(`/items/${id}`)).status()).toBe(404);
 });
+
+test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 넣고 지운다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("한꺼번에 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  for (const [amount, source] of [["15000", "가 장터"], ["9000", "나 장터"], ["12000", "다 장터"], ["11000", "라 장터"]] as const) {
+    await addPrice(page, { type: "ASKING", amount, source });
+    await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+  }
+  const group = page.getByTestId("group-ASKING");
+  await expect(group).toContainText("포함 4건");
+
+  // 아무것도 고르지 않으면 아무 일도 없다
+  await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
+  await expect(group).toContainText("포함 4건");
+
+  await page.getByRole("checkbox", { name: "가 장터 15,000원 선택" }).check();
+  await page.getByRole("checkbox", { name: "나 장터 9,000원 선택" }).check();
+  await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
+  await expect(group).toContainText("포함 2건 · 제외 2건");
+
+  await page.getByRole("checkbox", { name: "가 장터 15,000원 선택" }).check();
+  await page.getByTestId("bulk-prices").getByRole("button", { name: "다시 포함" }).click();
+  await expect(group).toContainText("포함 3건 · 제외 1건");
+
+  await page.getByRole("checkbox", { name: "나 장터 9,000원 선택" }).check();
+  await page.getByRole("checkbox", { name: "라 장터 11,000원 선택" }).check();
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("bulk-prices").getByRole("button", { name: "삭제" }).click();
+  await expect(group).toContainText("포함 2건");
+  await expect(group).not.toContainText("나 장터");
+  await expect(group).not.toContainText("라 장터");
+  await expect(group).toContainText("가 장터");
+});

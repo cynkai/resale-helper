@@ -6,6 +6,7 @@ import { openDb, type Db } from "@/lib/db/client";
 import {
   countTrashedItems,
   createItem,
+  deletePrices,
   duplicateItem,
   emptyTrash,
   exportRows,
@@ -26,6 +27,7 @@ import {
   listTriageCandidates,
   purgeItem,
   restoreItem,
+  setPricesIncluded,
   trashItem,
   upsertSaleResult,
   upsertScenario,
@@ -157,5 +159,35 @@ describe("휴지통", () => {
     expect(planItemsCsvImport(csv, listAllItems(db, false)).valid).toHaveLength(0);
     trashItem(db, false, id);
     expect(planItemsCsvImport(csv, listAllItems(db, false)).valid).toHaveLength(1);
+  });
+});
+
+describe("가격 자료 한꺼번에 다루기", () => {
+  const add = (item: NonNullable<ReturnType<typeof getItem>>, n: number) => {
+    const p = validatePriceInput({ priceType: "ASKING", amount: String(10000 + n), sourceName: "장터", checkedDate: TODAY, externalId: `b-${item.id}-${n}` }, { route: "MANUAL", today: TODAY });
+    if (!p.ok) throw new Error("price");
+    const r = insertPrice(db, item, p.value, "MANUAL");
+    if (!r.ok) throw new Error("insert");
+    return r.id;
+  };
+
+  it("고른 자료만, 그 물건의 것만 바꾼다. 유형과 금액은 그대로다", () => {
+    const a = getItem(db, false, createItem(db, false, input("가")))!;
+    const b = getItem(db, false, createItem(db, false, { ...input("나"), identifier: "B-1" }))!;
+    const [a1, a2, a3] = [add(a, 1), add(a, 2), add(a, 3)];
+    const b1 = add(b, 1);
+    expect(setPricesIncluded(db, a.id, [a1, a2, b1], false)).toBe(2); // 다른 물건의 자료는 바뀌지 않는다
+    expect(listPrices(db, a.id).map((p) => [p.id, p.includedInComparison, p.priceType, p.amountMinor])).toEqual([
+      [a1, false, "ASKING", 10001],
+      [a2, false, "ASKING", 10002],
+      [a3, true, "ASKING", 10003],
+    ]);
+    expect(listPrices(db, b.id)[0]!.includedInComparison).toBe(true);
+    expect(setPricesIncluded(db, a.id, [a1], true)).toBe(1);
+    expect(deletePrices(db, a.id, [a2, b1, 99999])).toBe(1);
+    expect(listPrices(db, a.id).map((p) => p.id)).toEqual([a1, a3]);
+    expect(listPrices(db, b.id)).toHaveLength(1);
+    expect(setPricesIncluded(db, a.id, [], false)).toBe(0);
+    expect(deletePrices(db, a.id, [])).toBe(0);
   });
 });

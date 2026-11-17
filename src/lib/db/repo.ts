@@ -288,6 +288,27 @@ export function setPriceIncluded(db: Db, itemId: number, id: number, included: b
     .run();
 }
 
+/** 여러 자료를 한 번에 비교에 넣거나 뺀다. 그 물건의 자료만 바뀐다. 바뀐 건수를 돌려준다. */
+export function setPricesIncluded(db: Db, itemId: number, ids: number[], included: boolean): number {
+  if (ids.length === 0) return 0;
+  return db
+    .update(priceRecords)
+    .set({ includedInComparison: included, updatedAt: now })
+    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId)))
+    .returning({ id: priceRecords.id })
+    .all().length;
+}
+
+/** 여러 자료를 한 번에 지운다. 그 물건의 자료만 지워진다. 지운 건수를 돌려준다. */
+export function deletePrices(db: Db, itemId: number, ids: number[]): number {
+  if (ids.length === 0) return 0;
+  return db
+    .delete(priceRecords)
+    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId)))
+    .returning({ id: priceRecords.id })
+    .all().length;
+}
+
 export function importPrices(db: Db, item: Item, values: ValidPriceInput[]): number {
   return db.transaction((tx) => {
     for (const v of values) {
