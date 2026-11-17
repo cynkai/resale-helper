@@ -1272,3 +1272,29 @@ test("판매 결과 돌아보기: 판매한 달로 걸러 보고, CSV도 그 달
   await page.goto("/results?month=2026-13");
   await expect(page.locator("main")).toContainText("달별 테스트 나");
 });
+
+test("같은 모델을 전에 판 기록: 물건 화면에 보여 주되 가격 비교에는 넣지 않는다", async ({ page }) => {
+  async function add(name: string) {
+    await page.goto("/items/new");
+    await page.locator("#category").selectOption("CONSOLE");
+    await page.locator("#name").fill(name);
+    await page.locator("#identifier").fill("PAST-7");
+    await page.locator("#condition").selectOption("GOOD");
+    await page.getByRole("button", { name: "저장" }).click();
+    await expect(page).toHaveURL(/\/items\/\d+$/);
+  }
+  await add("전에 판 같은 모델");
+  await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-soldDate").fill("2026-01-20");
+  await page.locator("#result-amount").fill("23000");
+  await page.locator("#result-costTotal").fill("3000");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+  await expect(page.getByTestId("result-summary")).toBeVisible();
+  await expect(page.getByTestId("past-sales")).toHaveCount(0); // 자기 자신은 나오지 않는다
+
+  await add("지금 팔 같은 모델");
+  const past = page.getByTestId("past-sales");
+  await expect(past).toContainText("내가 전에 같은 모델명의 물건을 판 기록 1건");
+  await expect(past).toContainText("2026-01-20 · 가 장터 · 23,000원 (실수령 20,000원)");
+  await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
+});

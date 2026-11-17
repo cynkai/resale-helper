@@ -2,7 +2,7 @@
 
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
-import { getSaleResult, listChannelNames, listCostPresets, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { getSaleResult, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
@@ -132,8 +132,12 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const direct = chosenSc?.method === "DIRECT" ? chosenSc : byMethod("DIRECT");
   const draft = buildListingDraft(item, direct?.saleAmount ?? null);
 
+  // 같은 ISBN·모델명의 물건을 전에 판 내 기록(보여 주기만, 비교에는 넣지 않는다).
+  const pastSales = listPastSalesForSameIdentifier(db, demo, item);
+
   return {
     item,
+    pastSales,
     demo,
     today,
     windowParam,

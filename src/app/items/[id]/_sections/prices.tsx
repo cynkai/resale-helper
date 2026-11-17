@@ -12,7 +12,7 @@ import { WINDOWS } from "./shared";
 import type { ItemView } from "../view";
 
 export function PricesSection({ v }: { v: ItemView }) {
-  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison } = v;
+  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison, pastSales } = v;
   const priceRow = (c: Classified<PriceRecord>) => {
     const p = c.record;
     const age = daysBetween(p.checkedDate, today);
@@ -158,6 +158,30 @@ export function PricesSection({ v }: { v: ItemView }) {
       }
     >
       <p className="notice">{DISCLAIMER}</p>
+
+      {pastSales.length > 0 ? (
+        <div className="mt-3 rounded-md border border-stone-200 p-3 text-sm" data-testid="past-sales">
+          <p className="font-medium">
+            내가 전에 같은 {item.category === "BOOK" ? "ISBN" : "모델명"}의 물건을 판 기록 {pastSales.length}건
+          </p>
+          <p className="mt-1 text-xs text-stone-600">
+            내가 기록한 판매 결과입니다. 그때의 상태·구성·시기가 지금과 다를 수 있어 가격 비교와 요약에는 넣지 않습니다.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {pastSales.map((ps) => (
+              <li key={ps.itemId}>
+                <span className="text-stone-600">{ps.soldDate}</span> · {ps.channel} ·{" "}
+                <strong>{formatMoney(ps.amount)}</strong>
+                {ps.costTotal !== null ? ` (실수령 ${formatMoney(ps.amount - ps.costTotal)})` : ""} · 상태 {CONDITION_LABEL[ps.condition]}
+                {ps.components ? ` · 구성 ${ps.components}` : ""} ·{" "}
+                <Link href={`/items/${ps.itemId}#result`} className="underline">
+                  {ps.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer font-medium">가격 유형 설명 보기</summary>

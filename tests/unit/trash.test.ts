@@ -22,6 +22,7 @@ import {
   listFullExportSources,
   listItems,
   listOffers,
+  listPastSalesForSameIdentifier,
   listPostedPricesByItem,
   listPrices,
   listSaleReviews,
@@ -236,5 +237,39 @@ describe("이전·다음 물건", () => {
     trashItem(db, false, b);
     expect(adjacentItems(db, false, a).next).toEqual({ id: c, name: "다" });
     expect(adjacentItems(db, false, c).prev).toEqual({ id: a, name: "가" });
+  });
+});
+
+describe("같은 식별자로 전에 판 기록", () => {
+  it("카테고리와 식별자(대소문자·공백 무시)가 같은 다른 물건의 판매 결과만, 최근 것부터", () => {
+    const now = createItem(db, false, { ...input("지금 게임기"), identifier: "abc 1" });
+    const a = createItem(db, false, { ...input("전에 판 게임기 1"), identifier: "ABC-1".replace("-", "") });
+    const b = createItem(db, false, { ...input("전에 판 게임기 2"), identifier: "ABC1" });
+    const notSold = createItem(db, false, { ...input("안 판 게임기"), identifier: "ABC1" });
+    const otherCat = createItem(db, false, { ...input("책"), category: "BOOK", identifier: "ABC1" });
+    const other = createItem(db, false, { ...input("다른 모델"), identifier: "XYZ" });
+    const demo = createItem(db, true, { ...input("데모"), identifier: "ABC1" });
+    const sell = (id: number, soldDate: string, amount: number, isDemo = false) =>
+      upsertSaleResult(db, isDemo, id, { channel: "가 장터", soldDate, amount, costTotal: 1000, minutesSpent: null, memo: null });
+    sell(a, "2026-10-01", 20000);
+    sell(b, "2026-11-01", 18000);
+    sell(otherCat, "2026-11-02", 5000);
+    sell(other, "2026-11-03", 9000);
+    sell(demo, "2026-11-04", 1000, true);
+    void notSold;
+    const item = getItem(db, false, now)!;
+    expect(listPastSalesForSameIdentifier(db, false, item).map((r) => [r.itemId, r.amount, r.soldDate])).toEqual([
+      [b, 18000, "2026-11-01"],
+      [a, 20000, "2026-10-01"],
+    ]);
+    // 자기 자신은 빠지고, 휴지통의 물건도 빠진다
+    expect(listPastSalesForSameIdentifier(db, false, getItem(db, false, b)!).map((r) => r.itemId)).toEqual([a]);
+    trashItem(db, false, a);
+    expect(listPastSalesForSameIdentifier(db, false, item).map((r) => r.itemId)).toEqual([b]);
+    // 식별자가 없으면 찾지 않는다
+    expect(listPastSalesForSameIdentifier(db, false, { id: 999, category: "CONSOLE", identifier: null })).toEqual([]);
+    expect(listPastSalesForSameIdentifier(db, false, { id: 999, category: "CONSOLE", identifier: "  " })).toEqual([]);
+    // 가격 자료로 들어가지 않는다
+    expect(listPrices(db, now)).toHaveLength(0);
   });
 });
