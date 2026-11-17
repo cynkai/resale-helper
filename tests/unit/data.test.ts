@@ -15,6 +15,7 @@ import {
   insertPrice,
   listItems,
   listPriceHistory,
+  listFullExportSources,
   listPrices,
   listScenarios,
   recheckPrice,
@@ -23,9 +24,12 @@ import {
   upsertSaleResult,
   upsertScenario,
 } from "@/lib/db/repo";
+import { buildComparison } from "@/lib/domain/compare";
+import { buildFullExport } from "@/lib/domain/full-export";
 import { buildCsv, escapeCsvCell, parseCsv, planCsvImport } from "@/lib/domain/csv";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { validateItemInput } from "@/lib/domain/item-input";
+import { convertToKrw, fxRateToPlain, parseFxRate } from "@/lib/domain/fx";
 import { validatePriceInput } from "@/lib/domain/price-input";
 import { basisIssues } from "@/lib/domain/scenario";
 import { lookupBook, type BibliographicProvider } from "@/lib/providers/bibliographic";
@@ -183,6 +187,68 @@ describe("구성 일치 여부 입력", () => {
     const plan = planCsvImport(csv, TODAY, []);
     expect(plan.headerError).toBeNull();
     expect(plan.valid[0]!.value.componentsMatch).toBe("NO");
+  });
+});
+
+describe("외화 자료의 환산 참고", () => {
+  const raw = (over: Record<string, string>) =>
+    validatePriceInput(
+      { priceType: "ASKING", amount: "12.50", currency: "USD", sourceName: "해외 장터", checkedDate: "2026-11-01", ...over },
+      { route: "MANUAL", today: TODAY },
+    );
+  const errorsOf = (over: Record<string, string>) => {
+    const r = raw(over);
+    return r.ok ? {} : r.errors;
+  };
+
+  it("환율 파싱과 환산은 정수 연산이며 원 미만은 반올림한다", () => {
+    expect(parseFxRate("1,385.5")).toEqual({ ok: true, rateE4: 13_855_000 });
+    expect(parseFxRate("9.1234")).toEqual({ ok: true, rateE4: 91_234 });
+    for (const bad of ["", "0", "-1", "1e3", "1.23456", "abc"]) expect(parseFxRate(bad).ok).toBe(false);
+    expect(fxRateToPlain(13_855_000)).toBe("1385.5");
+    expect(fxRateToPlain(14_000_000)).toBe("1400");
+    expect(convertToKrw(1250, "USD", 13_855_000)).toBe(17319); // 12.50 × 1385.5 = 17318.75
+    expect(convertToKrw(1000, "JPY", 91_234)).toBe(9123); // 1000 × 9.1234 = 9123.4
+    expect(convertToKrw(1, "USD", 13_855_000)).toBe(14); // 0.01 × 1385.5 = 13.855
+  });
+
+  it("환율은 앱이 채우지 않는다: 입력하지 않으면 null", () => {
+    const v = price({ currency: "USD", amount: "12.50" });
+    expect(v.fxRateE4).toBeNull();
+    expect(v.fxDate).toBeNull();
+  });
+
+  it("환율과 기준일은 함께 넣어야 하고, 기준일은 오늘 이후일 수 없다", () => {
+    expect(raw({ fxRate: "1385.5", fxDate: "2026-11-01" })).toMatchObject({ ok: true, value: { fxRateE4: 13_855_000, fxDate: "2026-11-01" } });
+    expect(errorsOf({ fxRate: "1385.5" }).fxDate).toContain("기준일");
+    expect(errorsOf({ fxDate: "2026-11-01" }).fxRate).toContain("환율도");
+    expect(errorsOf({ fxRate: "1385.5", fxDate: "2026-11-12" }).fxDate).toContain("오늘 이후");
+    expect(errorsOf({ fxRate: "천삼백", fxDate: "2026-11-01" }).fxRate).toContain("소수 넷째 자리");
+  });
+
+  it("원화 자료에는 환율을 넣을 수 없다", () => {
+    expect(errorsOf({ currency: "KRW", amount: "10000", fxRate: "1385.5", fxDate: "2026-11-01" }).fxRate).toContain("원화 자료");
+  });
+
+  it("환율을 넣어도 외화 자료는 원화 비교에서 빠지고, CSV·내보내기에 근거가 남는다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    insertPrice(db, item, price({ currency: "USD", amount: "12.50", externalId: "F1", fxRate: "1385.5", fxDate: "2026-11-01" }), "MANUAL");
+    const stored = listPrices(db, item.id)[0]!;
+    expect(stored).toMatchObject({ amountMinor: 1250, currency: "USD", fxRateE4: 13_855_000, fxDate: "2026-11-01" });
+    const cmp = buildComparison(item, listPrices(db, item.id), TODAY, null);
+    expect(JSON.stringify(cmp)).toContain("FOREIGN_CURRENCY");
+
+    const csv = buildCsv(exportRows(db, false, item.id));
+    expect(csv.split("\n")[0]).toContain("currency,fx_rate,fx_date");
+    const plan = planCsvImport(csv, TODAY, []);
+    expect(plan.valid[0]!.value).toMatchObject({ fxRateE4: 13_855_000, fxDate: "2026-11-01" });
+
+    const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
+    expect(out.items[0]!.prices[0]!.krwReference).toEqual({ amount: 17319, rate: "1385.5", rateDate: "2026-11-01" });
+
+    // 원화로 고치면서 환율을 비우면 환율 근거도 지워진다
+    updatePrice(db, item, stored.id, price({ currency: "KRW", amount: "17000", externalId: "F1" }));
+    expect(listPrices(db, item.id)[0]).toMatchObject({ currency: "KRW", fxRateE4: null, fxDate: null });
   });
 });
 

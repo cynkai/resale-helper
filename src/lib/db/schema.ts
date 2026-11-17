@@ -63,6 +63,10 @@ export const priceRecords = sqliteTable(
     priceType: text("price_type").$type<PriceType>().notNull(),
     amountMinor: integer("amount_minor").notNull(), // 최소통화단위 정수
     currency: text("currency").$type<Currency>().notNull().default("KRW"),
+    // 외화 자료의 환산 참고용(사용자가 직접 확인해 입력). 외화 1단위당 원 × 10000. null = 입력 안 함.
+    // 환산값은 보여 주기만 하며 원화 비교·요약에는 쓰지 않는다.
+    fxRateE4: integer("fx_rate_e4"),
+    fxDate: text("fx_date"), // 그 환율의 기준일 YYYY-MM-DD
     sourceName: text("source_name").notNull(),
     sourceUrl: text("source_url"),
     normalizedUrl: text("normalized_url"),

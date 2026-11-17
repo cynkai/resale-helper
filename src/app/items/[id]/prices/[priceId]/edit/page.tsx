@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PriceForm } from "@/components/PriceForm";
 import { getDb } from "@/lib/db/client";
 import { getItem, getPrice } from "@/lib/db/repo";
+import { fxRateToPlain } from "@/lib/domain/fx";
 import { minorToPlain } from "@/lib/domain/money";
 import { isDemoMode } from "@/lib/mode";
 
@@ -14,6 +15,7 @@ export default async function EditPricePage({ params }: { params: Promise<{ id: 
   if (!item || !price) notFound();
   const initial: Record<string, string> = { amount: minorToPlain(price.amountMinor, price.currency) };
   for (const [k, v] of Object.entries(price)) if (typeof v === "string") initial[k] = v;
+  if (price.fxRateE4 !== null) initial.fxRate = fxRateToPlain(price.fxRateE4);
   return (
     <div className="space-y-4">
       <p className="text-sm">

@@ -4,6 +4,7 @@
 // - 설정(가져오기 토큰 해시 등)은 싣지 않는다.
 
 import type { CostScenario, Item, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
+import { convertToKrw, fxRateToPlain } from "./fx";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
 import { chosenScenario } from "./scenario";
@@ -27,6 +28,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
     mode: input.demo ? "DEMO" : "REAL",
     notes: [
       "금액은 원(KRW) 정수입니다. null은 '모름'이며 0원과 다릅니다.",
+      "외화 가격 자료의 amount는 그 통화의 최소단위 정수이고, krwReference는 사용자가 입력한 환율과 기준일로 환산한 참고값입니다(비교·요약에 쓰지 않음).",
       "가격 유형(priceType)이 다른 자료는 서로 비교하거나 합치지 않습니다.",
       "scenarios의 channel은 사용자가 적은 판매처 이름이고(''은 이름 없음), isPrimary는 같은 방식의 계산이 여러 개일 때 사용자가 기준으로 표시한 것입니다.",
       "previousValues는 같은 매물을 고치기 전의 값이며 별도 표본이 아닙니다.",
@@ -64,6 +66,11 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
           priceType: p.priceType,
           amount: p.amountMinor,
           currency: p.currency,
+          // 외화 자료의 환산 참고(사용자가 입력한 환율 기준). 원화 자료와 섞어 쓰지 않는다.
+          krwReference:
+            p.currency !== "KRW" && p.fxRateE4 !== null && p.fxDate !== null
+              ? { amount: convertToKrw(p.amountMinor, p.currency, p.fxRateE4), rate: fxRateToPlain(p.fxRateE4), rateDate: p.fxDate }
+              : null,
           sourceName: p.sourceName,
           sourceUrl: p.sourceUrl,
           externalId: p.externalId,

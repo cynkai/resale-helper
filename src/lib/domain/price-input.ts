@@ -1,6 +1,7 @@
 // 가격 자료 입력 검증. 직접 입력 폼, CSV 가져오기, (향후) API 어댑터가 모두 이 함수를 거친다.
 
 import { z } from "zod";
+import { parseFxRate } from "./fx";
 import { parseAmount } from "./money";
 import { normalizeUrl } from "./url";
 import {
@@ -23,6 +24,8 @@ export const PRICE_FIELDS = [
   "priceType",
   "amount",
   "currency",
+  "fxRate",
+  "fxDate",
   "sourceName",
   "sourceUrl",
   "externalId",
@@ -45,6 +48,9 @@ export type ValidPriceInput = {
   priceType: PriceType;
   amountMinor: number;
   currency: Currency;
+  /** 외화 자료의 환산 참고용 환율(외화 1단위당 원 × 10000)과 기준일. 사용자가 입력한 값이며 없으면 null. */
+  fxRateE4?: number | null;
+  fxDate?: string | null;
   sourceName: string;
   sourceUrl: string | null;
   normalizedUrl: string | null;
@@ -122,6 +128,8 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
     priceType: raw.priceType?.trim() ?? "",
     amount: raw.amount ?? "",
     currency: (raw.currency?.trim() || "KRW").toUpperCase(),
+    fxRate: raw.fxRate?.trim() ?? "",
+    fxDate: raw.fxDate?.trim() ?? "",
     sourceName: raw.sourceName ?? "",
     sourceUrl: raw.sourceUrl ?? "",
     externalId: raw.externalId ?? "",
@@ -175,6 +183,28 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
     else amountMinor = a.minor;
   }
 
+  // 환산 참고용 환율: 외화 자료에만, 환율과 기준일을 함께. 앱이 환율을 채우지 않는다.
+  let fxRateE4: number | null = null;
+  let fxDate: string | null = null;
+  if (withDefaults.fxRate !== "" || withDefaults.fxDate !== "") {
+    if (currency === "KRW") {
+      const msg = "원화 자료에는 환율을 넣을 수 없습니다. 비워 주세요.";
+      if (withDefaults.fxRate !== "") errors.fxRate = msg;
+      else errors.fxDate = msg;
+    } else {
+      if (withDefaults.fxRate === "") errors.fxRate = "기준일을 적었으면 환율도 입력해 주세요.";
+      else {
+        const r = parseFxRate(withDefaults.fxRate);
+        if (!r.ok) errors.fxRate = r.error;
+        else fxRateE4 = r.rateE4;
+      }
+      if (withDefaults.fxDate === "") errors.fxDate = "환율을 적었으면 그 환율의 기준일도 입력해 주세요.";
+      else if (!isValidYmd(withDefaults.fxDate)) errors.fxDate = "기준일을 YYYY-MM-DD 형식으로 입력해 주세요.";
+      else if (withDefaults.fxDate > ctx.today) errors.fxDate = "환율 기준일은 오늘 이후일 수 없습니다.";
+      else fxDate = withDefaults.fxDate;
+    }
+  }
+
   // URL: 형식만 확인한다. URL이 있다고 검증된 가격으로 취급하지 않는다.
   let sourceUrl: string | null = null;
   let normalizedUrl: string | null = null;
@@ -210,6 +240,8 @@ export function validatePriceInput(raw: PriceInputRaw, ctx: PriceInputContext): 
       priceType: d.priceType,
       amountMinor,
       currency,
+      fxRateE4,
+      fxDate,
       sourceName: d.sourceName,
       sourceUrl,
       normalizedUrl,
