@@ -20,6 +20,7 @@ import {
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { validatePriceInput } from "@/lib/domain/price-input";
 import { validateTimeValue } from "@/lib/domain/settings-input";
+import { buildResultsCsv, buildTriageCsv, RESULTS_CSV_HEADERS, TRIAGE_CSV_HEADERS } from "@/lib/domain/report-csv";
 import { triageItem } from "@/lib/domain/triage";
 
 const TODAY = "2026-11-11";
@@ -171,5 +172,49 @@ describe("자료 점검 대상 조회", () => {
     expect(real[0]!.prices).toHaveLength(1);
     expect(real[0]!.scenarios).toHaveLength(1);
     expect(listCheckupSources(db, true).every((r) => r.item.isDemo)).toBe(true);
+  });
+});
+
+describe("배분·결과 CSV", () => {
+  it("배분 CSV: 물건별 값만 담고, 모르는 값은 빈 칸이며 합계 행이 없다", () => {
+    const a = createItem(db, false, item("가 게임기"));
+    upsertScenario(db, a, "BUYBACK", scenario({ saleAmount: 5000, expectedMinutes: 20 }));
+    upsertScenario(db, a, "DIRECT", scenario({ saleAmount: 20000, expectedMinutes: 80 }));
+    const b = createItem(db, false, item('나 "따옴표", 게임기'));
+    upsertScenario(db, b, "DIRECT", scenario({ shipping: null }));
+    const rows = listTriageCandidates(db, false).map((c) => ({
+      name: c.item.name,
+      category: c.item.category,
+      status: c.item.status,
+      isDemo: c.item.isDemo,
+      result: triageItem(c, 10000, TODAY),
+    }));
+    const lines = buildTriageCsv(rows).replace(/^\uFEFF/, "").trim().split("\r\n");
+    expect(lines[0]).toBe(TRIAGE_CSV_HEADERS.join(","));
+    expect(lines).toHaveLength(3); // 머리글 + 물건 2개. 합계 행 없음
+    expect(lines[1]).toContain("가 게임기,게임기,보유 중,직접 판매,5000,20000,15000,60,15000,");
+    expect(lines[2]).toContain('"나 ""따옴표"", 게임기"');
+    expect(lines[2]).toContain("판단 보류,,,,,,"); // 업체 계산 없음·직접 판매 비용 모름 → 빈 칸(0이 아니다)
+    expect(buildTriageCsv(rows)).not.toMatch(/합계|total|sum/i);
+  });
+
+  it("결과 CSV: 실제 비용을 모르면 실수령액과 차이를 비워 둔다", () => {
+    const csv = buildResultsCsv([
+      {
+        name: "가", category: "BOOK", soldDate: "2026-11-01", channel: "가 장터", chosen: "개인에게 직접 판매 · 가 장터",
+        chosenSaleAmount: 10000, chosenNetAmount: 9000, expectedMinutes: 30, amount: 9500, costTotal: 1000, minutesSpent: 40,
+        firstPostedPrice: 11000, isDemo: false,
+      },
+      {
+        name: "나", category: "CONSOLE", soldDate: "2026-11-02", channel: "직거래", chosen: "",
+        chosenSaleAmount: null, chosenNetAmount: null, expectedMinutes: null, amount: 5000, costTotal: null, minutesSpent: null,
+        firstPostedPrice: null, isDemo: false,
+      },
+    ]);
+    const lines = csv.replace(/^\uFEFF/, "").trim().split("\r\n");
+    expect(lines[0]).toBe(RESULTS_CSV_HEADERS.join(","));
+    expect(lines[1]).toBe("가,도서,2026-11-01,가 장터,개인에게 직접 판매 · 가 장터,10000,9500,9000,1000,8500,-500,30,40,11000,false");
+    expect(lines[2]).toBe("나,게임기,2026-11-02,직거래,,,5000,,,,,,,,false");
+    expect(lines).toHaveLength(3);
   });
 });

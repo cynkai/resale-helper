@@ -89,6 +89,12 @@ export default async function TriagePage() {
         </div>
       ) : (
         <>
+          <p className="text-sm">
+            <a href="/api/export/triage" className="underline" download>
+              이 표를 CSV로 받기
+            </a>{" "}
+            <span className="text-stone-600">— 물건별 값만 담고 합계는 없습니다.</span>
+          </p>
           <section aria-label="판단별 건수" className="card text-sm" data-testid="triage-counts">
             <p>
               물건 {rows.length}개 — <strong>직접 판매 {counts.DIRECT}개</strong>, <strong>업체 {counts.BUYBACK}개</strong>,{" "}
