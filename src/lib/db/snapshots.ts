@@ -76,5 +76,7 @@ export function deleteSnapshot(dbPath: string, name: string): boolean {
   const file = snapshotPath(dbPath, name);
   if (!file) return false;
   fs.rmSync(file);
+  // 사본을 다른 프로그램으로 열어 봤다면 보조 파일이 남아 있을 수 있다. 함께 지운다.
+  for (const x of ["-wal", "-shm"]) fs.rmSync(`${file}${x}`, { force: true });
   return true;
 }
