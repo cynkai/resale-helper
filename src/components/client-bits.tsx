@@ -5,6 +5,7 @@ import {
   generateImportTokenAction,
   importCsvAction,
   saveExtensionIdAction,
+  saveOfferAction,
   saveSaleResultAction,
   saveTimeValueAction,
   type CsvImportState,
@@ -139,6 +140,65 @@ export function SaleResultForm({ itemId, initial }: { itemId: number; initial: R
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : "판매 결과 저장"}
+        </button>
+        <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
+          {state.message}
+        </span>
+      </div>
+    </form>
+  );
+}
+
+/** 받은 제안 기록. 상대방 닉네임·연락처를 적는 칸은 없다. */
+export function OfferForm({ itemId, today, channelNames }: { itemId: number; today: string; channelNames: string[] }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveOfferAction, {});
+  const v = state.values ?? { receivedDate: today };
+  const e = state.errors ?? {};
+  // 저장에 성공하면(values 없이 돌아오면) 폼을 비운다.
+  const [seq, setSeq] = useState(0);
+  const [seen, setSeen] = useState<FormState>(state);
+  if (seen !== state) {
+    setSeen(state);
+    if (state.ok) setSeq(seq + 1);
+  }
+  const input = (name: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <input
+      id={`offer-${name}`}
+      name={name}
+      className="input"
+      defaultValue={v[name] ?? ""}
+      aria-invalid={e[name] ? true : undefined}
+      aria-describedby={e[name] ? `offer-${name}-error` : undefined}
+      {...props}
+    />
+  );
+  return (
+    <form action={action} className="space-y-3" noValidate key={`${seq}-${JSON.stringify(state.values ?? {})}`}>
+      <input type="hidden" name="itemId" value={itemId} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="제안받은 날짜" name="offer-receivedDate" error={e.receivedDate} required>
+          {input("receivedDate", { type: "date" })}
+        </Field>
+        <Field label="제안 금액 (원)" name="offer-amount" error={e.amount} required>
+          {input("amount", { inputMode: "numeric" })}
+        </Field>
+        <Field label="어디서 받았나 (선택)" name="offer-channel" error={e.channel} hint="판매처 이름. 같은 이름의 계산이 있으면 그 비용으로 따져 봅니다.">
+          {input("channel", { maxLength: 100, list: channelNames.length > 0 ? "offer-channel-names" : undefined })}
+        </Field>
+      </div>
+      {channelNames.length > 0 ? (
+        <datalist id="offer-channel-names">
+          {channelNames.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+      ) : null}
+      <Field label="메모 (선택)" name="offer-memo" error={e.memo} hint="조건만 적어 주세요(예: 직거래 희망). 상대방 닉네임·연락처는 적지 마세요.">
+        {input("memo", { maxLength: 500 })}
+      </Field>
+      <div className="flex items-center gap-3">
+        <button type="submit" className="btn" disabled={pending}>
+          {pending ? "저장 중…" : "제안 기록"}
         </button>
         <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
           {state.message}

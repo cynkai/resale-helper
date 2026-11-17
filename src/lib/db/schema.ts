@@ -11,6 +11,7 @@ import type {
   SaleMethod,
   TriState,
 } from "../domain/types";
+import type { OfferStatus } from "../domain/offer";
 
 const timestamps = {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
@@ -171,6 +172,27 @@ export const saleResults = sqliteTable("sale_results", {
 });
 
 /**
+ * 받은 제안(흥정) 기록. 사용자가 직접 적는다. 가격 자료가 아니며 비교·요약에 쓰지 않는다.
+ * 상대방 닉네임·연락처 등 개인정보 칸은 두지 않는다.
+ */
+export const offers = sqliteTable(
+  "offers",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    receivedDate: text("received_date").notNull(), // YYYY-MM-DD
+    amount: integer("amount").notNull(), // KRW
+    channel: text("channel").notNull().default(""), // 어디서 받은 제안인지(사용자가 적은 이름). '' = 적지 않음
+    status: text("status").$type<OfferStatus>().notNull().default("OPEN"),
+    memo: text("memo"),
+    ...timestamps,
+  },
+  (t) => [index("offers_item_idx").on(t.itemId)],
+);
+
+/**
  * 사용자 설정. 데모와 실제 모드가 각각 한 행씩만 가진다(is_demo가 기본키).
  * 값이 없으면(행 없음 또는 null) "아직 정하지 않음"이며 앱이 기본값을 채우지 않는다.
  */
@@ -202,4 +224,5 @@ export type PriceRecord = typeof priceRecords.$inferSelect;
 export type PriceHistoryRow = typeof priceHistory.$inferSelect;
 export type CostScenario = typeof costScenarios.$inferSelect;
 export type SaleResult = typeof saleResults.$inferSelect;
+export type Offer = typeof offers.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

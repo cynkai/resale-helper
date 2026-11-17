@@ -57,6 +57,13 @@
       "when": 1794884483727,
       "tag": "0007_old_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794885594717,
+      "tag": "0008_windy_professor_monster",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import type { Db } from "./client";
 import {
   costScenarios,
   items,
+  offers,
   priceHistory,
   priceRecords,
   saleResults,
@@ -17,6 +18,7 @@ import {
 import { isSameListing } from "../domain/compare";
 import type { ExportRow } from "../domain/csv";
 import type { ValidItemInput } from "../domain/item-input";
+import type { OfferStatus, ValidOfferInput } from "../domain/offer";
 import type { ValidPriceInput } from "../domain/price-input";
 import type { Category, InputRoute, ItemStatus, PriceType, SaleMethod } from "../domain/types";
 
@@ -377,6 +379,25 @@ export function deleteSaleResult(db: Db, itemId: number): void {
   db.delete(saleResults).where(eq(saleResults.itemId, itemId)).run();
 }
 
+// ---- 받은 제안 ----
+
+/** 받은 날짜 최신순. */
+export function listOffers(db: Db, itemId: number) {
+  return db.select().from(offers).where(eq(offers.itemId, itemId)).orderBy(desc(offers.receivedDate), desc(offers.id)).all();
+}
+
+export function insertOffer(db: Db, itemId: number, v: ValidOfferInput): number {
+  return db.insert(offers).values({ ...v, itemId }).returning({ id: offers.id }).get().id;
+}
+
+export function setOfferStatus(db: Db, itemId: number, id: number, status: OfferStatus): void {
+  db.update(offers).set({ status, updatedAt: now }).where(and(eq(offers.id, id), eq(offers.itemId, itemId))).run();
+}
+
+export function deleteOffer(db: Db, itemId: number, id: number): void {
+  db.delete(offers).where(and(eq(offers.id, id), eq(offers.itemId, itemId))).run();
+}
+
 // ---- 사용자 설정 ----
 
 /** 현재 모드의 시간당 가치(원/시간). 저장한 적 없거나 비워 두면 null(모름). */
@@ -510,6 +531,7 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const results = db.select().from(saleResults).where(inArray(saleResults.itemId, ids)).all();
+  const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).orderBy(asc(offers.receivedDate), asc(offers.id)).all();
   const histRows =
     prices.length > 0
       ? db
@@ -531,5 +553,6 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
     history,
     scenarios: scs.filter((s) => s.itemId === item.id),
     saleResult: results.find((r) => r.itemId === item.id),
+    offers: offerRows.filter((o) => o.itemId === item.id),
   }));
 }
