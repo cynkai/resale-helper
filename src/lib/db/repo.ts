@@ -235,29 +235,74 @@ export type ScenarioInput = {
   memo: string | null;
 };
 
+/** 입력한 순서대로. */
 export function listScenarios(db: Db, itemId: number) {
-  return db.select().from(costScenarios).where(eq(costScenarios.itemId, itemId)).all();
+  return db.select().from(costScenarios).where(eq(costScenarios.itemId, itemId)).orderBy(asc(costScenarios.id)).all();
 }
 
-export function upsertScenario(db: Db, itemId: number, method: SaleMethod, v: ScenarioInput): void {
+/** 같은 방식·같은 판매처 이름의 계산이 있으면 고치고 없으면 만든다. */
+export function upsertScenario(db: Db, itemId: number, method: SaleMethod, v: ScenarioInput, channel = ""): void {
   db.insert(costScenarios)
-    .values({ ...v, itemId, method })
+    .values({ ...v, itemId, method, channel })
     .onConflictDoUpdate({
-      target: [costScenarios.itemId, costScenarios.method],
+      target: [costScenarios.itemId, costScenarios.method, costScenarios.channel],
       set: { ...v, updatedAt: now },
     })
     .run();
+}
+
+/** 저장된 계산을 고친다(판매처 이름도 바꿀 수 있다). 이름이 겹치는지는 호출하는 쪽에서 먼저 확인한다. */
+export function updateScenario(db: Db, itemId: number, id: number, channel: string, v: ScenarioInput): void {
+  db.update(costScenarios)
+    .set({ ...v, channel, updatedAt: now })
+    .where(and(eq(costScenarios.id, id), eq(costScenarios.itemId, itemId)))
+    .run();
+}
+
+export function deleteScenario(db: Db, itemId: number, id: number): void {
+  db.delete(costScenarios).where(and(eq(costScenarios.id, id), eq(costScenarios.itemId, itemId))).run();
+}
+
+/** 그 방식의 기준 계산을 하나로 정한다(같은 방식의 다른 계산은 기준에서 내린다). */
+export function setPrimaryScenario(db: Db, itemId: number, id: number): void {
+  db.transaction((tx) => {
+    const sc = tx.select().from(costScenarios).where(and(eq(costScenarios.id, id), eq(costScenarios.itemId, itemId))).get();
+    if (!sc) return;
+    tx.update(costScenarios)
+      .set({ isPrimary: false })
+      .where(and(eq(costScenarios.itemId, itemId), eq(costScenarios.method, sc.method)))
+      .run();
+    tx.update(costScenarios).set({ isPrimary: true, updatedAt: now }).where(eq(costScenarios.id, id)).run();
+  });
+}
+
+/** 현재 모드에서 내가 적어 본 판매처 이름(계산과 판매 결과). 입력 자동완성용이며 앱이 가진 목록이 아니다. */
+export function listChannelNames(db: Db, isDemo: boolean): string[] {
+  const a = db
+    .selectDistinct({ c: costScenarios.channel })
+    .from(costScenarios)
+    .innerJoin(items, eq(items.id, costScenarios.itemId))
+    .where(eq(items.isDemo, isDemo))
+    .all();
+  const b = db
+    .selectDistinct({ c: saleResults.channel })
+    .from(saleResults)
+    .innerJoin(items, eq(items.id, saleResults.itemId))
+    .where(eq(items.isDemo, isDemo))
+    .all();
+  return [...new Set([...a, ...b].map((r) => r.c).filter((c) => c !== ""))].sort((x, y) => x.localeCompare(y, "ko"));
 }
 
 export function setChosenMethod(
   db: Db,
   isDemo: boolean,
   itemId: number,
-  choice: { method: SaleMethod; saleAmount: number; netAmount: number | null } | null,
+  choice: { method: SaleMethod; channel?: string; saleAmount: number; netAmount: number | null } | null,
 ): void {
   db.update(items)
     .set({
       chosenMethod: choice?.method ?? null,
+      chosenChannel: choice ? (choice.channel ?? "") : null,
       chosenSaleAmount: choice?.saleAmount ?? null,
       chosenNetAmount: choice?.netAmount ?? null,
       chosenAt: choice ? sql`(datetime('now'))` : null,
@@ -301,7 +346,14 @@ export function listSaleReviews(db: Db, isDemo: boolean) {
     .select({ item: items, result: saleResults, expectedMinutes: costScenarios.expectedMinutes })
     .from(saleResults)
     .innerJoin(items, eq(items.id, saleResults.itemId))
-    .leftJoin(costScenarios, and(eq(costScenarios.itemId, items.id), eq(costScenarios.method, items.chosenMethod)))
+    .leftJoin(
+      costScenarios,
+      and(
+        eq(costScenarios.itemId, items.id),
+        eq(costScenarios.method, items.chosenMethod),
+        eq(costScenarios.channel, sql`coalesce(${items.chosenChannel}, '')`),
+      ),
+    )
     .where(eq(items.isDemo, isDemo))
     .orderBy(desc(saleResults.soldDate), desc(saleResults.id))
     .all();
@@ -375,7 +427,7 @@ export function listTriageCandidates(db: Db, isDemo: boolean): TriageCandidate[]
     .all();
   if (its.length === 0) return [];
   const ids = its.map((i) => i.id);
-  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).all();
+  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const basisIds = scs.map((s) => s.basisPriceRecordId).filter((x): x is number => x !== null);
   const recs =
     basisIds.length > 0
@@ -409,7 +461,7 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
     .from(priceRecords)
     .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
     .all();
-  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).all();
+  const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   return its.map((item) => ({
     item,
     prices: prices.filter((p) => p.itemId === item.id),

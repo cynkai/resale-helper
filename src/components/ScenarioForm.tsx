@@ -6,27 +6,48 @@ import { Field } from "./ui";
 import type { SaleMethod } from "@/lib/domain/types";
 
 export type BasisOption = { id: number; label: string; amount: number };
+/** 비용 칸만 베껴 올 수 있는 다른 계산. 금액과 판매처 이름은 베끼지 않는다. */
+export type CopyOption = { id: number; label: string; values: Record<string, string> };
+
+const COPY_FIELDS = ["feeMode", "feeAmount", "feeRate", "shipping", "packing", "transport", "expectedMinutes"] as const;
 
 export function ScenarioForm({
   itemId,
   method,
   initial,
   basisOptions,
+  scenarioId,
+  idSuffix = "",
+  submitLabel = "금액·비용 저장",
+  channelNames = [],
+  copyOptions = [],
 }: {
   itemId: number;
   method: SaleMethod;
   initial: Record<string, string>;
   basisOptions: BasisOption[];
+  /** 저장된 계산을 고칠 때 그 계산의 id. 없으면 새 계산. */
+  scenarioId?: number;
+  /** 같은 방식의 폼이 여러 개일 때 id 충돌을 피하는 꼬리표. */
+  idSuffix?: string;
+  submitLabel?: string;
+  /** 내가 전에 적은 판매처 이름(자동완성용). */
+  channelNames?: string[];
+  copyOptions?: CopyOption[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveScenarioAction, {});
-  const v = state.values ?? initial;
+  // 베껴 온 값은 그 뒤에 폼을 제출하면(state가 바뀌면) 더 쓰지 않는다.
+  const [copied, setCopied] = useState<{ values: Record<string, string>; at: FormState; n: number } | null>(null);
+  const base = state.values ?? initial;
+  const v = copied && copied.at === state ? { ...base, ...copied.values } : base;
   const e = state.errors ?? {};
-  const p = method.toLowerCase(); // 한 화면에 폼이 두 개라서 id 충돌을 피한다
+  const p = `${method.toLowerCase()}${idSuffix}`; // 한 화면에 폼이 여러 개라서 id 충돌을 피한다
   const [basis, setBasis] = useState(v.basisPriceRecordId ?? "");
   const [amount, setAmount] = useState(v.saleAmount ?? "");
+  const [channel, setChannel] = useState(v.channel ?? "");
   const [feeMode, setFeeMode] = useState(v.feeMode ?? "AMOUNT");
   const chosen = basisOptions.find((o) => String(o.id) === basis);
-  const key = JSON.stringify(state.values ?? {});
+  const key = JSON.stringify(state.values ?? {}) + (copied && copied.at === state ? `#${copied.n}` : "");
 
   const money = (name: string, label: string, hint?: string) => (
     <Field label={label} name={`${p}-${name}`} error={e[name]} hint={hint}>
@@ -47,6 +68,58 @@ export function ScenarioForm({
     <form action={action} className="space-y-3" noValidate key={key}>
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="method" value={method} />
+      {scenarioId !== undefined ? <input type="hidden" name="scenarioId" value={scenarioId} /> : null}
+
+      <Field
+        label="판매처 이름 (선택)"
+        name={`${p}-channel`}
+        error={e.channel}
+        hint="여러 곳을 따로 계산할 때 구분하는 이름입니다. 한 곳만 계산하면 비워 두어도 됩니다."
+      >
+        <input
+          id={`${p}-channel`}
+          name="channel"
+          className="input"
+          maxLength={100}
+          value={channel}
+          onChange={(ev) => setChannel(ev.target.value)}
+          list={channelNames.length > 0 ? `${p}-channel-names` : undefined}
+          aria-invalid={e.channel ? true : undefined}
+          aria-describedby={e.channel ? `${p}-channel-error` : undefined}
+        />
+        {channelNames.length > 0 ? (
+          <datalist id={`${p}-channel-names`}>
+            {channelNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        ) : null}
+      </Field>
+
+      {copyOptions.length > 0 ? (
+        <Field label="다른 계산의 비용 베껴 오기" name={`${p}-copy`} hint="수수료·배송비·포장비·교통비·소요시간만 가져옵니다. 금액은 가져오지 않습니다.">
+          <select
+            id={`${p}-copy`}
+            className="input"
+            value=""
+            onChange={(ev) => {
+              const o = copyOptions.find((x) => String(x.id) === ev.target.value);
+              if (!o) return;
+              const picked: Record<string, string> = {};
+              for (const f of COPY_FIELDS) picked[f] = o.values[f] ?? "";
+              setFeeMode(picked.feeMode === "RATE" ? "RATE" : "AMOUNT");
+              setCopied({ values: picked, at: state, n: (copied?.n ?? 0) + 1 });
+            }}
+          >
+            <option value="">고르기</option>
+            {copyOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
 
       <Field label="기준 금액 고르기" name={`${p}-basis`} error={e.basisPriceRecordId}>
         <select
@@ -161,7 +234,7 @@ export function ScenarioForm({
 
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? "저장 중…" : "금액·비용 저장"}
+          {pending ? "저장 중…" : submitLabel}
         </button>
         <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
           {state.message}

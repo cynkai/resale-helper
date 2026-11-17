@@ -78,8 +78,8 @@ describe("자료 점검", () => {
       TODAY,
     );
     expect(f.filter((x) => x.kind === "BASIS_ISSUE")).toEqual([
-      { kind: "BASIS_ISSUE", method: "BUYBACK", issues: ["BASIS_AMOUNT_CHANGED", "BASIS_EXPIRED"] },
-      { kind: "BASIS_ISSUE", method: "DIRECT", issues: ["BASIS_DELETED"] },
+      { kind: "BASIS_ISSUE", method: "BUYBACK", channel: "", issues: ["BASIS_AMOUNT_CHANGED", "BASIS_EXPIRED"] },
+      { kind: "BASIS_ISSUE", method: "DIRECT", channel: "", issues: ["BASIS_DELETED"] },
     ]);
   });
 

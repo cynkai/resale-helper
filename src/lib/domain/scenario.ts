@@ -42,6 +42,7 @@ export function basisIssues(sc: ScenarioBasis, basis: BasisRecord | undefined, t
 
 export type ChosenSnapshot = {
   chosenMethod: string | null;
+  chosenChannel?: string | null;
   chosenSaleAmount: number | null;
   chosenNetAmount: number | null;
 };
@@ -51,4 +52,39 @@ export function isChoiceOutdated(item: ChosenSnapshot, scenario: (CostInputs & {
   if (!item.chosenMethod) return false;
   if (!scenario || scenario.method !== item.chosenMethod) return true;
   return scenario.saleAmount !== item.chosenSaleAmount || computeNet(scenario).net !== item.chosenNetAmount;
+}
+
+/** 판매처 이름 최대 길이(판매 결과의 판매처 칸과 같다). */
+export const CHANNEL_MAX = 100;
+
+/** 계산 이름 표시: 판매처 이름이 없으면 방식 이름만. */
+export function scenarioLabel(methodLabel: string, channel: string): string {
+  return channel === "" ? methodLabel : `${methodLabel} · ${channel}`;
+}
+
+type Pickable = { method: string; isPrimary: boolean };
+
+/**
+ * 손익분기·분류가 쓸 그 방식의 기준 계산.
+ * 하나뿐이면 그것, 여러 개면 사용자가 기준으로 표시한 것. 여러 개인데 표시가 없으면 고르지 않는다(undefined).
+ */
+export function primaryScenario<T extends Pickable>(scenarios: T[], method: string): T | undefined {
+  const of = scenarios.filter((s) => s.method === method);
+  if (of.length === 1) return of[0];
+  const marked = of.filter((s) => s.isPrimary);
+  return marked.length === 1 ? marked[0] : undefined;
+}
+
+/** 그 방식에 계산이 여러 개인데 기준을 아직 정하지 않았는지. */
+export function needsPrimary(scenarios: Pickable[], method: string): boolean {
+  return scenarios.filter((s) => s.method === method).length > 1 && primaryScenario(scenarios, method) === undefined;
+}
+
+/** 사용자가 고른 계산(방식과 판매처 이름이 모두 같은 것). */
+export function chosenScenario<T extends { method: string; channel: string }>(
+  item: { chosenMethod: string | null; chosenChannel?: string | null },
+  scenarios: T[],
+): T | undefined {
+  if (!item.chosenMethod) return undefined;
+  return scenarios.find((s) => s.method === item.chosenMethod && s.channel === (item.chosenChannel ?? ""));
 }

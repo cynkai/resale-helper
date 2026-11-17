@@ -4,7 +4,7 @@
 
 import { divRoundHalfUp } from "./money";
 import { computeNet, netDifference, type CostInputs, type CostKey, type NetResult } from "./net";
-import { basisIssues, type BasisIssue, type BasisRecord } from "./scenario";
+import { basisIssues, needsPrimary, primaryScenario, type BasisIssue, type BasisRecord } from "./scenario";
 import { PRICE_TYPE_INFO, type PriceType, type SaleMethod } from "./types";
 
 export type TriageVerdict = "DIRECT" | "BUYBACK" | "UNDECIDED";
@@ -32,9 +32,12 @@ export type TriageInput = {
   timeValuePerHour: number | null;
   /** 사용자가 이미 고른 판매 방법(items.chosenMethod). */
   chosenMethod: SaleMethod | null;
+  /** 계산이 여러 개인데 기준을 정하지 않은 방식. 앱이 대신 고르지 않고 판단을 보류한다. */
+  needsPrimary?: SaleMethod[];
 };
 
 export type TriageReason =
+  | { code: "NEEDS_PRIMARY"; method: SaleMethod }
   | { code: "NO_BUYBACK" }
   | { code: "NO_DIRECT" }
   | { code: "INCOMPLETE_COST"; method: SaleMethod; missing: CostKey[] }
@@ -100,8 +103,10 @@ export function triage(input: TriageInput): TriageResult {
 
   // 1단계: 두 방법의 실수령액을 믿을 수 있는가. 빠진 것을 모두 모아 한꺼번에 알려 준다.
   const blockers: TriageReason[] = [];
-  if (!buyback) blockers.push({ code: "NO_BUYBACK" });
-  if (!direct) blockers.push({ code: "NO_DIRECT" });
+  const undecidedPrimary = input.needsPrimary ?? [];
+  for (const method of undecidedPrimary) blockers.push({ code: "NEEDS_PRIMARY", method });
+  if (!buyback && !undecidedPrimary.includes("BUYBACK")) blockers.push({ code: "NO_BUYBACK" });
+  if (!direct && !undecidedPrimary.includes("DIRECT")) blockers.push({ code: "NO_DIRECT" });
   if (buybackNet && !buybackNet.complete) blockers.push({ code: "INCOMPLETE_COST", method: "BUYBACK", missing: buybackNet.missing });
   if (directNet && !directNet.complete) blockers.push({ code: "INCOMPLETE_COST", method: "DIRECT", missing: directNet.missing });
   if (buyback && input.buybackIssues.length > 0) blockers.push({ code: "BASIS_ISSUE", method: "BUYBACK", issues: input.buybackIssues });
@@ -137,13 +142,13 @@ export function triage(input: TriageInput): TriageResult {
 export function triageItem(
   c: {
     item: { chosenMethod: SaleMethod | null };
-    scenarios: (TriageScenario & { basisPriceRecordId: number | null })[];
+    scenarios: (TriageScenario & { basisPriceRecordId: number | null; isPrimary: boolean })[];
     basisRecords: (BasisRecord & { id: number })[];
   },
   timeValuePerHour: number | null,
   today: string,
 ): TriageResult {
-  const pick = (m: SaleMethod) => c.scenarios.find((s) => s.method === m) ?? null;
+  const pick = (m: SaleMethod) => primaryScenario(c.scenarios, m) ?? null;
   const issues = (sc: ReturnType<typeof pick>): BasisIssue[] => {
     if (!sc) return [];
     const basis = sc.basisPriceRecordId !== null ? c.basisRecords.find((r) => r.id === sc.basisPriceRecordId) : undefined;
@@ -158,6 +163,7 @@ export function triageItem(
     directIssues: issues(direct),
     timeValuePerHour,
     chosenMethod: c.item.chosenMethod,
+    needsPrimary: (["BUYBACK", "DIRECT"] as const).filter((m) => needsPrimary(c.scenarios, m)),
   });
 }
 
@@ -182,6 +188,8 @@ const ISSUE_SHORT: Record<BasisIssue, string> = {
 /** 판단 근거 또는 보류 이유. 보류 이유는 "무엇을 채우면 판단할 수 있는지"로 적는다. */
 export function reasonText(r: TriageReason): string {
   switch (r.code) {
+    case "NEEDS_PRIMARY":
+      return `${METHOD_SHORT[r.method]} 계산이 여러 개입니다. 물건 화면에서 기준으로 쓸 계산을 고르면 판단할 수 있습니다.`;
     case "NO_BUYBACK":
       return "업체 판매 금액·비용을 저장하면 판단할 수 있습니다.";
     case "NO_DIRECT":

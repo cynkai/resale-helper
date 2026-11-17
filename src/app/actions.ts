@@ -12,7 +12,7 @@ import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
-import { basisIssues } from "@/lib/domain/scenario";
+import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
 import { validateTimeValue } from "@/lib/domain/settings-input";
 import { SALE_METHODS, type PriceType, type SaleMethod } from "@/lib/domain/types";
 import { generateImportToken, isValidExtensionId } from "@/lib/import/access";
@@ -182,6 +182,20 @@ export async function saveScenarioAction(_prev: FormState, fd: FormData): Promis
   const errors: Record<string, string> = {};
   const today = todayYmd();
 
+  // 판매처 이름은 구분용이다. 같은 방식 안에서 이름이 겹치면 저장하지 않는다(다른 계산을 덮어쓰지 않게).
+  const existing = repo.listScenarios(db, item.id).filter((x) => x.method === method);
+  const idRaw = s(fd, "scenarioId");
+  const editing = idRaw === "" ? undefined : existing.find((x) => x.id === intId(idRaw));
+  if (idRaw !== "" && !editing) return { message: "고치려는 계산을 찾을 수 없습니다. 화면을 새로 고쳐 주세요.", values: values(fd) };
+  const channel = s(fd, "channel").trim();
+  if (channel.length > CHANNEL_MAX) errors.channel = `${CHANNEL_MAX}자 이내로 입력해 주세요.`;
+  else if (existing.some((x) => x.channel === channel && x.id !== editing?.id)) {
+    errors.channel =
+      channel === ""
+        ? "이름 없는 계산이 이미 있습니다. 판매처 이름을 적어 구분해 주세요."
+        : "같은 이름의 계산이 이미 있습니다. 이름을 다르게 적거나 그 계산을 고쳐 주세요.";
+  }
+
   // 기준 금액: 가격 자료를 고르면 서버가 그 자료의 금액을 사용한다(화면에서 보낸 금액은 무시).
   let saleAmount = 0;
   let basisPriceRecordId: number | null = null;
@@ -227,7 +241,7 @@ export async function saveScenarioAction(_prev: FormState, fd: FormData): Promis
 
   if (Object.keys(errors).length > 0) return { errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
 
-  repo.upsertScenario(db, item.id, method, {
+  const input: repo.ScenarioInput = {
     saleAmount,
     basisPriceRecordId,
     basisPriceType,
@@ -239,19 +253,22 @@ export async function saveScenarioAction(_prev: FormState, fd: FormData): Promis
     transport,
     expectedMinutes,
     memo,
-  });
+  };
+  if (editing) repo.updateScenario(db, item.id, editing.id, channel, input);
+  else repo.upsertScenario(db, item.id, method, input, channel);
   revalidatePath(`/items/${item.id}`);
+  revalidatePath("/triage");
   // 제출한 값을 그대로 돌려줘 저장 후에도 폼이 입력값을 유지하게 한다(React의 폼 자동 초기화 대비).
   return { ok: true, message: "저장했습니다.", values: values(fd) };
 }
 
 export async function chooseMethodAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
-  const method = s(fd, "method");
-  if (method === "") {
+  const idRaw = s(fd, "scenarioId");
+  if (idRaw === "") {
     repo.setChosenMethod(db, isDemo, item.id, null);
-  } else if (SALE_METHODS.includes(method as SaleMethod)) {
-    const sc = repo.listScenarios(db, item.id).find((x) => x.method === method);
+  } else {
+    const sc = repo.listScenarios(db, item.id).find((x) => x.id === intId(idRaw));
     if (!sc) throw new Error("먼저 이 방식의 금액과 비용을 저장해 주세요.");
     // 기준 자료가 바뀌었거나 만료된 계산으로는 선택을 저장하지 않는다(화면에서도 버튼을 막는다).
     const basis = sc.basisPriceRecordId !== null ? repo.getPrice(db, item.id, sc.basisPriceRecordId) : undefined;
@@ -261,12 +278,33 @@ export async function chooseMethodAction(fd: FormData): Promise<void> {
     const net = computeNet(sc);
     // 선택 시점의 금액을 스냅샷으로 남긴다. 비용이 불완전하면 실수령액은 null로 둔다.
     repo.setChosenMethod(db, isDemo, item.id, {
-      method: method as SaleMethod,
+      method: sc.method,
+      channel: sc.channel,
       saleAmount: sc.saleAmount,
       netAmount: net.net,
     });
   }
   revalidatePath(`/items/${item.id}`);
+  revalidatePath("/");
+}
+
+/** 같은 방식의 계산이 여러 개일 때 손익분기·분류가 쓸 기준을 사용자가 정한다. */
+export async function setPrimaryScenarioAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const id = intId(s(fd, "scenarioId"));
+  if (id === null) return;
+  repo.setPrimaryScenario(db, item.id, id);
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/triage");
+}
+
+export async function deleteScenarioAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const id = intId(s(fd, "scenarioId"));
+  if (id === null) return;
+  repo.deleteScenario(db, item.id, id);
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/triage");
   revalidatePath("/");
 }
 

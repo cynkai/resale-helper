@@ -5,7 +5,7 @@ import { listCheckupSources } from "@/lib/db/repo";
 import { checkupItem, countFindings, needsAttention, type CheckupFinding } from "@/lib/domain/checkup";
 import { OLD_DATA_DAYS } from "@/lib/domain/compare";
 import { formatMoney } from "@/lib/domain/money";
-import { BASIS_ISSUE_LABEL } from "@/lib/domain/scenario";
+import { BASIS_ISSUE_LABEL, scenarioLabel } from "@/lib/domain/scenario";
 import { CATEGORY_LABEL, DISCLAIMER, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
@@ -35,7 +35,7 @@ function findingLine(f: CheckupFinding) {
     case "BASIS_ISSUE":
       return (
         <>
-          <strong>{SALE_METHOD_LABEL[f.method]} 계산 다시 확인</strong> — {f.issues.map((i) => BASIS_ISSUE_LABEL[i]).join(" ")}
+          <strong>{scenarioLabel(SALE_METHOD_LABEL[f.method], f.channel)} 계산 다시 확인</strong> — {f.issues.map((i) => BASIS_ISSUE_LABEL[i]).join(" ")}
         </>
       );
   }

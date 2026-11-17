@@ -41,6 +41,8 @@ export const items = sqliteTable(
     hasSupplement: text("has_supplement").$type<TriState>().notNull().default("UNKNOWN"),
     // 판매 방식 선택 결과(선택 시점의 금액 스냅샷)
     chosenMethod: text("chosen_method").$type<SaleMethod>(),
+    // 고른 계산의 판매처 이름(선택 시점 스냅샷). null은 판매처 칸이 생기기 전의 선택이며 이름 없음('')과 같게 본다.
+    chosenChannel: text("chosen_channel"),
     chosenSaleAmount: integer("chosen_sale_amount"),
     chosenNetAmount: integer("chosen_net_amount"), // 선택 당시 비용이 불완전했으면 null
     chosenAt: text("chosen_at"),
@@ -114,7 +116,10 @@ export const priceHistory = sqliteTable(
   (t) => [index("price_history_record_idx").on(t.priceRecordId)],
 );
 
-/** 비용 시나리오: 물건별로 판매 방식(업체/개인)마다 하나 */
+/**
+ * 비용 시나리오: 물건별로 판매 방식(업체/개인)과 판매처 이름마다 하나.
+ * 판매처 이름은 사용자가 적은 구분용 이름이며 앱이 판매처를 알아보거나 수수료를 채우지 않는다.
+ */
 export const costScenarios = sqliteTable(
   "cost_scenarios",
   {
@@ -123,6 +128,9 @@ export const costScenarios = sqliteTable(
       .notNull()
       .references(() => items.id, { onDelete: "cascade" }),
     method: text("method").$type<SaleMethod>().notNull(),
+    channel: text("channel").notNull().default(""), // '' = 이름 없음
+    // 같은 방식에 계산이 여러 개일 때 손익분기·분류가 쓸 기준(사용자 표시). 앱이 대신 고르지 않는다.
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
     saleAmount: integer("sale_amount").notNull(), // KRW
     basisPriceRecordId: integer("basis_price_record_id").references(() => priceRecords.id, {
       onDelete: "set null",
@@ -139,7 +147,7 @@ export const costScenarios = sqliteTable(
     memo: text("memo"),
     ...timestamps,
   },
-  (t) => [uniqueIndex("scenario_item_method_uq").on(t.itemId, t.method)],
+  (t) => [uniqueIndex("scenario_item_method_channel_uq").on(t.itemId, t.method, t.channel)],
 );
 
 /** 실제 판매 결과(사용자 신고). VERIFIED_SALE과 별개로 저장한다. */

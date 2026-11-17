@@ -547,3 +547,71 @@ test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준�
   // 판매 결과까지 기록한 물건은 완료로 표시
   await expect(page.locator('[data-testid^="next-step-"]').filter({ hasText: "완료: 판매 결과까지 기록함" }).first()).toBeVisible();
 });
+
+test("판매처별 계산: 여러 개면 기준을 직접 정해야 차이를 계산하고, 고른 판매처가 선택에 남는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("판매처 비교 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  const buyback = page.getByTestId("scenario-BUYBACK");
+  await buyback.locator("#buyback-saleAmount").fill("5000");
+  for (const f of ["feeAmount", "shipping", "packing", "transport"]) await buyback.locator(`#buyback-${f}`).fill("0");
+  await buyback.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-BUYBACK")).toHaveText("5,000원");
+
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-channel").fill("가 장터");
+  await direct.locator("#direct-saleAmount").fill("9000");
+  for (const f of ["feeAmount", "packing", "transport"]) await direct.locator(`#direct-${f}`).fill("0");
+  await direct.locator("#direct-shipping").fill("3000");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("6,000원");
+  await expect(page.getByTestId("net-diff")).toContainText("1,000원 더 많습니다");
+
+  // 두 번째 판매처: 같은 이름은 거절, 비용은 베껴 오고 금액은 베끼지 않는다
+  await page.getByTestId("add-scenario-DIRECT").locator("summary").click();
+  const add = page.getByTestId("add-scenario-DIRECT");
+  await add.locator("#direct-new-channel").fill("가 장터");
+  await add.locator("#direct-new-saleAmount").fill("12000");
+  await add.getByRole("button", { name: "새 계산 저장" }).click();
+  await expect(add.locator("#direct-new-channel-error")).toContainText("같은 이름의 계산이 이미 있습니다");
+  await add.locator("#direct-new-channel").fill("나 직거래");
+  await add.locator("#direct-new-copy").selectOption({ label: "개인에게 직접 판매 · 가 장터" });
+  await expect(add.locator("#direct-new-shipping")).toHaveValue("3000");
+  await expect(add.locator("#direct-new-saleAmount")).toHaveValue("12000");
+  await add.locator("#direct-new-shipping").fill("0");
+  await add.getByRole("button", { name: "새 계산 저장" }).click();
+
+  // 기준을 정하기 전에는 차이를 계산하지 않는다(앱이 고르지 않는다)
+  await expect(page.getByTestId("needs-primary-DIRECT")).toBeVisible();
+  await expect(page.getByTestId("net-diff")).toContainText("계산이 여러 개라");
+  await expect(page.getByTestId("scenario-table")).toContainText("개인에게 직접 판매 · 나 직거래");
+  await expect(page.getByTestId("break-even")).toHaveCount(0);
+
+  const second = direct.locator('[data-testid^="scenario-DIRECT-"]').filter({ hasText: "나 직거래" });
+  await second.getByRole("button", { name: "기준으로 쓰기" }).click();
+  await expect(page.getByTestId("needs-primary-DIRECT")).toHaveCount(0);
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("12,000원");
+  await expect(page.getByTestId("net-diff")).toContainText("7,000원 더 많습니다");
+  await expect(page.getByTestId("net-diff")).toContainText("나 직거래");
+
+  // 선택은 계산 단위: 판매처 이름이 선택과 판매 결과 칸에 남는다
+  await page.getByRole("button", { name: "개인에게 직접 판매 · 가 장터로 정하기" }).click();
+  await expect(page.getByTestId("chosen")).toContainText("개인에게 직접 판매 · 가 장터");
+  await expect(page.getByTestId("chosen")).toContainText("6,000원");
+  await expect(page.locator("#result-channel")).toHaveValue("가 장터");
+
+  // 고른 계산을 지우면 선택이 낡았다고 알린다
+  const first = direct.locator('[data-testid^="scenario-DIRECT-"]').filter({ hasText: "가 장터" });
+  await first.locator("summary").click();
+  page.once("dialog", (d) => void d.accept());
+  await first.getByRole("button", { name: "이 계산 지우기" }).click();
+  await expect(page.getByTestId("choice-outdated")).toBeVisible();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("12,000원");
+
+  await page.goto("/triage");
+  await expect(page.locator("main")).toContainText("판매처 비교 게임기");
+});

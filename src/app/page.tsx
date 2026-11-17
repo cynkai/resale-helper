@@ -1,3 +1,4 @@
+import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -144,7 +145,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                 </div>
                 <p className="mt-2 text-sm text-stone-700">
                   {priceCount > 0 ? `가격 자료 ${priceCount}건` : "가격 자료 없음"}
-                  {item.chosenMethod ? ` · 선택: ${SALE_METHOD_LABEL[item.chosenMethod]}` : ""}
+                  {item.chosenMethod ? ` · 선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")}` : ""}
                 </p>
                 <p className="mt-1 text-sm" data-testid={`next-step-${item.id}`}>
                   <span className="text-stone-600">{step === "DONE" ? "완료: " : "다음: "}</span>

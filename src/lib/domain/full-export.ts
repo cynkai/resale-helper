@@ -6,6 +6,7 @@
 import type { CostScenario, Item, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
+import { chosenScenario } from "./scenario";
 
 export const FULL_EXPORT_VERSION = 1;
 
@@ -27,13 +28,14 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
     notes: [
       "금액은 원(KRW) 정수입니다. null은 '모름'이며 0원과 다릅니다.",
       "가격 유형(priceType)이 다른 자료는 서로 비교하거나 합치지 않습니다.",
+      "scenarios의 channel은 사용자가 적은 판매처 이름이고(''은 이름 없음), isPrimary는 같은 방식의 계산이 여러 개일 때 사용자가 기준으로 표시한 것입니다.",
       "previousValues는 같은 매물을 고치기 전의 값이며 별도 표본이 아닙니다.",
       "판매 결과는 사용자가 기록한 값이며 외부에서 검증된 체결가가 아닙니다.",
       ...(input.demo ? ["데모 모드의 가상 자료입니다. 실제 시세가 아닙니다."] : []),
     ],
     itemCount: input.sources.length,
     items: input.sources.map(({ item, prices, history, scenarios, saleResult }) => {
-      const chosenScenario = scenarios.find((s) => s.method === item.chosenMethod);
+      const chosen = chosenScenario(item, scenarios);
       return {
         id: item.id,
         category: item.category,
@@ -90,6 +92,8 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
           const net = computeNet(s);
           return {
             method: s.method,
+            channel: s.channel,
+            isPrimary: s.isPrimary,
             saleAmount: s.saleAmount,
             basisPriceRecordId: s.basisPriceRecordId,
             basisPriceType: s.basisPriceType,
@@ -107,7 +111,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
         chosen:
           item.chosenMethod === null
             ? null
-            : { method: item.chosenMethod, saleAmount: item.chosenSaleAmount, netAmount: item.chosenNetAmount, chosenAt: item.chosenAt },
+            : { method: item.chosenMethod, channel: item.chosenChannel ?? "", saleAmount: item.chosenSaleAmount, netAmount: item.chosenNetAmount, chosenAt: item.chosenAt },
         saleResult: saleResult
           ? {
               channel: saleResult.channel,
@@ -119,7 +123,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
               review: reviewRow({
                 chosenSaleAmount: item.chosenSaleAmount,
                 chosenNetAmount: item.chosenNetAmount,
-                expectedMinutes: chosenScenario?.expectedMinutes ?? null,
+                expectedMinutes: chosen?.expectedMinutes ?? null,
                 amount: saleResult.amount,
                 costTotal: saleResult.costTotal,
                 minutesSpent: saleResult.minutesSpent,
