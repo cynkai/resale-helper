@@ -1353,3 +1353,21 @@ test("어두운 화면: 운영체제가 어두운 모드면 바탕이 어둡고,
   await page.reload();
   expect(await lightness()).toBeGreaterThan(0.9);
 });
+
+test("화면마다 브라우저 탭 제목이 다르다", async ({ page }) => {
+  await page.goto("/triage");
+  await expect(page).toHaveTitle("물건 배분 · 얼마에 팔까");
+  await page.goto("/");
+  await expect(page).toHaveTitle("내 물건 · 얼마에 팔까");
+  const first = page.locator('a[href^="/items/"]').filter({ hasNotText: /등록/ }).first();
+  if (await first.count()) {
+    const href = (await first.getAttribute("href"))!;
+    await page.goto(href);
+    const name = (await page.locator("h1").textContent())!.trim();
+    await expect(page).toHaveTitle(`${name} · 얼마에 팔까`);
+    await page.goto(`${href}/summary`);
+    await expect(page).toHaveTitle(`${name} 한 장 요약 · 얼마에 팔까`);
+  }
+  await page.goto("/items/999999");
+  await expect(page).not.toHaveTitle(/undefined/);
+});

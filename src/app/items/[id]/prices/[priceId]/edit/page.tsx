@@ -6,6 +6,11 @@ import { getItem, getPrice } from "@/lib/db/repo";
 import { fxRateToPlain } from "@/lib/domain/fx";
 import { minorToPlain } from "@/lib/domain/money";
 import { isDemoMode } from "@/lib/mode";
+import { itemTitle } from "../../../meta";
+
+export function generateMetadata({ params }: { params: Promise<{ id: string; priceId: string }> }) {
+  return itemTitle(params, "가격 자료 수정");
+}
 
 export default async function EditPricePage({ params }: { params: Promise<{ id: string; priceId: string }> }) {
   const { id, priceId } = await params;

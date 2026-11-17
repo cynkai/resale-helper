@@ -11,10 +11,16 @@ import { chosenScenario, scenarioLabel } from "@/lib/domain/scenario";
 import { CATEGORY_LABEL, CONDITION_LABEL, PRICE_TYPE_INFO, SALE_METHOD_LABEL, type TriState } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
+import { itemTitle } from "../meta";
 
 const TRI: Record<TriState, string | null> = { YES: "있음", NO: "없음", UNKNOWN: null };
 
 // 물건 한 장 요약. 매입 매장에 가져가거나 인쇄해 두는 용도라 내 메모와 산 가격은 넣지 않는다.
+
+export function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  return itemTitle(params, "한 장 요약");
+}
+
 export default async function ItemSummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = getDb();

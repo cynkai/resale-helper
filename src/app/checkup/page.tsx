@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -9,6 +10,8 @@ import { BASIS_ISSUE_LABEL, scenarioLabel } from "@/lib/domain/scenario";
 import { CATEGORY_LABEL, DISCLAIMER, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
+
+export const metadata: Metadata = { title: "자료 점검" };
 
 function findingLine(f: CheckupFinding) {
   switch (f.kind) {

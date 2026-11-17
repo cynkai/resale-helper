@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CsvImportForm } from "@/components/client-bits";
 import { Section } from "@/components/ui";
 import { ITEM_CSV_COLUMNS, ITEM_CSV_REQUIRED_HEADERS, MAX_ITEM_CSV_ROWS } from "@/lib/domain/items-csv";
 import { CATEGORIES, CATEGORY_LABEL, CONDITIONS, CONDITION_LABEL, ITEM_STATUSES, ITEM_STATUS_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "물건 CSV 등록" };
 
 export default async function ImportItemsPage() {
   const demo = await isDemoMode();

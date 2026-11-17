@@ -3,6 +3,11 @@ import { ItemForm } from "@/components/ItemForm";
 import { getDb } from "@/lib/db/client";
 import { getItem } from "@/lib/db/repo";
 import { isDemoMode } from "@/lib/mode";
+import { itemTitle } from "../meta";
+
+export function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  return itemTitle(params, "수정");
+}
 
 export default async function EditItemPage({
   params,

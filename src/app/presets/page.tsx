@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { deleteCostPresetAction } from "@/app/actions";
 import { ConfirmSubmit, CostPresetForm } from "@/components/client-bits";
 import { Section } from "@/components/ui";
@@ -5,6 +6,8 @@ import { getDb } from "@/lib/db/client";
 import { listCostPresets } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "내 비용 묶음" };
 
 export default async function PresetsPage() {
   const demo = await isDemoMode();

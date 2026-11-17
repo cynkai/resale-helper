@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
@@ -18,6 +19,8 @@ import { isMonthKey, monthsWithRecords, soldMonth } from "@/lib/domain/review";
 import { channelKey, channelOutcome, countChannelOutcomes, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "판매 결과 돌아보기" };
 
 function signed(n: number | null, unit: "won" | "min"): string {
   if (n === null) return "—";

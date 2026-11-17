@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import path from "node:path";
 import { clearImportEventsAction, deleteSnapshotAction, revokeImportTokenAction } from "@/app/actions";
 import { ConfirmSubmit, ExtensionIdForm, ImportTokenForm, SnapshotButton } from "@/components/client-bits";
@@ -9,6 +10,8 @@ import { countSuspiciousImportEvents, IMPORT_OUTCOME_LABEL, listImportEvents, MA
 import { MAX_IMPORT_BODY_BYTES, MAX_IMPORT_RECORDS } from "@/lib/import/records";
 import { utcToSeoulDateTime } from "@/lib/domain/timeline";
 import { isDemoMode } from "@/lib/mode";
+
+export const metadata: Metadata = { title: "설정" };
 
 export default async function SettingsPage() {
   const demo = await isDemoMode();

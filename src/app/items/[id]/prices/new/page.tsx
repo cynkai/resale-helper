@@ -6,8 +6,13 @@ import { getItem } from "@/lib/db/repo";
 import { CURRENCIES } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
+import { itemTitle } from "../../meta";
 
 const MANUAL_TYPES = ["ASKING", "SOLD_LISTING", "BUYBACK_QUOTE", "USER_REPORTED"];
+
+export function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  return itemTitle(params, "가격 자료 추가");
+}
 
 export default async function NewPricePage({
   params,

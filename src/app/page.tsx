@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
@@ -17,6 +18,9 @@ import {
 } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
+
+// 루트 레이아웃과 같은 구간이라 제목 틀(template)이 적용되지 않는다.
+export const metadata: Metadata = { title: { absolute: "내 물건 · 얼마에 팔까" } };
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;

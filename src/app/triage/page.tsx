@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Fragment } from "react";
 import { TimeValueForm } from "@/components/client-bits";
@@ -22,6 +23,8 @@ import {
 import { CATEGORY_LABEL, DISCLAIMER, ITEM_STATUS_LABEL, SALE_METHOD_LABEL, type SaleMethod } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
+
+export const metadata: Metadata = { title: "물건 배분" };
 
 const VERDICT_TONE: Record<TriageVerdict, "teal" | "blue" | "amber"> = {
   DIRECT: "teal",
