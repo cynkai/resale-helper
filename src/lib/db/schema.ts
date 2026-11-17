@@ -93,6 +93,9 @@ export const priceRecords = sqliteTable(
     inputRoute: text("input_route").$type<InputRoute>().notNull(),
     memo: text("memo"),
     includedInComparison: integer("included_in_comparison", { mode: "boolean" }).notNull().default(true),
+    // 휴지통에 넣은 시각(UTC). null = 살아 있음. 휴지통의 자료는 비교·점검·내보내기에 쓰지 않지만,
+    // 같은 매물을 다시 넣는 것은 막는다(되살릴 때 중복이 생기지 않게).
+    deletedAt: text("deleted_at"),
     ...timestamps,
   },
   (t) => [

@@ -1110,6 +1110,19 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await expect(group).not.toContainText("나 장터");
   await expect(group).not.toContainText("라 장터");
   await expect(group).toContainText("가 장터");
+
+  // 지운 자료는 휴지통으로 가고, 되살리면 비교에 다시 들어온다
+  const itemUrl = page.url().replace(/#.*$/, "");
+  await expect(page.getByTestId("trashed-prices-note")).toContainText("2건이 휴지통에");
+  await page.getByTestId("trashed-prices-note").getByRole("link", { name: "휴지통에서 보기" }).click();
+  const trashed = page.locator('[data-testid^="trashed-price-"]').filter({ hasText: "나 장터" });
+  await expect(trashed).toContainText("9,000원");
+  await expect(trashed).toContainText("한꺼번에 테스트 게임기");
+  await trashed.getByRole("button", { name: "되살리기" }).click();
+  await expect(page.locator('[data-testid^="trashed-price-"]').filter({ hasText: "나 장터" })).toHaveCount(0);
+  await page.goto(itemUrl);
+  await expect(group).toContainText("나 장터");
+  await expect(page.getByTestId("trashed-prices-note")).toContainText("1건이 휴지통에");
 });
 
 test("백업 사본: 버튼으로 만들고, 내려받고, 지운다. 이상한 이름으로는 다른 파일을 읽을 수 없다", async ({ page }) => {

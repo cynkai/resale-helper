@@ -12,7 +12,7 @@ import { WINDOWS } from "./shared";
 import type { ItemView } from "../view";
 
 export function PricesSection({ v }: { v: ItemView }) {
-  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison, pastSales } = v;
+  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison, pastSales, trashedPriceCount } = v;
   const priceRow = (c: Classified<PriceRecord>) => {
     const p = c.record;
     const age = daysBetween(p.checkedDate, today);
@@ -129,7 +129,7 @@ export function PricesSection({ v }: { v: ItemView }) {
             <form action={deletePriceAction}>
               <input type="hidden" name="itemId" value={item.id} />
               <input type="hidden" name="priceId" value={p.id} />
-              <ConfirmSubmit message="이 가격 자료를 삭제할까요?" className="btn-danger px-2 py-1 text-xs">
+              <ConfirmSubmit message="이 가격 자료를 휴지통으로 옮길까요? 휴지통에서 되살릴 수 있습니다." className="btn-danger px-2 py-1 text-xs">
                 삭제
               </ConfirmSubmit>
             </form>
@@ -158,6 +158,14 @@ export function PricesSection({ v }: { v: ItemView }) {
       }
     >
       <p className="notice">{DISCLAIMER}</p>
+      {trashedPriceCount > 0 ? (
+        <p className="mt-2 text-sm text-stone-700" data-testid="trashed-prices-note">
+          이 물건의 가격 자료 {trashedPriceCount}건이 휴지통에 있습니다(비교에 쓰지 않음).{" "}
+          <Link href="/trash" className="underline">
+            휴지통에서 보기
+          </Link>
+        </p>
+      ) : null}
 
       {pastSales.length > 0 ? (
         <div className="mt-3 rounded-md border border-stone-200 p-3 text-sm" data-testid="past-sales">
@@ -265,7 +273,7 @@ export function PricesSection({ v }: { v: ItemView }) {
             <ConfirmSubmit
               name="op"
               value="DELETE"
-              message="고른 가격 자료를 지웁니다. 되돌릴 수 없습니다. 계속할까요?"
+              message="고른 가격 자료를 휴지통으로 옮깁니다. 휴지통에서 되살릴 수 있습니다. 계속할까요?"
               className="btn-danger px-2 py-1 text-xs"
             >
               삭제

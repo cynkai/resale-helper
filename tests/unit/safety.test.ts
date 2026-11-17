@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
-import { createItem, listItems, listPrices } from "@/lib/db/repo";
+import { createItem, deletePrices, listItems, listPrices } from "@/lib/db/repo";
 import {
   authorizeImport,
   classifyOrigin,
@@ -305,6 +305,20 @@ describe("가져오기 API 본문 처리", () => {
       expect(listPrices(db, itemId)).toHaveLength(1);
       expect(listPrices(db, itemId)[0]!.amountMinor).toBe(before);
       expect(JSON.stringify(out.results[1])).not.toContain(String(before));
+    });
+  });
+
+  it("휴지통에 있는 매물과 같으면 저장하지 않고, 고칠 수 없는 자료 번호(duplicateOf)는 주지 않는다", () => {
+    withDb((db, itemId) => {
+      const first = importRecords(db, { itemId, records: [rec()] }, "CLIP", TODAY);
+      if (!first.ok || !first.results[0]!.ok) throw new Error("first");
+      deletePrices(db, itemId, [first.results[0]!.id]);
+      const out = importRecords(db, { itemId, records: [rec()] }, "CLIP", TODAY);
+      if (!out.ok) throw new Error(out.error);
+      expect(out.imported).toBe(0);
+      expect(out.results[0]).toMatchObject({ ok: false, error: expect.stringContaining("휴지통") });
+      expect(out.results[0]).not.toHaveProperty("duplicateOf");
+      expect(listPrices(db, itemId)).toHaveLength(0);
     });
   });
 

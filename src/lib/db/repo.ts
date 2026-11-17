@@ -71,7 +71,7 @@ export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
     .select({
       item: items,
       // 하위 질의 안에서 열 이름이 모호해지지 않도록 테이블 이름을 직접 적는다.
-      priceCount: sql<number>`(select count(*) from price_records p where p.item_id = "items"."id")`,
+      priceCount: sql<number>`(select count(*) from price_records p where p.item_id = "items"."id" and p.deleted_at is null)`,
       scenarioCount: sql<number>`(select count(*) from cost_scenarios c where c.item_id = "items"."id")`,
       resultCount: sql<number>`(select count(*) from sale_results r where r.item_id = "items"."id")`,
       openOfferCount: sql<number>`(select count(*) from offers o where o.item_id = "items"."id" and o.status = 'OPEN')`,
@@ -177,7 +177,10 @@ export function purgeItem(db: Db, isDemo: boolean, id: number): void {
 
 /** 휴지통을 비운다. 지운 물건 수를 돌려준다. */
 export function emptyTrash(db: Db, isDemo: boolean): number {
-  return db.delete(items).where(trashed(isDemo)).returning({ id: items.id }).all().length;
+  return db.transaction((tx) => {
+    tx.delete(priceRecords).where(trashedPrice(isDemo)).run();
+    return tx.delete(items).where(trashed(isDemo)).returning({ id: items.id }).all().length;
+  });
 }
 
 /** 물건 여러 개를 한 번에 등록한다(전부 성공하거나 전부 실패). */
@@ -228,11 +231,14 @@ export function deleteItem(db: Db, isDemo: boolean, id: number): void {
 
 // ---- 가격 자료 ----
 
+/** 휴지통에 없는 가격 자료. 비교·점검·내보내기 등 자료를 읽는 곳은 모두 이 조건을 쓴다. */
+const livePrice = isNull(priceRecords.deletedAt);
+
 export function listPrices(db: Db, itemId: number): PriceRecord[] {
   return db
     .select()
     .from(priceRecords)
-    .where(eq(priceRecords.itemId, itemId))
+    .where(and(eq(priceRecords.itemId, itemId), livePrice))
     .orderBy(asc(priceRecords.priceType), desc(priceRecords.checkedDate), asc(priceRecords.id))
     .all();
 }
@@ -241,16 +247,27 @@ export function getPrice(db: Db, itemId: number, id: number): PriceRecord | unde
   return db
     .select()
     .from(priceRecords)
-    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId)))
+    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId), livePrice))
     .get();
 }
 
-export type SaveResult = { ok: true; id: number } | { ok: false; reason: "DUPLICATE" };
+/** 중복 판별용: 휴지통에 있는 자료까지 포함한 물건의 가격 자료 전체. */
+export function listPricesForDedup(db: Db, itemId: number): PriceRecord[] {
+  return db.select().from(priceRecords).where(eq(priceRecords.itemId, itemId)).all();
+}
 
-/** 같은 매물(출처+외부 ID 또는 정규화 URL)이 이미 있으면 저장하지 않는다. */
+/** 같은 매물이 있는지. 휴지통에 있는 자료와 겹치면 inTrash가 true다. */
+function findDuplicate(db: Db, itemId: number, v: Parameters<typeof isSameListing>[1], exceptId?: number) {
+  const dup = listPricesForDedup(db, itemId).find((e) => e.id !== exceptId && isSameListing(e, v));
+  return dup ? { ok: false as const, reason: "DUPLICATE" as const, inTrash: dup.deletedAt !== null } : null;
+}
+
+export type SaveResult = { ok: true; id: number } | { ok: false; reason: "DUPLICATE"; inTrash: boolean };
+
+/** 같은 매물(출처+외부 ID 또는 정규화 URL)이 이미 있으면(휴지통 포함) 저장하지 않는다. */
 export function insertPrice(db: Db, item: Item, v: ValidPriceInput, route: InputRoute): SaveResult {
-  const existing = listPrices(db, item.id);
-  if (existing.some((e) => isSameListing(e, v))) return { ok: false, reason: "DUPLICATE" };
+  const dup = findDuplicate(db, item.id, v);
+  if (dup) return dup;
   const r = db
     .insert(priceRecords)
     .values({ ...v, itemId: item.id, isDemo: item.isDemo, inputRoute: route })
@@ -260,9 +277,11 @@ export function insertPrice(db: Db, item: Item, v: ValidPriceInput, route: Input
 }
 
 export function updatePrice(db: Db, item: Item, id: number, v: ValidPriceInput): SaveResult {
-  const others = listPrices(db, item.id).filter((e) => e.id !== id);
-  if (others.some((e) => isSameListing(e, v))) return { ok: false, reason: "DUPLICATE" };
   const before = getPrice(db, item.id, id);
+  // 없는 자료(휴지통 포함)는 바꾸지 않는다. 예전처럼 조용히 넘어간다.
+  if (!before) return { ok: true, id };
+  const dup = findDuplicate(db, item.id, v, id);
+  if (dup) return dup;
   db.transaction((tx) => {
     // 금액·통화·확인일·유형 중 하나라도 바뀌면 바뀌기 전 값을 이력으로 남긴다.
     if (
@@ -281,7 +300,7 @@ export function updatePrice(db: Db, item: Item, id: number, v: ValidPriceInput):
     }
     tx.update(priceRecords)
       .set({ ...v, updatedAt: now })
-      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, item.id)))
+      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, item.id), livePrice))
       .run();
   });
   return { ok: true, id };
@@ -306,7 +325,7 @@ export function recheckPrice(db: Db, itemId: number, id: number, today: string):
       .run();
     tx.update(priceRecords)
       .set({ checkedDate: today, updatedAt: now })
-      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId)))
+      .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId), livePrice))
       .run();
   });
   return true;
@@ -323,7 +342,7 @@ export function listPriceHistory(db: Db, itemId: number): Map<number, PriceHisto
     .select({ h: priceHistory })
     .from(priceHistory)
     .innerJoin(priceRecords, eq(priceRecords.id, priceHistory.priceRecordId))
-    .where(eq(priceRecords.itemId, itemId))
+    .where(and(eq(priceRecords.itemId, itemId), livePrice))
     .orderBy(asc(priceHistory.checkedDate), asc(priceHistory.id))
     .all();
   const map = new Map<number, PriceHistoryRow[]>();
@@ -335,16 +354,15 @@ export function listPriceHistory(db: Db, itemId: number): Map<number, PriceHisto
   return map;
 }
 
+/** 가격 자료를 휴지통으로 옮긴다(이전 값 이력도 그대로 둔다). */
 export function deletePrice(db: Db, itemId: number, id: number): void {
-  db.delete(priceRecords)
-    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId)))
-    .run();
+  deletePrices(db, itemId, [id]);
 }
 
 export function setPriceIncluded(db: Db, itemId: number, id: number, included: boolean): void {
   db.update(priceRecords)
     .set({ includedInComparison: included, updatedAt: now })
-    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId)))
+    .where(and(eq(priceRecords.id, id), eq(priceRecords.itemId, itemId), livePrice))
     .run();
 }
 
@@ -354,19 +372,59 @@ export function setPricesIncluded(db: Db, itemId: number, ids: number[], include
   return db
     .update(priceRecords)
     .set({ includedInComparison: included, updatedAt: now })
-    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId)))
+    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId), livePrice))
     .returning({ id: priceRecords.id })
     .all().length;
 }
 
-/** 여러 자료를 한 번에 지운다. 그 물건의 자료만 지워진다. 지운 건수를 돌려준다. */
+/** 여러 자료를 한 번에 휴지통으로 옮긴다. 그 물건의 자료만 옮겨진다. 옮긴 건수를 돌려준다. */
 export function deletePrices(db: Db, itemId: number, ids: number[]): number {
   if (ids.length === 0) return 0;
   return db
-    .delete(priceRecords)
-    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId)))
+    .update(priceRecords)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(inArray(priceRecords.id, ids), eq(priceRecords.itemId, itemId), livePrice))
     .returning({ id: priceRecords.id })
     .all().length;
+}
+
+const trashedPrice = (isDemo: boolean) => and(eq(priceRecords.isDemo, isDemo), isNotNull(priceRecords.deletedAt))!;
+
+/** 휴지통의 가격 자료(살아 있는 물건의 것만, 최근에 넣은 것부터). 물건째 휴지통에 간 자료는 물건과 함께 보인다. */
+export function listTrashedPrices(db: Db, isDemo: boolean) {
+  return db
+    .select({ p: priceRecords, itemName: items.name })
+    .from(priceRecords)
+    .innerJoin(items, eq(items.id, priceRecords.itemId))
+    .where(and(trashedPrice(isDemo), live(isDemo)))
+    .orderBy(desc(priceRecords.deletedAt), desc(priceRecords.id))
+    .all();
+}
+
+/** 휴지통에 있는 가격 자료 수. itemId를 주면 그 물건의 것만, 아니면 살아 있는 물건 전체의 것. */
+export function countTrashedPrices(db: Db, isDemo: boolean, itemId?: number): number {
+  return db
+    .select({ n: sql<number>`count(*)` })
+    .from(priceRecords)
+    .innerJoin(items, eq(items.id, priceRecords.itemId))
+    .where(and(trashedPrice(isDemo), live(isDemo), itemId !== undefined ? eq(priceRecords.itemId, itemId) : undefined))
+    .get()!.n;
+}
+
+/** 휴지통의 가격 자료를 되살린다. 물건이 살아 있을 때만. 되살린 자료의 물건 번호를 돌려준다. */
+export function restorePrice(db: Db, isDemo: boolean, id: number): number | null {
+  const row = db
+    .update(priceRecords)
+    .set({ deletedAt: null, updatedAt: now })
+    .where(and(eq(priceRecords.id, id), trashedPrice(isDemo), inArray(priceRecords.itemId, db.select({ id: items.id }).from(items).where(live(isDemo)))))
+    .returning({ itemId: priceRecords.itemId })
+    .get();
+  return row?.itemId ?? null;
+}
+
+/** 휴지통의 가격 자료 하나를 완전히 지운다(그 자료를 기준으로 삼은 계산은 "기준 자료 삭제됨"으로 남는다). */
+export function purgePrice(db: Db, isDemo: boolean, id: number): void {
+  db.delete(priceRecords).where(and(eq(priceRecords.id, id), trashedPrice(isDemo))).run();
 }
 
 export function importPrices(db: Db, item: Item, values: ValidPriceInput[]): number {
@@ -381,7 +439,7 @@ export function importPrices(db: Db, item: Item, values: ValidPriceInput[]): num
 }
 
 export function exportRows(db: Db, isDemo: boolean, itemId?: number): ExportRow[] {
-  const conds = [eq(priceRecords.isDemo, isDemo), live(isDemo)];
+  const conds = [eq(priceRecords.isDemo, isDemo), live(isDemo), livePrice];
   if (itemId !== undefined) conds.push(eq(priceRecords.itemId, itemId));
   return db
     .select({ p: priceRecords, itemName: items.name })
@@ -772,7 +830,7 @@ export function listTriageCandidates(db: Db, isDemo: boolean): TriageCandidate[]
       ? db
           .select()
           .from(priceRecords)
-          .where(and(inArray(priceRecords.id, basisIds), eq(priceRecords.isDemo, isDemo)))
+          .where(and(inArray(priceRecords.id, basisIds), eq(priceRecords.isDemo, isDemo), livePrice))
           .all()
       : [];
   return its.map((item) => ({
@@ -797,7 +855,7 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
   const prices = db
     .select()
     .from(priceRecords)
-    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
+    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo), livePrice))
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).all();
@@ -833,7 +891,7 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
   const prices = db
     .select()
     .from(priceRecords)
-    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
+    .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo), livePrice))
     .orderBy(asc(priceRecords.id))
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();

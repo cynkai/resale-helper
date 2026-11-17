@@ -146,7 +146,7 @@ export function planCsvImport(
       continue;
     }
     if (seen.some((s) => isSameListing(s, result.value))) {
-      plan.errors.push({ line, messages: ["이미 등록된 매물과 출처 ID 또는 URL이 같아 건너뜁니다(중복)."] });
+      plan.errors.push({ line, messages: ["이미 등록된 매물(휴지통 포함)과 출처 ID 또는 URL이 같아 건너뜁니다(중복)."] });
       continue;
     }
     seen.push(result.value);

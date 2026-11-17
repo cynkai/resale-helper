@@ -1,7 +1,7 @@
 // 가져오기 API 본문 해석과 저장. 검증은 price-input.ts, 중복 판정과 저장은 기존 insertPrice를 그대로 쓴다.
 
 import type { Db } from "../db/client";
-import { getItem, insertPrice, listPrices } from "../db/repo";
+import { getItem, insertPrice, listPricesForDedup } from "../db/repo";
 import { isSameListing } from "../domain/compare";
 import { CSV_COLUMNS } from "../domain/csv";
 import { validatePriceInput, type PriceField, type PriceInputRaw } from "../domain/price-input";
@@ -87,8 +87,13 @@ export function importRecords(db: Db, body: unknown, route: "CLIP" | "EXTERNAL",
       return;
     }
     const saved = insertPrice(db, item, v.value, route);
+    if (!saved.ok && saved.inTrash) {
+      // 휴지통의 자료는 고칠 수 없으므로 수정 화면 번호(duplicateOf)를 주지 않는다.
+      results.push({ index, ok: false, error: "같은 매물이 앱의 휴지통에 있습니다. 저장하지 않았습니다. 앱의 휴지통에서 되살리거나 완전히 지운 뒤 다시 보내 주세요." });
+      return;
+    }
     if (!saved.ok) {
-      const existing = listPrices(db, item.id).find((e) => isSameListing(e, v.value));
+      const existing = listPricesForDedup(db, item.id).find((e) => e.deletedAt === null && isSameListing(e, v.value));
       const changed = existing
         ? existing.amountMinor !== v.value.amountMinor || existing.currency !== v.value.currency || existing.priceType !== v.value.priceType
         : undefined;

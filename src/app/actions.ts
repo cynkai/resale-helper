@@ -110,6 +110,21 @@ export async function emptyTrashAction(): Promise<void> {
   revalidatePath("/trash");
 }
 
+export async function restorePriceAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "priceId"));
+  if (id === null) return;
+  const itemId = repo.restorePrice(getDb(), await isDemoMode(), id);
+  revalidatePath("/trash");
+  if (itemId !== null) revalidatePath(`/items/${itemId}`);
+}
+
+export async function purgePriceAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "priceId"));
+  if (id === null) return;
+  repo.purgePrice(getDb(), await isDemoMode(), id);
+  revalidatePath("/trash");
+}
+
 /** 보유 중 ↔ 판매 중 빠른 변경. 판매 완료는 판매 결과 기록으로만 된다. */
 export async function setItemStatusAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
@@ -147,7 +162,9 @@ export async function savePriceAction(_prev: FormState, fd: FormData): Promise<F
   if (!saved.ok) {
     return {
       values: values(fd),
-      message: "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음). 가격이 바뀌었다면 기존 자료를 수정해 주세요.",
+      message: saved.inTrash
+        ? "같은 매물(출처 ID 또는 원문 URL이 같음)이 휴지통에 있습니다. 휴지통에서 되살리거나 완전히 지운 뒤 다시 넣어 주세요."
+        : "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음). 가격이 바뀌었다면 기존 자료를 수정해 주세요.",
     };
   }
   revalidatePath(`/items/${item.id}`);
@@ -212,7 +229,8 @@ export async function importCsvAction(_prev: CsvImportState, fd: FormData): Prom
   if (!(file instanceof File) || file.size === 0) return { headerError: "CSV 파일을 선택해 주세요." };
   if (file.size > MAX_CSV_BYTES) return { headerError: "파일이 너무 큽니다(최대 1MB)." };
   const text = await file.text();
-  const plan = planCsvImport(text, todayYmd(), repo.listPrices(db, item.id));
+  // 휴지통에 있는 자료와 같은 매물도 중복으로 건너뛴다.
+  const plan = planCsvImport(text, todayYmd(), repo.listPricesForDedup(db, item.id));
   if (plan.headerError) return { headerError: plan.headerError };
   const imported = plan.valid.length > 0 ? repo.importPrices(db, item, plan.valid.map((v) => v.value)) : 0;
   revalidatePath(`/items/${item.id}`);
