@@ -956,6 +956,9 @@ test("답하지 않은 제안은 목록·점검에 나타나고, 같은 물건�
   expect(copyId).not.toBe(id);
   await page.goto(`/items/${copyId}`);
   await expect(page.locator('[data-testid^="offer-"]').filter({ hasText: "12,000원" })).toHaveCount(0);
+  // 같은 모델명으로 등록한 다른 물건을 알려 준다(막지는 않는다)
+  await expect(page.getByTestId("same-identifier-items")).toContainText("같은 모델명으로 등록한 다른 물건이 1개");
+  await expect(page.getByTestId("same-identifier-items").getByRole("link", { name: "복제 테스트 게임기" })).toHaveAttribute("href", `/items/${id}`);
   await page.goto("/?q=복제 테스트");
   await expect(page.getByRole("link", { name: /복제 테스트 게임기/ })).toHaveCount(2);
 });

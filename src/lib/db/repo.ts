@@ -681,6 +681,31 @@ export function listPastSalesForSameIdentifier(db: Db, isDemo: boolean, item: Pi
     .all();
 }
 
+/**
+ * 같은 식별자(ISBN·모델명)로 등록한 다른 물건 중 아직 판매 결과가 없는 것(현재 모드, 휴지통 제외).
+ * 같은 물건을 두 번 등록했는지 알아차리게 할 뿐 막지 않는다(같은 책을 두 권 가질 수 있다).
+ */
+export function listSameIdentifierItems(db: Db, isDemo: boolean, item: Pick<Item, "id" | "category" | "identifier">) {
+  const key = (item.identifier ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (key === "") return [];
+  return db
+    .select({ id: items.id, name: items.name, status: items.status, condition: items.condition })
+    .from(items)
+    .leftJoin(saleResults, eq(saleResults.itemId, items.id))
+    .where(
+      and(
+        live(isDemo),
+        isNull(saleResults.id),
+        eq(items.category, item.category),
+        sql`${items.id} <> ${item.id}`,
+        sql`lower(replace(coalesce(${items.identifier}, ''), ' ', '')) = ${key}`,
+      ),
+    )
+    .orderBy(asc(items.id))
+    .limit(20)
+    .all();
+}
+
 export function deleteSaleResult(db: Db, itemId: number): void {
   db.delete(saleResults).where(eq(saleResults.itemId, itemId)).run();
 }
