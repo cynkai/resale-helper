@@ -22,7 +22,7 @@ import { buildFullExport } from "@/lib/domain/full-export";
 import { listFullExportSources } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel } from "@/lib/domain/scenario";
-import { reasonText, triageItem } from "@/lib/domain/triage";
+import { reasonText, triageAlternatives, triageItem } from "@/lib/domain/triage";
 
 const TODAY = "2026-11-17";
 
@@ -208,6 +208,49 @@ describe("분류와 내보내기", () => {
     expect(triageItem(listTriageCandidates(db, false)[0]!, 1000, TODAY).verdict).toBe("BUYBACK");
     setPrimaryScenario(db, id, direct[1]!.id);
     expect(triageItem(listTriageCandidates(db, false)[0]!, 1000, TODAY).verdict).toBe("DIRECT");
+  });
+
+  it("판매처별로 따져 보기: 기준이 아닌 계산을 기준 자리에 넣어 같은 규칙으로 판단한다(입력 순서)", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "BUYBACK", scenario({ saleAmount: 5000, expectedMinutes: 10 }));
+    upsertScenario(db, id, "DIRECT", scenario({ saleAmount: 4000 }), "가");
+    upsertScenario(db, id, "DIRECT", scenario({ saleAmount: 20000, expectedMinutes: 70 }), "나");
+    // 기준이 없으면 그 방식의 계산을 모두 따져 본다
+    const all = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
+    expect(all.map((a) => [a.scenario.channel, a.result.verdict])).toEqual([
+      ["가", "BUYBACK"],
+      ["나", "DIRECT"],
+    ]);
+    expect(all[1]!.result).toMatchObject({ extra: 15000, extraMinutes: 60, extraPerHour: 15000 });
+
+    // 기준을 정하면 기준이 아닌 것만 남는다. 계산이 하나뿐인 방식(업체)은 대상이 아니다
+    setPrimaryScenario(db, id, listScenarios(db, id)[1]!.id);
+    const rest = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
+    expect(rest.map((a) => a.scenario.channel)).toEqual(["나"]);
+    // 고른 방법과 다르다는 경고는 물건 단위 판단에만 붙는다
+    setChosenMethod(db, false, id, { method: "BUYBACK", saleAmount: 5000, netAmount: 5000 });
+    const withChoice = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
+    expect(withChoice[0]!.result.warnings.some((w) => w.code === "CHOSEN_DIFFERS")).toBe(false);
+  });
+
+  it("판매처별로 따져 보기: 상대 방식의 기준이 없으면 보류한다", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "BUYBACK", scenario({ saleAmount: 5000 }), "가 서점");
+    upsertScenario(db, id, "BUYBACK", scenario({ saleAmount: 6000 }), "나 서점");
+    upsertScenario(db, id, "DIRECT", scenario({ saleAmount: 9000 }), "다");
+    upsertScenario(db, id, "DIRECT", scenario({ saleAmount: 9500 }), "라");
+    const alts = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
+    expect(alts).toHaveLength(4);
+    expect(alts.every((a) => a.result.verdict === "UNDECIDED")).toBe(true);
+    expect(alts[0]!.result.reasons).toEqual([{ code: "NEEDS_PRIMARY", method: "DIRECT" }]);
+    expect(alts[2]!.result.reasons).toEqual([{ code: "NEEDS_PRIMARY", method: "BUYBACK" }]);
+  });
+
+  it("계산이 방식마다 하나뿐이면 따져 볼 것이 없다", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "BUYBACK", scenario());
+    upsertScenario(db, id, "DIRECT", scenario());
+    expect(triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY)).toEqual([]);
   });
 
   it("전체 내보내기에 판매처 이름과 기준 표시, 고른 판매처가 실린다", () => {

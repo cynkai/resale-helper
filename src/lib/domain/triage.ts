@@ -138,33 +138,80 @@ export function triage(input: TriageInput): TriageResult {
     : done("BUYBACK", [{ code: "PER_HOUR_BELOW_TIME_VALUE" }], extra, extraPerHour);
 }
 
-/** 저장된 시나리오와 기준 자료에서 판단 입력을 만든다(기준 자료 확인은 기존 basisIssues를 그대로 쓴다). */
-export function triageItem(
-  c: {
-    item: { chosenMethod: SaleMethod | null };
-    scenarios: (TriageScenario & { basisPriceRecordId: number | null; isPrimary: boolean })[];
-    basisRecords: (BasisRecord & { id: number })[];
-  },
+type StoredScenario = TriageScenario & { basisPriceRecordId: number | null; isPrimary: boolean };
+
+type TriageSource<S extends StoredScenario> = {
+  item: { chosenMethod: SaleMethod | null };
+  scenarios: S[];
+  basisRecords: (BasisRecord & { id: number })[];
+};
+
+function triageWith<S extends StoredScenario>(
+  c: TriageSource<S>,
+  buyback: S | null,
+  direct: S | null,
+  undecided: SaleMethod[],
+  chosenMethod: SaleMethod | null,
   timeValuePerHour: number | null,
   today: string,
 ): TriageResult {
-  const pick = (m: SaleMethod) => primaryScenario(c.scenarios, m) ?? null;
-  const issues = (sc: ReturnType<typeof pick>): BasisIssue[] => {
+  const issues = (sc: S | null): BasisIssue[] => {
     if (!sc) return [];
     const basis = sc.basisPriceRecordId !== null ? c.basisRecords.find((r) => r.id === sc.basisPriceRecordId) : undefined;
     return basisIssues(sc, basis, today);
   };
-  const buyback = pick("BUYBACK");
-  const direct = pick("DIRECT");
   return triage({
     buyback,
     direct,
     buybackIssues: issues(buyback),
     directIssues: issues(direct),
     timeValuePerHour,
-    chosenMethod: c.item.chosenMethod,
-    needsPrimary: (["BUYBACK", "DIRECT"] as const).filter((m) => needsPrimary(c.scenarios, m)),
+    chosenMethod,
+    needsPrimary: undecided,
   });
+}
+
+/** 저장된 시나리오와 기준 자료에서 판단 입력을 만든다(기준 자료 확인은 기존 basisIssues를 그대로 쓴다). */
+export function triageItem<S extends StoredScenario>(c: TriageSource<S>, timeValuePerHour: number | null, today: string): TriageResult {
+  return triageWith(
+    c,
+    primaryScenario(c.scenarios, "BUYBACK") ?? null,
+    primaryScenario(c.scenarios, "DIRECT") ?? null,
+    SALE_METHOD_ORDER.filter((m) => needsPrimary(c.scenarios, m)),
+    c.item.chosenMethod,
+    timeValuePerHour,
+    today,
+  );
+}
+
+const SALE_METHOD_ORDER: SaleMethod[] = ["BUYBACK", "DIRECT"];
+
+export type TriageAlternative<S> = { scenario: S; result: TriageResult };
+
+/**
+ * 판매처별로 따져 보기: 계산이 여러 개인 방식에서, 기준이 아닌 계산을 기준 자리에 넣어 같은 규칙으로 판단한다.
+ * 상대 방식은 그 방식의 기준 계산을 쓴다(없거나 정하지 않았으면 보류). 입력한 순서 그대로이며 순위를 매기지 않는다.
+ * 고른 방법과의 비교 경고는 물건 단위 판단에만 붙이므로 여기서는 넣지 않는다.
+ */
+export function triageAlternatives<S extends StoredScenario>(
+  c: TriageSource<S>,
+  timeValuePerHour: number | null,
+  today: string,
+): TriageAlternative<S>[] {
+  const out: TriageAlternative<S>[] = [];
+  for (const sc of c.scenarios) {
+    if (c.scenarios.filter((x) => x.method === sc.method).length < 2) continue;
+    if (primaryScenario(c.scenarios, sc.method) === sc) continue;
+    const other: SaleMethod = sc.method === "BUYBACK" ? "DIRECT" : "BUYBACK";
+    const otherSc = primaryScenario(c.scenarios, other) ?? null;
+    const undecided = needsPrimary(c.scenarios, other) ? [other] : [];
+    const result =
+      sc.method === "BUYBACK"
+        ? triageWith(c, sc, otherSc, undecided, null, timeValuePerHour, today)
+        : triageWith(c, otherSc, sc, undecided, null, timeValuePerHour, today);
+    out.push({ scenario: sc, result });
+  }
+  return out;
 }
 
 // ---- 화면 문구 ----
