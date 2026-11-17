@@ -836,7 +836,8 @@ test("물건 CSV: 여러 물건을 한 번에 등록하고, 오류·중복 행�
   expect(res.headers()["content-disposition"]).toMatch(/items-\d{4}-\d{2}-\d{2}\.csv/);
   const text = await res.text();
   expect(text).toContain("CSV 등록 도서,9780306406157,LIKE_NEW");
-  expect(text.split("\r\n")[0]).not.toMatch(/price|amount/);
+  // 시세·판매 가격 열은 없다(내가 산 가격 purchase_amount만 예외로 있다)
+  expect(text.split("\r\n")[0]).not.toMatch(/(^|,)(price|amount|asking|sale_amount|price_type)(,|$)/);
 });
 
 test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비를 보여 주고, 결과 돌아보기에서 처음 올린 가격과 견준다", async ({ page }) => {
@@ -940,4 +941,38 @@ test("답하지 않은 제안은 목록·점검에 나타나고, 같은 물건�
   await expect(page.locator('[data-testid^="offer-"]').filter({ hasText: "12,000원" })).toHaveCount(0);
   await page.goto("/?q=복제 테스트");
   await expect(page.getByRole("link", { name: /복제 테스트 게임기/ })).toHaveCount(2);
+});
+
+test("산 가격: 적어 두면 계산·판매 결과·돌아보기에서 실수령액과 견주고, 판매글에는 넣지 않는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("산 가격 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.locator("#purchaseAmount").fill("30000");
+  await page.locator("#purchaseDate").fill("2026-01-05");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop()!;
+  await expect(page.locator("#info")).toContainText("30,000원 (2026-01-05)");
+
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-saleAmount").fill("20000");
+  await direct.locator("#direct-shipping").fill("3000");
+  for (const f of ["feeAmount", "packing", "transport"]) await direct.locator(`#direct-${f}`).fill("0");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("vs-purchase-DIRECT")).toHaveText("산 가격(30,000원)과 견주면 -13,000원");
+  // 판매글 초안에는 산 가격이 들어가지 않는다
+  await expect(page.getByTestId("draft-body")).not.toContainText("30,000");
+
+  await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-soldDate").fill("2026-01-15");
+  await page.locator("#result-amount").fill("19000");
+  await page.locator("#result-costTotal").fill("3000");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+  await expect(page.getByTestId("result-vs-purchase")).toHaveText("산 가격 30,000원 → 실제 실수령액 16,000원 (-14,000원) · 산 날부터 판매까지 10일");
+  await expect(page.getByTestId("timeline").locator("li").last()).toContainText("30,000원에 삼(내가 적은 값)");
+
+  await page.goto("/results");
+  await expect(page.getByTestId(`purchase-${id}`)).toHaveText("산 가격 30,000원 대비 -14,000원");
+  await expect(page.getByTestId("purchase-counts")).toContainText("적음 1건");
 });

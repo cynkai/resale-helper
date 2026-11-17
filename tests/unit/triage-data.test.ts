@@ -203,7 +203,7 @@ describe("배분·결과 CSV", () => {
       {
         name: "가", category: "BOOK", soldDate: "2026-11-01", channel: "가 장터", chosen: "개인에게 직접 판매 · 가 장터",
         chosenSaleAmount: 10000, chosenNetAmount: 9000, expectedMinutes: 30, amount: 9500, costTotal: 1000, minutesSpent: 40,
-        firstPostedPrice: 11000, isDemo: false,
+        firstPostedPrice: 11000, purchaseAmount: 12000, isDemo: false,
       },
       {
         name: "나", category: "CONSOLE", soldDate: "2026-11-02", channel: "직거래", chosen: "",
@@ -213,8 +213,8 @@ describe("배분·결과 CSV", () => {
     ]);
     const lines = csv.replace(/^\uFEFF/, "").trim().split("\r\n");
     expect(lines[0]).toBe(RESULTS_CSV_HEADERS.join(","));
-    expect(lines[1]).toBe("가,도서,2026-11-01,가 장터,개인에게 직접 판매 · 가 장터,10000,9500,9000,1000,8500,-500,30,40,11000,false");
-    expect(lines[2]).toBe("나,게임기,2026-11-02,직거래,,,5000,,,,,,,,false");
+    expect(lines[1]).toBe("가,도서,2026-11-01,가 장터,개인에게 직접 판매 · 가 장터,10000,9500,9000,1000,8500,-500,30,40,11000,12000,false");
+    expect(lines[2]).toBe("나,게임기,2026-11-02,직거래,,,5000,,,,,,,,,false");
     expect(lines).toHaveLength(3);
   });
 });

@@ -233,6 +233,27 @@ export function ItemForm({ initial, itemId }: { initial: Record<string, string>;
           onChange={set("components")}
         />
       </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="산 가격 (원, 선택)"
+          name="purchaseAmount"
+          error={e.purchaseAmount}
+          hint="적어 두면 실수령액과 견줘 보여 줍니다. 모르면 비워 두고, 거저 얻었으면 0. 판매글에는 들어가지 않습니다."
+        >
+          <input
+            id="purchaseAmount"
+            name="purchaseAmount"
+            className="input"
+            inputMode="numeric"
+            value={v.purchaseAmount ?? ""}
+            onChange={set("purchaseAmount")}
+            placeholder="모르면 비워 두기"
+          />
+        </Field>
+        <Field label="산 날짜 (선택)" name="purchaseDate" error={e.purchaseDate}>
+          <input id="purchaseDate" name="purchaseDate" type="date" className="input" value={v.purchaseDate ?? ""} onChange={set("purchaseDate")} />
+        </Field>
+      </div>
       <Field label="메모" name="memo" error={e.memo} hint="나만 보는 메모. 판매글에는 들어가지 않습니다.">
         <textarea id="memo" name="memo" rows={2} className="input" value={v.memo ?? ""} onChange={set("memo")} />
       </Field>

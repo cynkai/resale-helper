@@ -20,6 +20,8 @@ export const ITEM_CSV_COLUMNS: { header: string; field: ItemField }[] = [
   { header: "has_underline", field: "hasUnderline" },
   { header: "has_damage", field: "hasDamage" },
   { header: "has_supplement", field: "hasSupplement" },
+  { header: "purchase_amount", field: "purchaseAmount" },
+  { header: "purchase_date", field: "purchaseDate" },
 ];
 export const ITEM_CSV_REQUIRED_HEADERS = ["category", "name", "condition"];
 // 내보내기 전용 열(가져올 때는 무시)

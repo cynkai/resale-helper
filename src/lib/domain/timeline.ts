@@ -7,9 +7,10 @@ import { OFFER_STATUS_LABEL, type OfferStatus } from "./offer";
 import { scenarioLabel } from "./scenario";
 import { PRICE_TYPE_INFO, SALE_METHOD_LABEL, type Currency, type PriceType, type SaleMethod } from "./types";
 
-export type TimelineKind = "REGISTERED" | "PRICE_CHECKED" | "PRICE_PREVIOUS" | "POSTED" | "OFFER" | "CHOSEN" | "SOLD";
+export type TimelineKind = "PURCHASED" | "REGISTERED" | "PRICE_CHECKED" | "PRICE_PREVIOUS" | "POSTED" | "OFFER" | "CHOSEN" | "SOLD";
 
 export const TIMELINE_KIND_LABEL: Record<TimelineKind, string> = {
+  PURCHASED: "구입",
   REGISTERED: "등록",
   PRICE_CHECKED: "가격 자료",
   PRICE_PREVIOUS: "가격 자료(이전 값)",
@@ -20,7 +21,7 @@ export const TIMELINE_KIND_LABEL: Record<TimelineKind, string> = {
 };
 
 // 같은 날짜 안에서의 순서(위에서 아래로 = 나중 일부터)
-const KIND_ORDER: TimelineKind[] = ["SOLD", "CHOSEN", "OFFER", "POSTED", "PRICE_CHECKED", "PRICE_PREVIOUS", "REGISTERED"];
+const KIND_ORDER: TimelineKind[] = ["SOLD", "CHOSEN", "OFFER", "POSTED", "PRICE_CHECKED", "PRICE_PREVIOUS", "REGISTERED", "PURCHASED"];
 
 export type TimelineEvent = { date: string; kind: TimelineKind; text: string; key: string };
 
@@ -37,6 +38,8 @@ export function utcToSeoulYmd(utc: string | null): string | null {
 export type TimelineInput = {
   item: {
     createdAt: string;
+    purchaseAmount?: number | null;
+    purchaseDate?: string | null;
     chosenMethod: SaleMethod | null;
     chosenChannel?: string | null;
     chosenSaleAmount: number | null;
@@ -54,6 +57,14 @@ export function buildTimeline(input: TimelineInput): TimelineEvent[] {
   const ev: TimelineEvent[] = [];
   const registered = utcToSeoulYmd(input.item.createdAt);
   if (registered) ev.push({ date: registered, kind: "REGISTERED", text: "물건을 등록함", key: "registered" });
+  if (input.item.purchaseDate) {
+    ev.push({
+      date: input.item.purchaseDate,
+      kind: "PURCHASED",
+      text: input.item.purchaseAmount != null ? `${formatMoney(input.item.purchaseAmount)}에 삼(내가 적은 값)` : "삼(가격은 적지 않음)",
+      key: "purchased",
+    });
+  }
   for (const p of input.prices) {
     const label = `[${PRICE_TYPE_INFO[p.priceType].label}] ${p.sourceName}`;
     ev.push({ date: p.checkedDate, kind: "PRICE_CHECKED", text: `${label} ${formatMoney(p.amountMinor, p.currency)} 확인`, key: `price-${p.id}` });

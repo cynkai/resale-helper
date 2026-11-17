@@ -52,6 +52,8 @@ export function buildFullExport(input: {
       return {
         id: item.id,
         category: item.category,
+        // 내가 산 가격·산 날짜(사용자가 적은 값, 없으면 null). 가격 자료가 아니다.
+        purchase: { amount: item.purchaseAmount, date: item.purchaseDate },
         status: item.status,
         name: item.name,
         identifier: item.identifier,
