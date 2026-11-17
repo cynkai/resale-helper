@@ -18,7 +18,9 @@ import {
   upsertScenario,
   type ScenarioInput,
 } from "@/lib/db/repo";
+import { sql } from "drizzle-orm";
 import { buildFullExport } from "@/lib/domain/full-export";
+import { channelOutcome, countChannelOutcomes } from "@/lib/domain/review";
 import { listFullExportSources } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel } from "@/lib/domain/scenario";
@@ -178,6 +180,40 @@ describe("선택한 판매처", () => {
     expect(rows[0]!.expectedMinutes).toBe(90);
     setChosenMethod(db, false, id, null);
     expect(getItem(db, false, id)).toMatchObject({ chosenMethod: null, chosenChannel: null });
+  });
+
+  it("고른 계산의 이름만 바꾸면 선택이 그 계산을 계속 가리킨다(다른 계산의 이름 변경은 영향 없음)", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 30 }), "가");
+    upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 90 }), "나");
+    upsertScenario(db, id, "BUYBACK", scenario(), "가");
+    const [a, b, c] = listScenarios(db, id);
+    setChosenMethod(db, false, id, { method: "DIRECT", channel: "가", saleAmount: 10000, netAmount: 10000 });
+    updateScenario(db, id, b!.id, "나 장터", scenario({ expectedMinutes: 90 }));
+    updateScenario(db, id, c!.id, "가 서점", scenario()); // 방식이 다른 계산
+    expect(getItem(db, false, id)!.chosenChannel).toBe("가");
+    updateScenario(db, id, a!.id, "가 장터", scenario({ expectedMinutes: 30 }));
+    const it1 = getItem(db, false, id)!;
+    expect(it1.chosenChannel).toBe("가 장터");
+    expect(isChoiceOutdated(it1, chosenScenario(it1, listScenarios(db, id)))).toBe(false);
+  });
+
+  it("옛 선택(chosen_channel이 null)의 이름 없는 계산에 이름을 붙여도 선택이 따라간다", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "DIRECT", scenario());
+    setChosenMethod(db, false, id, { method: "DIRECT", saleAmount: 10000, netAmount: 10000 });
+    db.run(sql`update items set chosen_channel = null where id = ${id}`);
+    updateScenario(db, id, listScenarios(db, id)[0]!.id, "가", scenario());
+    expect(getItem(db, false, id)!.chosenChannel).toBe("가");
+  });
+
+  it("적어 둔 판매처와 실제 판매처 비교: 이름이 없으면 비교하지 않는다", () => {
+    expect(channelOutcome("가 장터", " 가  장터 ")).toBe("SAME");
+    expect(channelOutcome("Ga Market", "ga market")).toBe("SAME");
+    expect(channelOutcome("가 장터", "나 서점")).toBe("DIFFERENT");
+    expect(channelOutcome("", "나 서점")).toBe("UNKNOWN");
+    expect(channelOutcome(null, "나 서점")).toBe("UNKNOWN");
+    expect(countChannelOutcomes(["SAME", "DIFFERENT", "SAME", "UNKNOWN"])).toEqual({ SAME: 2, DIFFERENT: 1, UNKNOWN: 1 });
   });
 
   it("고른 계산을 지우면 선택이 낡은 것으로 표시된다", () => {

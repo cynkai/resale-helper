@@ -604,9 +604,20 @@ test("판매처별 계산: 여러 개면 기준을 직접 정해야 차이를 �
   await expect(page.getByTestId("chosen")).toContainText("6,000원");
   await expect(page.locator("#result-channel")).toHaveValue("가 장터");
 
+  // 고른 계산의 이름과 메모를 고쳐도 선택은 그 계산을 계속 가리킨다
+  const chosenCard = direct.locator('[data-testid^="scenario-DIRECT-"]').filter({ hasText: "가 장터" });
+  await chosenCard.locator("summary").click();
+  await chosenCard.locator('input[name="channel"]').fill("가 마켓");
+  await chosenCard.locator('input[name="memo"]').fill("수수료 안내 확인함");
+  await chosenCard.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("chosen")).toContainText("개인에게 직접 판매 · 가 마켓");
+  await expect(page.getByTestId("choice-outdated")).toHaveCount(0);
+  await expect(direct).toContainText("메모: 수수료 안내 확인함");
+
   // 고른 계산을 지우면 선택이 낡았다고 알린다
-  const first = direct.locator('[data-testid^="scenario-DIRECT-"]').filter({ hasText: "가 장터" });
-  await first.locator("summary").click();
+  const first = direct.locator('[data-testid^="scenario-DIRECT-"]').filter({ hasText: "가 마켓" });
+  // 위에서 연 펼침 영역이 그대로 열려 있다(닫혀 있으면 연다)
+  if (!(await first.getByRole("button", { name: "이 계산 지우기" }).isVisible())) await first.locator("summary").click();
   page.once("dialog", (d) => void d.accept());
   await first.getByRole("button", { name: "이 계산 지우기" }).click();
   await expect(page.getByTestId("choice-outdated")).toBeVisible();

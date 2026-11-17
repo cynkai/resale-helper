@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listSaleReviews } from "@/lib/db/repo";
 import { formatMoney } from "@/lib/domain/money";
-import { channelKey, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
+import { channelKey, channelOutcome, countChannelOutcomes, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 
@@ -66,6 +66,8 @@ export default async function ResultsPage() {
   }));
   const counts = countOutcomes(rows.map((r) => r.review));
   const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
+  const planned = (r: { item: { chosenMethod: string | null; chosenChannel: string | null } }) => (r.item.chosenMethod ? r.item.chosenChannel : null);
+  const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(planned(r), r.result.channel)));
   type Row = (typeof rows)[number];
   const review = (r: Row) => r.review;
   const byCategory = groupOutcomes(rows, (r) => r.item.category, review);
@@ -102,6 +104,12 @@ export default async function ResultsPage() {
               걸린 시간이 어림보다 <strong>많음 {timeCounts.OVER}건</strong>, <strong>같음 {timeCounts.EQUAL}건</strong>,{" "}
               <strong>적음 {timeCounts.UNDER}건</strong>, 비교 불가 {timeCounts.UNKNOWN}건
             </p>
+            {channelCounts.SAME + channelCounts.DIFFERENT > 0 ? (
+              <p className="mt-1" data-testid="channel-counts">
+                고를 때 적어 둔 판매처와 <strong>같은 곳에서 판 것 {channelCounts.SAME}건</strong>, <strong>다른 곳 {channelCounts.DIFFERENT}건</strong>
+                , 적어 둔 이름 없음 {channelCounts.UNKNOWN}건
+              </p>
+            ) : null}
             {counts.UNKNOWN > 0 ? (
               <p className="mt-1 text-stone-600">
                 비교 불가: 판매 방법을 고르지 않았거나, 선택 당시 또는 실제 비용을 모르는 기록입니다.
@@ -158,6 +166,9 @@ export default async function ResultsPage() {
                       <div className="text-xs text-stone-600">
                         {item.chosenMethod ? `선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")}` : "방법 선택 안 함"}
                       </div>
+                      {channelOutcome(item.chosenMethod ? item.chosenChannel : null, result.channel) === "DIFFERENT" ? (
+                        <div className="text-xs text-amber-900">적어 둔 판매처와 다른 곳에서 판매</div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 align-top">
                       {item.chosenSaleAmount !== null ? formatMoney(item.chosenSaleAmount) : "—"} → {formatMoney(result.amount)}

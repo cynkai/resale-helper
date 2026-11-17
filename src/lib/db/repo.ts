@@ -253,10 +253,24 @@ export function upsertScenario(db: Db, itemId: number, method: SaleMethod, v: Sc
 
 /** 저장된 계산을 고친다(판매처 이름도 바꿀 수 있다). 이름이 겹치는지는 호출하는 쪽에서 먼저 확인한다. */
 export function updateScenario(db: Db, itemId: number, id: number, channel: string, v: ScenarioInput): void {
-  db.update(costScenarios)
-    .set({ ...v, channel, updatedAt: now })
-    .where(and(eq(costScenarios.id, id), eq(costScenarios.itemId, itemId)))
-    .run();
+  db.transaction((tx) => {
+    const before = tx.select().from(costScenarios).where(and(eq(costScenarios.id, id), eq(costScenarios.itemId, itemId))).get();
+    if (!before) return;
+    tx.update(costScenarios).set({ ...v, channel, updatedAt: now }).where(eq(costScenarios.id, id)).run();
+    // 고른 계산의 이름만 바꾼 것이면 선택이 그 계산을 계속 가리키게 한다(금액 스냅샷은 건드리지 않는다).
+    if (before.channel !== channel) {
+      tx.update(items)
+        .set({ chosenChannel: channel })
+        .where(
+          and(
+            eq(items.id, itemId),
+            eq(items.chosenMethod, before.method),
+            eq(sql`coalesce(${items.chosenChannel}, '')`, before.channel),
+          ),
+        )
+        .run();
+    }
+  });
 }
 
 export function deleteScenario(db: Db, itemId: number, id: number): void {

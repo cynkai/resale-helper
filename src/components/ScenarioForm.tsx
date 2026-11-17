@@ -232,6 +232,10 @@ export function ScenarioForm({
         />
       </Field>
 
+      <Field label="메모 (선택)" name={`${p}-memo`} error={e.memo} hint="이 계산의 근거나 조건을 적어 둡니다(예: 수수료 안내를 확인한 날짜).">
+        <input id={`${p}-memo`} name="memo" className="input" maxLength={500} defaultValue={v.memo ?? ""} />
+      </Field>
+
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : submitLabel}
