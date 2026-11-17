@@ -27,7 +27,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <p>
                 <strong>데모 모드</strong> — 지금 보이는 물건과 가격은 모두 <strong>가상 데이터</strong>입니다. 실제 시세가 아니며 내 자료와 섞이지 않습니다.
               </p>
-              <div className="flex gap-2">
+              {/* 인쇄할 때는 안내 문장만 남기고 버튼은 뺀다. */}
+              <div className="no-print flex gap-2">
                 <form action={resetDemoAction}>
                   <button type="submit" className="btn">데모 초기화</button>
                 </form>
