@@ -1,7 +1,7 @@
 // 데모 시드. 모든 값은 가상이며 is_demo=true로만 저장된다. 실제 시세와 무관하다.
 
 import type { Db } from "./client";
-import { clearDemo, createItem, getItem, insertPrice, listPrices, upsertScenario } from "./repo";
+import { clearDemo, createItem, getItem, insertPrice, listPrices, listScenarios, setPrimaryScenario, upsertScenario } from "./repo";
 import { priceHistory } from "./schema";
 import { isbn13CheckDigit } from "../domain/isbn";
 import type { ValidPriceInput } from "../domain/price-input";
@@ -151,7 +151,11 @@ export function seedDemo(db: Db, today: string): void {
     memo: "데모용 가상 금액",
   });
   upsertScenario(db, consoleId, "BUYBACK", scenario(60000, { shipping: 0, packing: 0, transport: 3000 }, 40));
-  upsertScenario(db, consoleId, "DIRECT", scenario(95000, { shipping: 4000, packing: 1000, transport: 0 }, 180));
+  // 판매처별 계산 예시: 개인 판매를 두 곳으로 나눠 계산하고 그중 하나를 기준으로 표시해 둔다(이름·금액 모두 가상).
+  upsertScenario(db, consoleId, "DIRECT", scenario(95000, { shipping: 4000, packing: 1000, transport: 0 }, 180), "(가상) 택배 거래");
+  upsertScenario(db, consoleId, "DIRECT", scenario(90000, { shipping: 0, packing: 0, transport: 2000 }, 120), "(가상) 직거래");
+  const parcel = listScenarios(db, consoleId).find((s) => s.channel === "(가상) 택배 거래");
+  if (parcel) setPrimaryScenario(db, consoleId, parcel.id);
 
   const earphoneId = createItem(db, true, {
     category: "ELECTRONICS",
