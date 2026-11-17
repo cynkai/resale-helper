@@ -8,6 +8,22 @@ body {
   @apply bg-stone-50 text-stone-900 antialiased;
 }
 
+/* 인쇄: 머리말·바닥글·버튼 같은 화면 조작 요소는 빼고 내용만 */
+@media print {
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card {
+    border-color: #d6d3d1;
+    break-inside: avoid;
+  }
+}
+
 /* 키보드 포커스가 항상 보이도록 */
 :focus-visible {
   outline: 2px solid var(--color-teal-700);

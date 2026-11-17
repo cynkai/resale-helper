@@ -86,6 +86,9 @@ export default async function ItemPage({
           <Link href={`/items/${item.id}/edit`} className="btn">
             물건 수정
           </Link>
+          <Link href={`/items/${item.id}/summary`} className="btn">
+            한 장 요약
+          </Link>
           <form action={duplicateItemAction}>
             <input type="hidden" name="itemId" value={item.id} />
             <button type="submit" className="btn" title="물건 정보만 베껴 새 물건으로 등록합니다. 가격 자료와 계산은 베끼지 않습니다.">
