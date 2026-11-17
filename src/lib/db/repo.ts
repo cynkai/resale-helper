@@ -540,6 +540,39 @@ export function listSaleReviews(db: Db, isDemo: boolean) {
     .all();
 }
 
+/**
+ * 같은 식별자(ISBN·모델명)의 다른 물건을 내가 전에 판 기록. 카테고리가 같고 식별자가 같아야 한다(대소문자·공백 무시).
+ * 내가 기록한 값이며 가격 자료가 아니다(비교·요약에 넣지 않고 보여 주기만 한다).
+ */
+export function listPastSalesForSameIdentifier(db: Db, isDemo: boolean, item: Pick<Item, "id" | "category" | "identifier">) {
+  const key = (item.identifier ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (key === "") return [];
+  return db
+    .select({
+      itemId: items.id,
+      name: items.name,
+      condition: items.condition,
+      components: items.components,
+      soldDate: saleResults.soldDate,
+      channel: saleResults.channel,
+      amount: saleResults.amount,
+      costTotal: saleResults.costTotal,
+    })
+    .from(saleResults)
+    .innerJoin(items, eq(items.id, saleResults.itemId))
+    .where(
+      and(
+        live(isDemo),
+        eq(items.category, item.category),
+        sql`${items.id} <> ${item.id}`,
+        sql`lower(replace(coalesce(${items.identifier}, ''), ' ', '')) = ${key}`,
+      ),
+    )
+    .orderBy(desc(saleResults.soldDate), desc(saleResults.id))
+    .limit(20)
+    .all();
+}
+
 export function deleteSaleResult(db: Db, itemId: number): void {
   db.delete(saleResults).where(eq(saleResults.itemId, itemId)).run();
 }
