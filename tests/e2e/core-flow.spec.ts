@@ -1418,3 +1418,36 @@ test("DB 점검: 버튼을 누르면 모든 항목을 보여 주고, 정상 DB�
   await expect(page.getByTestId("db-health-demo_isolation")).toContainText("이상 없음");
   await expect(box.locator("li")).toHaveCount(7);
 });
+
+test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지통으로 옮기며, 검색 조건은 유지한다", async ({ page }) => {
+  const ids: string[] = [];
+  for (const name of ["한꺼번에 물건 가", "한꺼번에 물건 나"]) {
+    await page.goto("/items/new");
+    await page.locator("#category").selectOption("CONSOLE");
+    await page.locator("#name").fill(name);
+    await page.locator("#condition").selectOption("GOOD");
+    await page.getByRole("button", { name: "저장" }).click();
+    await expect(page).toHaveURL(/\/items\/\d+$/);
+    ids.push(page.url().split("/").pop()!);
+  }
+  await page.goto("/?q=한꺼번에 물건");
+  // 아무것도 고르지 않으면 아무 일도 없다
+  await page.getByTestId("bulk-items").getByRole("button", { name: "판매 중으로 표시" }).click();
+  await expect(page.getByTestId("bulk-items-notice")).toHaveCount(0);
+
+  await page.getByRole("checkbox", { name: "한꺼번에 물건 가 선택" }).check();
+  await page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" }).check();
+  await page.getByTestId("bulk-items").getByRole("button", { name: "판매 중으로 표시" }).click();
+  await expect(page.getByTestId("bulk-items-notice")).toContainText("물건 2개를 판매 중으로 표시했습니다");
+  await expect(page).toHaveURL(/q=/);
+  await expect(page.getByRole("link", { name: /한꺼번에 물건 가/ })).toContainText("판매 중");
+
+  await page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" }).check();
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("bulk-items").getByRole("button", { name: "휴지통으로" }).click();
+  await expect(page.getByTestId("bulk-items-notice")).toContainText("물건 1개를 휴지통으로 옮겼습니다");
+  await expect(page.getByRole("link", { name: /한꺼번에 물건 나/ })).toHaveCount(0);
+  await page.getByTestId("bulk-items-notice").getByRole("link", { name: "휴지통에서 되살리기" }).click();
+  await page.getByTestId(`trashed-${ids[1]}`).getByRole("button", { name: "되살리기" }).click();
+  await expect(page.getByTestId(`trashed-${ids[1]}`)).toHaveCount(0);
+});

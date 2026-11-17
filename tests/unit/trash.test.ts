@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "@/lib/db/client";
 import {
   adjacentItems,
+  bulkItems,
   countTrashedItems,
   countTrashedPrices,
   createItem,
@@ -415,5 +416,24 @@ describe("출처 이름 제안", () => {
     expect(listSourceNames(db, false)).toEqual(["나 장터", "가 장터", "휴지통 물건 장터"]);
     expect(listSourceNames(db, true)).toEqual(["데모 장터"]);
     expect(listSourceNames(db, false, 1)).toEqual(["나 장터"]);
+  });
+});
+
+describe("물건 한꺼번에 다루기", () => {
+  it("판매 중·보유 중 표시는 판매 완료를 건너뛰고, 휴지통 이동은 현재 모드의 살아 있는 물건만", () => {
+    const a = createItem(db, false, input("가"));
+    const b = createItem(db, false, { ...input("나"), identifier: "B-1" });
+    const sold = fullItem("판 물건", true);
+    const demo = createItem(db, true, { ...input("데모"), identifier: "D-1" });
+    expect(bulkItems(db, false, [a, b, sold, demo, 99999], "LISTED")).toEqual({ done: 2, skipped: 3 });
+    expect([a, b].map((id) => getItem(db, false, id)!.status)).toEqual(["LISTED", "LISTED"]);
+    expect(getItem(db, false, sold)!.status).toBe("SOLD");
+    expect(getItem(db, true, demo)!.status).toBe("OWNED");
+    expect(bulkItems(db, false, [a], "OWNED")).toEqual({ done: 1, skipped: 0 });
+    expect(getItem(db, false, a)!.status).toBe("OWNED");
+    expect(bulkItems(db, false, [a, sold, demo], "TRASH")).toEqual({ done: 2, skipped: 1 });
+    expect(listTrashedItems(db, false).map((r) => r.item.id).sort()).toEqual([a, sold].sort());
+    expect(getItem(db, true, demo)).toBeDefined();
+    expect(bulkItems(db, false, [a], "TRASH")).toEqual({ done: 0, skipped: 1 }); // 이미 휴지통
   });
 });
