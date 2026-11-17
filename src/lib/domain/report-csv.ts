@@ -2,6 +2,7 @@
 // 화면에 보이는 물건별 값만 담는다. 물건을 가로지르는 합계·평균 행은 만들지 않는다.
 // 모르는 값(null)은 빈 칸으로 두고 0으로 쓰지 않는다.
 
+import { daysFromFirstPost } from "./posted-price";
 import { escapeCsvCell } from "./csv";
 import { reviewRow, type ReviewInput } from "./review";
 import { reasonText, VERDICT_LABEL, type TriageResult } from "./triage";
@@ -66,6 +67,8 @@ export const RESULTS_CSV_HEADERS = [
   "expected_minutes",
   "minutes_spent",
   "first_posted_price",
+  "first_posted_date",
+  "days_first_posted_to_sold",
   "purchase_amount",
   "is_demo",
 ];
@@ -78,6 +81,7 @@ export type ResultsCsvRow = ReviewInput & {
   /** 고른 방법 표시(없으면 빈 문자열) */
   chosen: string;
   firstPostedPrice: number | null;
+  firstPostedDate?: string | null;
   purchaseAmount?: number | null;
   isDemo: boolean;
 };
@@ -102,6 +106,8 @@ export function buildResultsCsv(rows: ResultsCsvRow[]): string {
         r.expectedMinutes,
         r.minutesSpent,
         r.firstPostedPrice,
+        r.firstPostedDate ?? null,
+        r.firstPostedDate ? daysFromFirstPost(r.firstPostedDate, r.soldDate) : null,
         r.purchaseAmount ?? null,
         r.isDemo ? "true" : "false",
       ];

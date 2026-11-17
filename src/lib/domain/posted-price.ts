@@ -38,6 +38,8 @@ export function sortPosted<T extends PostedPoint>(rows: T[]): T[] {
 
 export type PostedSummary = {
   first: number;
+  /** 처음 올린 날 YYYY-MM-DD */
+  firstDate: string;
   latest: number;
   /** 가격을 내린 횟수 / 올린 횟수(직전 기록과 견줌). 같은 가격으로 다시 올린 것은 세지 않는다. */
   lowered: number;
@@ -54,13 +56,24 @@ export function summarizePosted(rows: PostedPoint[]): PostedSummary | null {
     if (d < 0) lowered += 1;
     else if (d > 0) raised += 1;
   }
-  return { first: sorted[0]!.amount, latest: sorted.at(-1)!.amount, lowered, raised };
+  return { first: sorted[0]!.amount, firstDate: sorted[0]!.postedDate, latest: sorted.at(-1)!.amount, lowered, raised };
 }
 
 /** 직전 기록과의 차이(첫 기록은 null). 입력 순서와 무관하게 날짜순으로 계산해 id → 차이로 돌려준다. */
 export function postedDeltas(rows: PostedPoint[]): Map<number, number | null> {
   const sorted = sortPosted(rows);
   return new Map(sorted.map((r, i) => [r.id, i === 0 ? null : r.amount - sorted[i - 1]!.amount]));
+}
+
+/**
+ * 처음 올린 날부터 판 날까지 며칠 걸렸는지(내가 적은 날짜끼리의 차이, 예측 아님).
+ * 판 날이 처음 올린 날보다 앞서면(기록이 어긋남) null.
+ */
+export function daysFromFirstPost(firstDate: string, soldDate: string): number | null {
+  const a = Date.parse(`${firstDate}T00:00:00Z`);
+  const b = Date.parse(`${soldDate}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return null;
+  return Math.round((b - a) / 86_400_000);
 }
 
 export type SoldVsFirstPosted = "BELOW" | "EQUAL" | "ABOVE";

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listPostedPricesByItem, listSaleReviews } from "@/lib/db/repo";
 import { countPurchaseOutcomes, vsPurchase } from "@/lib/domain/purchase";
-import { countSoldVsFirstPosted, soldVsFirstPosted, summarizePosted } from "@/lib/domain/posted-price";
+import { countSoldVsFirstPosted, daysFromFirstPost, soldVsFirstPosted, summarizePosted } from "@/lib/domain/posted-price";
 import { formatMoney } from "@/lib/domain/money";
 import { COST_LABEL } from "@/lib/domain/net";
 import { isChoiceOutdated } from "@/lib/domain/scenario";
@@ -298,6 +298,14 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
                           <div className="text-xs text-stone-600" data-testid={`posted-first-${item.id}`}>
                             처음 올린 가격 {formatMoney(p.first)}
                             {p.lowered > 0 ? ` · ${p.lowered}번 내림` : ""}
+                            {(() => {
+                              const days = daysFromFirstPost(p.firstDate, result.soldDate);
+                              return days === null ? null : (
+                                <span className="block" data-testid={`days-to-sell-${item.id}`}>
+                                  {days === 0 ? "처음 올린 날 판매" : `처음 올린 날(${p.firstDate})부터 ${days}일 만에 판매`}
+                                </span>
+                              );
+                            })()}
                           </div>
                         ) : null;
                       })()}
