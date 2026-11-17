@@ -24,11 +24,13 @@ import {
   listOffers,
   listPastSalesForSameIdentifier,
   listPostedPricesByItem,
+  listPriceHistory,
   listPrices,
   listSaleReviews,
   listTrashedItems,
   listTriageCandidates,
   purgeItem,
+  recheckPrices,
   restoreItem,
   setItemStatus,
   setPricesIncluded,
@@ -192,6 +194,12 @@ describe("가격 자료 한꺼번에 다루기", () => {
     expect(listPrices(db, a.id).map((p) => p.id)).toEqual([a1, a3]);
     expect(listPrices(db, b.id)).toHaveLength(1);
     expect(setPricesIncluded(db, a.id, [], false)).toBe(0);
+    // 오늘 다시 확인함: 그 물건의 자료만, 오늘 이미 확인한 것은 건너뛰고, 이전 확인일은 이력에 남는다
+    expect(recheckPrices(db, a.id, [a1, a3, b1], "2026-11-20")).toBe(2);
+    expect(listPrices(db, a.id).map((p) => p.checkedDate)).toEqual(["2026-11-20", "2026-11-20"]);
+    expect(listPrices(db, b.id)[0]!.checkedDate).toBe(TODAY);
+    expect(recheckPrices(db, a.id, [a1], "2026-11-20")).toBe(0);
+    expect(listPriceHistory(db, a.id).get(a1)!.map((h) => h.checkedDate)).toEqual([TODAY]);
     expect(deletePrices(db, a.id, [])).toBe(0);
   });
 });

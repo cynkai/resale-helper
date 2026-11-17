@@ -1096,6 +1096,12 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await page.getByTestId("bulk-prices").getByRole("button", { name: "다시 포함" }).click();
   await expect(group).toContainText("포함 3건 · 제외 1건");
 
+  // 오늘 다시 확인함: 오늘 넣은 자료라 확인일은 그대로다(이미 오늘 확인함). 버튼이 동작하고 자료가 남는지만 본다
+  await page.getByRole("checkbox", { name: "다 장터 12,000원 선택" }).check();
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("bulk-prices").getByRole("button", { name: "오늘 다시 확인함" }).click();
+  await expect(group).toContainText("다 장터");
+
   await page.getByRole("checkbox", { name: "나 장터 9,000원 선택" }).check();
   await page.getByRole("checkbox", { name: "라 장터 11,000원 선택" }).check();
   page.once("dialog", (d) => void d.accept());

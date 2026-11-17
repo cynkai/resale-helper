@@ -312,6 +312,11 @@ export function recheckPrice(db: Db, itemId: number, id: number, today: string):
   return true;
 }
 
+/** 여러 자료를 한 번에 "오늘 다시 확인함"으로. 이미 오늘 확인한 자료는 건너뛴다. 바뀐 건수를 돌려준다. */
+export function recheckPrices(db: Db, itemId: number, ids: number[], today: string): number {
+  return db.transaction(() => ids.filter((id) => recheckPrice(db, itemId, id, today)).length);
+}
+
 /** 물건의 가격 자료들에 남은 이전 값(가격 자료별, 오래된 것부터). */
 export function listPriceHistory(db: Db, itemId: number): Map<number, PriceHistoryRow[]> {
   const rows = db
