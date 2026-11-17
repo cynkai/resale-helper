@@ -1017,3 +1017,39 @@ test("가격 자료 목록: 보기 순서를 바꾸고 제외된 자료를 숨�
   await page.getByTestId("toggle-excluded").click();
   await expect(firstCells()).toHaveCount(4);
 });
+
+test("휴지통: 삭제한 물건은 목록에서 빠지고, 되살리면 자료가 그대로 돌아오며, 완전히 지우면 사라진다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("휴지통 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop()!;
+  await addPrice(page, { type: "ASKING", amount: "13000", source: "가 장터" });
+  await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "물건 삭제" }).click();
+  await expect(page.getByTestId("trashed-notice")).toBeVisible();
+  await page.goto("/?q=휴지통 테스트");
+  await expect(page.getByRole("link", { name: /휴지통 테스트 게임기/ })).toHaveCount(0);
+  // 휴지통의 물건은 주소로 직접 가도 열리지 않는다
+  expect((await page.request.get(`/items/${id}`)).status()).toBe(404);
+
+  await page.getByTestId("trash-link").click();
+  const row = page.getByTestId(`trashed-${id}`);
+  await expect(row).toContainText("가격 자료 1건");
+  await row.getByRole("button", { name: "되살리기" }).click();
+  await expect(page.getByTestId(`trashed-${id}`)).toHaveCount(0);
+  await page.goto(`/items/${id}`);
+  await expect(page.getByTestId("group-ASKING")).toContainText("13,000원");
+
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "물건 삭제" }).click();
+  await page.goto("/trash");
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId(`trashed-${id}`).getByRole("button", { name: "완전히 지우기" }).click();
+  await expect(page.getByTestId(`trashed-${id}`)).toHaveCount(0);
+  expect((await page.request.get(`/items/${id}`)).status()).toBe(404);
+});

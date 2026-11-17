@@ -1,6 +1,6 @@
 // 데이터 접근 계층. 모든 조회·변경은 isDemo로 범위를 제한해 데모와 실제 자료가 섞이지 않게 한다.
 
-import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import {
   costScenarios,
@@ -28,12 +28,15 @@ import type { Category, InputRoute, ItemStatus, PriceType, SaleMethod } from "..
 
 const now = sql`(datetime('now'))`;
 
+/** 그 모드의, 휴지통에 들어가지 않은 물건. 물건을 읽는 모든 조회가 이 조건을 쓴다. */
+const live = (isDemo: boolean) => and(eq(items.isDemo, isDemo), isNull(items.deletedAt))!;
+
 // ---- 물건 ----
 
 export type ItemFilter = { q?: string; category?: Category; status?: ItemStatus };
 
 export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
-  const conds = [eq(items.isDemo, isDemo)];
+  const conds = [live(isDemo)];
   if (f.category) conds.push(eq(items.category, f.category));
   if (f.status) conds.push(eq(items.status, f.status));
   if (f.q && f.q.trim() !== "") {
@@ -59,7 +62,7 @@ export function getItem(db: Db, isDemo: boolean, id: number): Item | undefined {
   return db
     .select()
     .from(items)
-    .where(and(eq(items.id, id), eq(items.isDemo, isDemo)))
+    .where(and(eq(items.id, id), live(isDemo)))
     .get();
 }
 
@@ -75,8 +78,51 @@ export function createItem(db: Db, isDemo: boolean, v: ValidItemInput): number {
 export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInput): void {
   db.update(items)
     .set({ ...v, purchaseAmount: v.purchaseAmount ?? null, purchaseDate: v.purchaseDate ?? null, updatedAt: now })
-    .where(and(eq(items.id, id), eq(items.isDemo, isDemo)))
+    .where(and(eq(items.id, id), live(isDemo)))
     .run();
+}
+
+// ---- 휴지통 ----
+
+/** 물건을 휴지통으로 옮긴다. 딸린 자료는 그대로 두므로 되살리면 모두 돌아온다. */
+export function trashItem(db: Db, isDemo: boolean, id: number): void {
+  db.update(items).set({ deletedAt: now, updatedAt: now }).where(and(eq(items.id, id), live(isDemo))).run();
+}
+
+const trashed = (isDemo: boolean) => and(eq(items.isDemo, isDemo), isNotNull(items.deletedAt))!;
+
+/** 휴지통의 물건(최근에 넣은 것부터)과 딸린 자료 건수. */
+export function listTrashedItems(db: Db, isDemo: boolean) {
+  return db
+    .select({
+      item: items,
+      priceCount: sql<number>`(select count(*) from price_records p where p.item_id = "items"."id")`,
+      scenarioCount: sql<number>`(select count(*) from cost_scenarios c where c.item_id = "items"."id")`,
+      resultCount: sql<number>`(select count(*) from sale_results r where r.item_id = "items"."id")`,
+    })
+    .from(items)
+    .where(trashed(isDemo))
+    .orderBy(desc(items.deletedAt), desc(items.id))
+    .all();
+}
+
+export function countTrashedItems(db: Db, isDemo: boolean): number {
+  return db.select({ n: sql<number>`count(*)` }).from(items).where(trashed(isDemo)).get()!.n;
+}
+
+/** 휴지통에서 되살린다. 휴지통에 있는 물건에만 동작한다. */
+export function restoreItem(db: Db, isDemo: boolean, id: number): void {
+  db.update(items).set({ deletedAt: null, updatedAt: now }).where(and(eq(items.id, id), trashed(isDemo))).run();
+}
+
+/** 휴지통의 물건 하나를 완전히 지운다(딸린 자료도 함께). 살아 있는 물건은 지우지 않는다. */
+export function purgeItem(db: Db, isDemo: boolean, id: number): void {
+  db.delete(items).where(and(eq(items.id, id), trashed(isDemo))).run();
+}
+
+/** 휴지통을 비운다. 지운 물건 수를 돌려준다. */
+export function emptyTrash(db: Db, isDemo: boolean): number {
+  return db.delete(items).where(trashed(isDemo)).returning({ id: items.id }).all().length;
 }
 
 /** 물건 여러 개를 한 번에 등록한다(전부 성공하거나 전부 실패). */
@@ -116,7 +162,7 @@ export function duplicateItem(db: Db, isDemo: boolean, id: number): number | nul
 
 /** 현재 모드의 물건 전체(등록 순서). CSV 내보내기·중복 확인용. */
 export function listAllItems(db: Db, isDemo: boolean): Item[] {
-  return db.select().from(items).where(eq(items.isDemo, isDemo)).orderBy(asc(items.id)).all();
+  return db.select().from(items).where(live(isDemo)).orderBy(asc(items.id)).all();
 }
 
 export function deleteItem(db: Db, isDemo: boolean, id: number): void {
@@ -254,7 +300,7 @@ export function importPrices(db: Db, item: Item, values: ValidPriceInput[]): num
 }
 
 export function exportRows(db: Db, isDemo: boolean, itemId?: number): ExportRow[] {
-  const conds = [eq(priceRecords.isDemo, isDemo), eq(items.isDemo, isDemo)];
+  const conds = [eq(priceRecords.isDemo, isDemo), live(isDemo)];
   if (itemId !== undefined) conds.push(eq(priceRecords.itemId, itemId));
   return db
     .select({ p: priceRecords, itemName: items.name })
@@ -343,13 +389,13 @@ export function listChannelNames(db: Db, isDemo: boolean): string[] {
     .selectDistinct({ c: costScenarios.channel })
     .from(costScenarios)
     .innerJoin(items, eq(items.id, costScenarios.itemId))
-    .where(eq(items.isDemo, isDemo))
+    .where(live(isDemo))
     .all();
   const b = db
     .selectDistinct({ c: saleResults.channel })
     .from(saleResults)
     .innerJoin(items, eq(items.id, saleResults.itemId))
-    .where(eq(items.isDemo, isDemo))
+    .where(live(isDemo))
     .all();
   return [...new Set([...a, ...b].map((r) => r.c).filter((c) => c !== ""))].sort((x, y) => x.localeCompare(y, "ko"));
 }
@@ -369,7 +415,7 @@ export function setChosenMethod(
       chosenAt: choice ? sql`(datetime('now'))` : null,
       updatedAt: now,
     })
-    .where(and(eq(items.id, itemId), eq(items.isDemo, isDemo)))
+    .where(and(eq(items.id, itemId), live(isDemo)))
     .run();
 }
 
@@ -408,7 +454,7 @@ export function upsertSaleResult(db: Db, isDemo: boolean, itemId: number, input:
       .run();
     tx.update(items)
       .set({ status: "SOLD", updatedAt: now })
-      .where(and(eq(items.id, itemId), eq(items.isDemo, isDemo)))
+      .where(and(eq(items.id, itemId), live(isDemo)))
       .run();
   });
 }
@@ -427,7 +473,7 @@ export function listSaleReviews(db: Db, isDemo: boolean) {
         eq(costScenarios.channel, sql`coalesce(${items.chosenChannel}, '')`),
       ),
     )
-    .where(eq(items.isDemo, isDemo))
+    .where(live(isDemo))
     .orderBy(desc(saleResults.soldDate), desc(saleResults.id))
     .all();
 }
@@ -476,7 +522,7 @@ export function listPostedPricesByItem(db: Db, isDemo: boolean): Map<number, Pos
     .select({ p: postedPrices })
     .from(postedPrices)
     .innerJoin(items, eq(items.id, postedPrices.itemId))
-    .where(eq(items.isDemo, isDemo))
+    .where(live(isDemo))
     .orderBy(asc(postedPrices.postedDate), asc(postedPrices.id))
     .all();
   const map = new Map<number, PostedPrice[]>();
@@ -575,7 +621,7 @@ export function listTriageCandidates(db: Db, isDemo: boolean): TriageCandidate[]
   const its = db
     .select()
     .from(items)
-    .where(and(eq(items.isDemo, isDemo), inArray(items.status, ["OWNED", "LISTED"])))
+    .where(and(live(isDemo), inArray(items.status, ["OWNED", "LISTED"])))
     .orderBy(asc(items.id))
     .all();
   if (its.length === 0) return [];
@@ -604,7 +650,7 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
   const its = db
     .select()
     .from(items)
-    .where(and(eq(items.isDemo, isDemo), inArray(items.status, ["OWNED", "LISTED"])))
+    .where(and(live(isDemo), inArray(items.status, ["OWNED", "LISTED"])))
     .orderBy(asc(items.id))
     .all();
   if (its.length === 0) return [];
@@ -641,7 +687,7 @@ export function clearDemo(db: Db): void {
 
 /** 현재 모드의 물건 전체와 딸린 자료. 다른 모드의 자료는 섞이지 않는다. */
 export function listFullExportSources(db: Db, isDemo: boolean) {
-  const its = db.select().from(items).where(eq(items.isDemo, isDemo)).orderBy(asc(items.id)).all();
+  const its = db.select().from(items).where(live(isDemo)).orderBy(asc(items.id)).all();
   if (its.length === 0) return [];
   const ids = its.map((i) => i.id);
   const prices = db

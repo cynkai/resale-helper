@@ -2,7 +2,7 @@ import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listCheckupSources, listItems } from "@/lib/db/repo";
+import { listCheckupSources, listItems, countTrashedItems } from "@/lib/db/repo";
 import { checkupItem, needsAttention } from "@/lib/domain/checkup";
 import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
 import {
@@ -37,6 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   // 자료 점검에서 "확인 필요"로 나오는 물건 수(검색 조건과 무관, 현재 모드 전체).
   const today = todayYmd();
   const attention = listCheckupSources(db, demo).filter((s) => needsAttention(checkupItem(s, today))).length;
+  const trashCount = countTrashedItems(db, demo);
   const stepHref = (code?: NextStepCode) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -49,6 +50,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <div className="space-y-4">
+      {sp.trashed === "1" ? (
+        <p className="notice" role="status" data-testid="trashed-notice">
+          물건을 휴지통으로 옮겼습니다.{" "}
+          <Link href="/trash" className="underline">
+            휴지통에서 되살리기
+          </Link>
+        </p>
+      ) : null}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">내 물건{demo ? " (데모)" : ""}</h1>
         <div className="flex items-center gap-3">
@@ -60,6 +69,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           ) : null}
           <Link href="/triage" className="btn">어디로 넘길까 (배분)</Link>
           <Link href="/items/import" className="btn">CSV로 한꺼번에 등록</Link>
+          {trashCount > 0 ? (
+            <Link href="/trash" className="btn" data-testid="trash-link">
+              휴지통 {trashCount}개
+            </Link>
+          ) : null}
         </div>
       </div>
 
