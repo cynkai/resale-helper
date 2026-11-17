@@ -523,6 +523,20 @@ export function setPrimaryScenario(db: Db, itemId: number, id: number): void {
 }
 
 /** 현재 모드에서 내가 적어 본 판매처 이름(계산과 판매 결과). 입력 자동완성용이며 앱이 가진 목록이 아니다. */
+/** 출처 이름 제안: 현재 모드의 살아 있는 가격 자료에 쓴 출처 이름(많이 쓴 순, 같으면 가나다순, 최대 limit개). */
+export function listSourceNames(db: Db, isDemo: boolean, limit = 50): string[] {
+  return db
+    .select({ s: priceRecords.sourceName, n: sql<number>`count(*)` })
+    .from(priceRecords)
+    .innerJoin(items, eq(items.id, priceRecords.itemId))
+    .where(and(live(isDemo), eq(priceRecords.isDemo, isDemo), livePrice))
+    .groupBy(priceRecords.sourceName)
+    .orderBy(desc(sql`count(*)`), asc(priceRecords.sourceName))
+    .limit(limit)
+    .all()
+    .map((r) => r.s);
+}
+
 export function listChannelNames(db: Db, isDemo: boolean): string[] {
   const a = db
     .selectDistinct({ c: costScenarios.channel })

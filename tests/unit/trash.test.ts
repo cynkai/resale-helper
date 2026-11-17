@@ -27,6 +27,7 @@ import {
   listPostedPricesByItem,
   listPriceHistory,
   listPrices,
+  listSourceNames,
   listSaleReviews,
   listTrashedItems,
   listTrashedPrices,
@@ -387,4 +388,32 @@ describe("가격 자료 휴지통", () => {
   });
 
   const listPricesAll = (itemId: number) => db.all(sql`select id from price_records where item_id = ${itemId}`);
+});
+
+describe("출처 이름 제안", () => {
+  it("현재 모드의 살아 있는 자료에 쓴 출처를 많이 쓴 순으로, 휴지통·다른 모드·휴지통 물건은 빼고", () => {
+    const a = getItem(db, false, createItem(db, false, input("가")))!;
+    const b = getItem(db, false, createItem(db, false, { ...input("나"), identifier: "B-1" }))!;
+    const demo = getItem(db, true, createItem(db, true, { ...input("데모"), identifier: "D-1" }))!;
+    const add = (item: typeof a, source: string, ext: string) => {
+      const p = validatePriceInput({ priceType: "ASKING", amount: "1000", sourceName: source, checkedDate: TODAY, externalId: ext }, { route: "MANUAL", today: TODAY });
+      if (!p.ok) throw new Error("price");
+      const r = insertPrice(db, item, p.value, "MANUAL");
+      if (!r.ok) throw new Error("insert");
+      return r.id;
+    };
+    add(a, "나 장터", "1");
+    add(a, "가 장터", "2");
+    add(b, "나 장터", "3");
+    const trashedId = add(a, "버린 장터", "4");
+    add(b, "휴지통 물건 장터", "5");
+    add(demo, "데모 장터", "6");
+    deletePrices(db, a.id, [trashedId]);
+    const c = getItem(db, false, createItem(db, false, { ...input("다"), identifier: "C-1" }))!;
+    add(c, "휴지통 물건 장터2", "7");
+    trashItem(db, false, c.id);
+    expect(listSourceNames(db, false)).toEqual(["나 장터", "가 장터", "휴지통 물건 장터"]);
+    expect(listSourceNames(db, true)).toEqual(["데모 장터"]);
+    expect(listSourceNames(db, false, 1)).toEqual(["나 장터"]);
+  });
 });
