@@ -197,6 +197,19 @@ export const offers = sqliteTable(
   (t) => [index("offers_item_idx").on(t.itemId)],
 );
 
+/** 내가 만든 판매글 템플릿. 데모와 실제 모드가 따로 가진다. 본문은 사용자가 직접 쓴 글이다. */
+export const listingTemplates = sqliteTable(
+  "listing_templates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+    name: text("name").notNull(),
+    body: text("body").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("listing_template_name_uq").on(t.isDemo, t.name)],
+);
+
 /**
  * 사용자 설정. 데모와 실제 모드가 각각 한 행씩만 가진다(is_demo가 기본키).
  * 값이 없으면(행 없음 또는 null) "아직 정하지 않음"이며 앱이 기본값을 채우지 않는다.
@@ -230,4 +243,5 @@ export type PriceHistoryRow = typeof priceHistory.$inferSelect;
 export type CostScenario = typeof costScenarios.$inferSelect;
 export type SaleResult = typeof saleResults.$inferSelect;
 export type Offer = typeof offers.$inferSelect;
+export type ListingTemplate = typeof listingTemplates.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

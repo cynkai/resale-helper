@@ -5,6 +5,7 @@ import type { Db } from "./client";
 import {
   costScenarios,
   items,
+  listingTemplates,
   offers,
   priceHistory,
   priceRecords,
@@ -410,6 +411,34 @@ export function deleteOffer(db: Db, itemId: number, id: number): void {
   db.delete(offers).where(and(eq(offers.id, id), eq(offers.itemId, itemId))).run();
 }
 
+// ---- 판매글 템플릿 ----
+
+export function listTemplates(db: Db, isDemo: boolean) {
+  return db.select().from(listingTemplates).where(eq(listingTemplates.isDemo, isDemo)).orderBy(asc(listingTemplates.id)).all();
+}
+
+export function getTemplate(db: Db, isDemo: boolean, id: number) {
+  return db.select().from(listingTemplates).where(and(eq(listingTemplates.id, id), eq(listingTemplates.isDemo, isDemo))).get();
+}
+
+export type TemplateSaveResult = { ok: true; id: number } | { ok: false; reason: "DUPLICATE_NAME" | "NOT_FOUND" };
+
+/** id가 있으면 고치고 없으면 만든다. 같은 모드에 같은 이름이 있으면 저장하지 않는다. */
+export function saveTemplate(db: Db, isDemo: boolean, id: number | null, v: { name: string; body: string }): TemplateSaveResult {
+  const same = listTemplates(db, isDemo).find((t) => t.name === v.name);
+  if (same && same.id !== id) return { ok: false, reason: "DUPLICATE_NAME" };
+  if (id === null) {
+    return { ok: true, id: db.insert(listingTemplates).values({ ...v, isDemo }).returning({ id: listingTemplates.id }).get().id };
+  }
+  if (!getTemplate(db, isDemo, id)) return { ok: false, reason: "NOT_FOUND" };
+  db.update(listingTemplates).set({ ...v, updatedAt: now }).where(and(eq(listingTemplates.id, id), eq(listingTemplates.isDemo, isDemo))).run();
+  return { ok: true, id };
+}
+
+export function deleteTemplate(db: Db, isDemo: boolean, id: number): void {
+  db.delete(listingTemplates).where(and(eq(listingTemplates.id, id), eq(listingTemplates.isDemo, isDemo))).run();
+}
+
 // ---- 사용자 설정 ----
 
 /** 현재 모드의 시간당 가치(원/시간). 저장한 적 없거나 비워 두면 null(모름). */
@@ -526,6 +555,7 @@ export function countDemoItems(db: Db): number {
 export function clearDemo(db: Db): void {
   db.delete(items).where(eq(items.isDemo, true)).run();
   db.delete(userSettings).where(eq(userSettings.isDemo, true)).run();
+  db.delete(listingTemplates).where(eq(listingTemplates.isDemo, true)).run();
 }
 
 // ---- 전체 내보내기 ----

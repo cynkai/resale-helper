@@ -117,7 +117,7 @@ describe("전체 내보내기", () => {
     createItem(db, false, item("가"));
     createItem(db, false, item("나"));
     const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
-    expect(Object.keys(out).sort()).toEqual(["exportedDate", "format", "itemCount", "items", "mode", "notes", "version"]);
+    expect(Object.keys(out).sort()).toEqual(["exportedDate", "format", "itemCount", "items", "listingTemplates", "mode", "notes", "version"]);
     expect(JSON.stringify(Object.keys(out))).not.toMatch(/total|sum|합계/i);
   });
 

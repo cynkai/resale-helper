@@ -12,6 +12,7 @@ import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
+import { validateTemplateInput } from "@/lib/domain/listing-template";
 import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
 import { COST_KEYS, resolveActualCostTotal } from "@/lib/domain/review";
 import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
@@ -365,6 +366,30 @@ export async function deleteSaleResultAction(fd: FormData): Promise<void> {
   const { item, db } = await requireItem(s(fd, "itemId"));
   repo.deleteSaleResult(db, item.id);
   revalidatePath(`/items/${item.id}`);
+}
+
+// ---- 판매글 템플릿 ----
+
+export async function saveTemplateAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const isDemo = await isDemoMode();
+  const r = validateTemplateInput({ name: s(fd, "name"), body: s(fd, "body") });
+  if (!r.ok) return { errors: r.errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
+  const idRaw = s(fd, "templateId");
+  const saved = repo.saveTemplate(getDb(), isDemo, idRaw === "" ? null : intId(idRaw), r.value);
+  if (!saved.ok) {
+    return saved.reason === "DUPLICATE_NAME"
+      ? { errors: { name: "같은 이름의 템플릿이 이미 있습니다." }, values: values(fd), message: "입력 내용을 확인해 주세요." }
+      : { values: values(fd), message: "고치려는 템플릿을 찾을 수 없습니다. 화면을 새로 고쳐 주세요." };
+  }
+  revalidatePath("/templates");
+  return idRaw === "" ? { ok: true, message: "템플릿을 만들었습니다." } : { ok: true, message: "저장했습니다.", values: values(fd) };
+}
+
+export async function deleteTemplateAction(fd: FormData): Promise<void> {
+  const id = intId(s(fd, "templateId"));
+  if (id === null) return;
+  repo.deleteTemplate(getDb(), await isDemoMode(), id);
+  revalidatePath("/templates");
 }
 
 // ---- 받은 제안 ----

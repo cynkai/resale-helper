@@ -18,7 +18,8 @@ import { convertToKrw, fxRateToPlain } from "@/lib/domain/fx";
 import { ScenarioForm, type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { getItem, getSaleResult, listChannelNames, listOffers, listPriceHistory, listPrices, listScenarios } from "@/lib/db/repo";
+import { getItem, getSaleResult, listChannelNames, listOffers, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { renderTemplate } from "@/lib/domain/listing-template";
 import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
 import { countOfferStatuses, evaluateOffer, OFFER_STATUS_LABEL, OFFER_STATUSES, pickOfferScenario } from "@/lib/domain/offer";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
@@ -227,6 +228,7 @@ export default async function ItemPage({
     resultActual && COST_KEYS.some((k) => resultActual[k] !== null)
       ? costItemDiffs(chosenSc && !choiceOutdated ? plannedCostItems(chosenSc) : null, resultActual)
       : null;
+  const templates = listTemplates(db, demo);
   const offers = listOffers(db, item.id);
   const offerCounts = countOfferStatuses(offers.map((o) => o.status));
   // 제안을 받았을 때 비교할 업체 실수령액: 업체 기준 계산이 완전하고 기준 자료 문제가 없을 때만.
@@ -839,6 +841,45 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
           </div>
           <div className="flex flex-wrap gap-2">
             <CopyButton text={draft.compact} label="한 줄 본문 복사" />
+          </div>
+          <div className="border-t border-stone-200 pt-3" data-testid="my-templates">
+            <p className="text-sm font-medium">내 템플릿</p>
+            {templates.length === 0 ? (
+              <p className="mt-1 text-sm text-stone-600">
+                자주 쓰는 판매글 틀을{" "}
+                <Link href="/templates" className="underline">
+                  템플릿
+                </Link>
+                으로 만들어 두면 여기에서 이 물건의 정보로 채워 보여 줍니다.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-4">
+                {templates.map((t) => {
+                  const r = renderTemplate(t.body, item, direct?.saleAmount ?? null);
+                  return (
+                    <div key={t.id} data-testid={`rendered-template-${t.id}`}>
+                      <p className="mb-1 text-sm font-medium">
+                        {t.name} <span className="font-normal text-stone-600">({charCount(r.text)}자)</span>
+                      </p>
+                      <pre className="whitespace-pre-wrap rounded-md border border-stone-300 bg-stone-50 px-3 py-2 font-sans text-sm">{r.text}</pre>
+                      {r.dropped.length > 0 ? (
+                        <p className="warn mt-1">
+                          값을 입력하지 않아 뺀 줄 {r.dropped.length}개: {[...new Set(r.dropped.flatMap((d) => d.missing))].map((n) => `{${n}}`).join(", ")}
+                        </p>
+                      ) : null}
+                      <div className="mt-2">
+                        <CopyButton text={r.text} label={`‘${t.name}’ 복사`} />
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-stone-600">
+                  <Link href="/templates" className="underline">
+                    템플릿 고치기
+                  </Link>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </Section>
