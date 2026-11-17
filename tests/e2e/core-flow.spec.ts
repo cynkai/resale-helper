@@ -1161,3 +1161,32 @@ test("내 비용 묶음: 저장해 둔 비용을 계산에 불러오고, 모름�
   await direct.getByRole("button", { name: "금액·비용 저장" }).click();
   await expect(page.getByTestId("net-DIRECT")).toHaveText("16,000원");
 });
+
+test("물건 상태 빠른 변경: 판매 중으로 표시하고 되돌리며, 판매 결과를 기록한 뒤에는 버튼이 없다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("상태 변경 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  // 올린 가격을 적으면 상태를 바꾸라는 안내가 나온다
+  await expect(page.getByTestId("posted-status-hint")).toHaveCount(0);
+  await page.locator("#posted-amount").fill("20000");
+  await page.getByRole("button", { name: "올린 가격 기록" }).click();
+  await expect(page.getByTestId("posted-status-hint")).toBeVisible();
+  await page.getByTestId("posted-status-hint").getByRole("button", { name: "판매 중으로 표시" }).click();
+  await expect(page.getByTestId("posted-status-hint")).toHaveCount(0);
+  await expect(page.getByTestId("set-status-OWNED")).toBeVisible();
+  await expect(page.getByTestId("set-status-LISTED")).toHaveCount(0);
+
+  await page.getByTestId("set-status-OWNED").click();
+  await expect(page.getByTestId("set-status-LISTED")).toBeVisible();
+
+  await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-amount").fill("19000");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+  await expect(page.getByTestId("result-summary")).toBeVisible();
+  await expect(page.getByTestId("set-status-OWNED")).toHaveCount(0);
+  await expect(page.getByTestId("set-status-LISTED")).toHaveCount(0);
+});

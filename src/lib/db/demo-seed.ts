@@ -43,6 +43,9 @@ export function seedDemo(db: Db, today: string): void {
     condition: "FAIR",
     defects: "왼쪽 스틱 쏠림 있음",
     components: "본체, 충전기 (박스 없음)",
+    // 산 가격 예시(가상): 계산 상자에서 "산 가격과 견주면"이 보인다.
+    purchaseAmount: 150000,
+    purchaseDate: daysAgo(today, 400),
     memo: null,
     author: null,
     publisher: null,

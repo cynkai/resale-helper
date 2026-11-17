@@ -28,6 +28,7 @@ import {
   listTriageCandidates,
   purgeItem,
   restoreItem,
+  setItemStatus,
   setPricesIncluded,
   trashItem,
   upsertSaleResult,
@@ -203,5 +204,21 @@ describe("물건 목록 정렬", () => {
     db.run(sql`update items set updated_at = '2030-01-01 00:00:00' where id = ${b}`);
     expect(listItems(db, false, { sort: "updated" }).map((r) => r.item.id)[0]).toBe(b);
     expect(listItems(db, false).map((r) => r.item.id)[0]).toBe(b); // 기본은 최근에 고친 순
+  });
+});
+
+describe("물건 상태 빠른 변경", () => {
+  it("보유 중과 판매 중 사이에서만 바꾸고, 판매 결과가 있는 물건은 바꾸지 않는다", () => {
+    const id = createItem(db, false, input("게임기"));
+    expect(setItemStatus(db, false, id, "LISTED")).toBe(true);
+    expect(getItem(db, false, id)!.status).toBe("LISTED");
+    expect(setItemStatus(db, true, id, "OWNED")).toBe(false); // 다른 모드
+    upsertSaleResult(db, false, id, { channel: "가", soldDate: TODAY, amount: 1000, costTotal: null, minutesSpent: null, memo: null });
+    expect(getItem(db, false, id)!.status).toBe("SOLD");
+    expect(setItemStatus(db, false, id, "OWNED")).toBe(false);
+    expect(getItem(db, false, id)!.status).toBe("SOLD");
+    const trashedId = createItem(db, false, { ...input("버린 게임기"), identifier: "T-1" });
+    trashItem(db, false, trashedId);
+    expect(setItemStatus(db, false, trashedId, "LISTED")).toBe(false); // 휴지통의 물건
   });
 });
