@@ -1,3 +1,4 @@
+import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -155,7 +156,7 @@ export default async function ResultsPage() {
                       {result.soldDate}
                       <div className="text-xs text-stone-600">{result.channel}</div>
                       <div className="text-xs text-stone-600">
-                        {item.chosenMethod ? `선택: ${SALE_METHOD_LABEL[item.chosenMethod]}` : "방법 선택 안 함"}
+                        {item.chosenMethod ? `선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")}` : "방법 선택 안 함"}
                       </div>
                     </td>
                     <td className="px-3 py-2 align-top">

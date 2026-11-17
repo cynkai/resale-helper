@@ -18,6 +18,7 @@ export type CheckupPrice = {
 
 export type CheckupScenario = {
   method: SaleMethod;
+  channel?: string;
   saleAmount: number;
   basisPriceRecordId: number | null;
   basisPriceType: PriceType | null;
@@ -31,7 +32,7 @@ export type CheckupFinding =
   /** 비교에 포함된 자료 중 확인한 지 오래된 것 */
   | { kind: "OLD_DATA"; count: number; oldestCheckedDate: string; oldestDays: number }
   /** 저장한 계산의 기준 자료에 문제가 있음 */
-  | { kind: "BASIS_ISSUE"; method: SaleMethod; issues: BasisIssue[] };
+  | { kind: "BASIS_ISSUE"; method: SaleMethod; channel: string; issues: BasisIssue[] };
 
 export type CheckupInput = { prices: CheckupPrice[]; scenarios: CheckupScenario[] };
 
@@ -54,7 +55,7 @@ export function checkupItem(input: CheckupInput, today: string): CheckupFinding[
   for (const sc of input.scenarios) {
     const basis = sc.basisPriceRecordId !== null ? input.prices.find((p) => p.id === sc.basisPriceRecordId) : undefined;
     const issues = basisIssues(sc, basis, today);
-    if (issues.length > 0) out.push({ kind: "BASIS_ISSUE", method: sc.method, issues });
+    if (issues.length > 0) out.push({ kind: "BASIS_ISSUE", method: sc.method, channel: sc.channel ?? "", issues });
   }
   return out;
 }

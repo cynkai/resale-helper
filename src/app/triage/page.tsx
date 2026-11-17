@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { breakEvenDirectSale, directThresholdWithTime } from "@/lib/domain/break-even";
 import { getTimeValuePerHour, listTriageCandidates } from "@/lib/db/repo";
+import { primaryScenario } from "@/lib/domain/scenario";
 import { formatMoney } from "@/lib/domain/money";
 import type { NetResult } from "@/lib/domain/net";
 import {
@@ -45,7 +46,7 @@ export default async function TriagePage() {
   const rows = listTriageCandidates(db, demo)
     .map((c) => {
       const result = triageItem(c, timeValue, today);
-      const direct = c.scenarios.find((s) => s.method === "DIRECT");
+      const direct = primaryScenario(c.scenarios, "DIRECT");
       // 기준선: 업체 계산이 믿을 만하고(완전·기준 자료 문제 없음) 개인 판매 비용을 모두 알 때만.
       const buybackOk = result.buybackNet?.net != null && !result.reasons.some((r) => r.code === "BASIS_ISSUE" && r.method === "BUYBACK");
       const buybackNet = buybackOk ? result.buybackNet!.net : null;
@@ -53,7 +54,7 @@ export default async function TriagePage() {
       const withTime = direct && buybackOk ? directThresholdWithTime(direct, buybackNet, result.extraMinutes, timeValue) : null;
       return {
         ...c,
-        scenarioOf: (m: SaleMethod) => c.scenarios.find((s) => s.method === m),
+        scenarioOf: (m: SaleMethod) => primaryScenario(c.scenarios, m),
         result,
         lines: {
           even: even?.ok ? even.saleAmount : null,
@@ -156,8 +157,14 @@ export default async function TriagePage() {
                         {result.extraPerHour !== null ? `${formatMoney(result.extraPerHour)}/시간` : "—"}
                       </td>
                       <td className="px-3 py-2 align-top text-xs">
-                        <div>업체: {buyback ? basisTypeLabel(buyback.basisPriceType) : "—"}</div>
-                        <div>직접: {direct ? basisTypeLabel(direct.basisPriceType) : "—"}</div>
+                        <div>
+                          업체: {buyback ? basisTypeLabel(buyback.basisPriceType) : "—"}
+                          {buyback?.channel ? ` (${buyback.channel})` : ""}
+                        </div>
+                        <div>
+                          직접: {direct ? basisTypeLabel(direct.basisPriceType) : "—"}
+                          {direct?.channel ? ` (${direct.channel})` : ""}
+                        </div>
                       </td>
                     </tr>
                     {/* 이유·경고는 열이 좁아 잘리지 않도록 물건 행 아래 전체 폭으로 둔다. */}

@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import {
   chooseMethodAction,
   deleteItemAction,
+  deleteScenarioAction,
+  setPrimaryScenarioAction,
   deletePriceAction,
   recheckPriceAction,
   deleteSaleResultAction,
@@ -10,10 +12,10 @@ import {
 } from "@/app/actions";
 import { ConfirmSubmit, CopyButton, CsvImportForm, SaleResultForm } from "@/components/client-bits";
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
-import { ScenarioForm, type BasisOption } from "@/components/ScenarioForm";
+import { ScenarioForm, type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { getItem, getSaleResult, listPriceHistory, listPrices, listScenarios } from "@/lib/db/repo";
+import { getItem, getSaleResult, listChannelNames, listPriceHistory, listPrices, listScenarios } from "@/lib/db/repo";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
 import {
   buildComparison,
@@ -27,7 +29,16 @@ import { CSV_COLUMNS } from "@/lib/domain/csv";
 import { buildListingDraft, charCount } from "@/lib/domain/listing";
 import { bpToPercentString, formatMoney } from "@/lib/domain/money";
 import { COST_LABEL, computeNet, netDifference, type NetResult } from "@/lib/domain/net";
-import { BASIS_ISSUE_LABEL, basisIssues, isChoiceOutdated, type BasisIssue } from "@/lib/domain/scenario";
+import {
+  BASIS_ISSUE_LABEL,
+  basisIssues,
+  chosenScenario,
+  isChoiceOutdated,
+  needsPrimary,
+  primaryScenario,
+  scenarioLabel,
+  type BasisIssue,
+} from "@/lib/domain/scenario";
 import {
   BUNDLE_LABEL,
   CATEGORY_LABEL,
@@ -64,6 +75,7 @@ function scenarioInitial(sc: CostScenario | undefined): Record<string, string> {
   if (!sc) return { feeMode: "AMOUNT" };
   const str = (n: number | null) => (n === null ? "" : String(n));
   return {
+    channel: sc.channel,
     basisPriceRecordId: str(sc.basisPriceRecordId),
     saleAmount: String(sc.saleAmount),
     feeMode: sc.feeMode,
@@ -76,7 +88,8 @@ function scenarioInitial(sc: CostScenario | undefined): Record<string, string> {
   };
 }
 
-function NetBox({ sc, net, issues }: { sc: CostScenario; net: NetResult; issues: BasisIssue[] }) {
+/** tid: 그 방식의 기준 계산(또는 하나뿐인 계산)이면 방식 이름, 아니면 방식-계산 id. */
+function NetBox({ sc, net, issues, tid }: { sc: CostScenario; net: NetResult; issues: BasisIssue[]; tid: string }) {
   const basisType = sc.basisPriceType;
   const row = (label: string, value: number | null) => (
     <div className="flex justify-between gap-4">
@@ -98,7 +111,7 @@ function NetBox({ sc, net, issues }: { sc: CostScenario; net: NetResult; issues:
         {issues.some((i) => i !== "BASIS_EXPIRED") ? <Badge tone="red">기준 자료 변경됨</Badge> : null}
       </div>
       {issues.length > 0 ? (
-        <div className="warn mb-2" data-testid={`basis-issues-${sc.method}`}>
+        <div className="warn mb-2" data-testid={`basis-issues-${tid}`}>
           {issues.map((i) => (
             <p key={i}>{BASIS_ISSUE_LABEL[i]}</p>
           ))}
@@ -119,7 +132,7 @@ function NetBox({ sc, net, issues }: { sc: CostScenario; net: NetResult; issues:
         {row("교통비", sc.transport)}
         <div className="flex justify-between gap-4 border-t border-stone-300 pt-1 text-base font-semibold">
           <dt>예상 실수령액</dt>
-          <dd data-testid={`net-${sc.method}`}>{net.complete ? formatMoney(net.net!) : "계산 불완전"}</dd>
+          <dd data-testid={`net-${tid}`}>{net.complete ? formatMoney(net.net!) : "계산 불완전"}</dd>
         </div>
       </dl>
       {!net.complete ? (
@@ -158,21 +171,37 @@ export default async function ItemPage({
   const scenarios = listScenarios(db, item.id);
   const result = getSaleResult(db, item.id);
 
-  const byMethod = (m: SaleMethod) => scenarios.find((s) => s.method === m);
+  // 방식마다 계산이 여러 개일 수 있다. 두 방법의 차이·손익분기는 방식별 "기준" 계산으로만 한다
+  // (하나뿐이면 그것, 여러 개면 사용자가 표시한 것. 표시가 없으면 앱이 고르지 않는다).
+  const byMethod = (m: SaleMethod) => primaryScenario(scenarios, m);
+  const ofMethod = (m: SaleMethod) => scenarios.filter((s) => s.method === m);
+  const netOf = new Map(scenarios.map((sc) => [sc.id, computeNet(sc)]));
+  const issuesOf = new Map(
+    scenarios.map((sc) => {
+      const basis = sc.basisPriceRecordId !== null ? prices.find((p) => p.id === sc.basisPriceRecordId) : undefined;
+      return [sc.id, basisIssues(sc, basis, today)];
+    }),
+  );
   const nets = Object.fromEntries(
     SALE_METHODS.map((m) => {
       const sc = byMethod(m);
-      return [m, sc ? computeNet(sc) : null];
+      return [m, sc ? netOf.get(sc.id)! : null];
     }),
   ) as Record<SaleMethod, NetResult | null>;
   const issuesByMethod = Object.fromEntries(
     SALE_METHODS.map((m) => {
       const sc = byMethod(m);
-      if (!sc) return [m, []];
-      const basis = sc.basisPriceRecordId !== null ? prices.find((p) => p.id === sc.basisPriceRecordId) : undefined;
-      return [m, basisIssues(sc, basis, today)];
+      return [m, sc ? issuesOf.get(sc.id)! : []];
     }),
   ) as Record<SaleMethod, BasisIssue[]>;
+  const undecidedPrimary = SALE_METHODS.filter((m) => needsPrimary(scenarios, m));
+  const chosenSc = chosenScenario(item, scenarios);
+  const channelNames = listChannelNames(db, demo);
+  const copyOptions: CopyOption[] = scenarios.map((sc) => ({
+    id: sc.id,
+    label: scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel),
+    values: scenarioInitial(sc),
+  }));
   // 기준 자료에 문제가 있는 계산은 차액 비교에도 쓰지 않는다.
   const diff = netDifference(
     issuesByMethod.DIRECT.length === 0 ? nets.DIRECT : null,
@@ -182,7 +211,7 @@ export default async function ItemPage({
   const directSc = byMethod("DIRECT");
   const breakEven =
     directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
-  const choiceOutdated = isChoiceOutdated(item, item.chosenMethod ? byMethod(item.chosenMethod) : undefined);
+  const choiceOutdated = isChoiceOutdated(item, chosenSc);
 
   const usable = prices.filter((p) => p.currency === "KRW" && !isQuoteExpired(p, today));
   const optionLabel = (p: PriceRecord) =>
@@ -196,7 +225,8 @@ export default async function ItemPage({
       .map((p) => ({ id: p.id, label: optionLabel(p), amount: p.amountMinor })),
   };
 
-  const direct = byMethod("DIRECT");
+  // 판매글 금액: 개인 판매 계산을 골랐으면 그 계산, 아니면 개인 판매의 기준 계산.
+  const direct = chosenSc?.method === "DIRECT" ? chosenSc : byMethod("DIRECT");
   const draft = buildListingDraft(item, direct?.saleAmount ?? null);
 
   const priceRow = (c: Classified<PriceRecord>) => {
@@ -507,18 +537,105 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
         </p>
         <div className="mt-3 grid gap-4 md:grid-cols-2">
           {SALE_METHODS.map((m) => {
-            const sc = byMethod(m);
+            const list = ofMethod(m);
+            const only = list.length === 1 ? list[0] : undefined;
+            const primary = byMethod(m);
             return (
               <div key={m} className="space-y-3 rounded-md border border-stone-200 p-3" data-testid={`scenario-${m}`}>
                 <h3 className="font-semibold">{SALE_METHOD_LABEL[m]}</h3>
-                {sc && nets[m] ? (
-                  <NetBox sc={sc} net={nets[m]} issues={issuesByMethod[m]} />
-                ) : (
+                {list.length === 0 ? (
                   <p className="text-sm text-stone-600">
                     {m === "BUYBACK" ? "받은 매입 견적이 있으면 금액과 비용을 입력해 보세요." : "받고 싶은 금액과 예상 비용을 입력해 보세요."}
                   </p>
+                ) : null}
+                {list.length <= 1 ? (
+                  <>
+                    {only ? (
+                      <>
+                        {only.channel !== "" ? <p className="text-sm font-medium">{only.channel}</p> : null}
+                        <NetBox sc={only} net={netOf.get(only.id)!} issues={issuesOf.get(only.id)!} tid={m} />
+                      </>
+                    ) : null}
+                    <ScenarioForm
+                      itemId={item.id}
+                      method={m}
+                      scenarioId={only?.id}
+                      initial={scenarioInitial(only)}
+                      basisOptions={basisOptions[m]}
+                      channelNames={channelNames}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {needsPrimary(scenarios, m) ? (
+                      <p className="warn" data-testid={`needs-primary-${m}`}>
+                        이 방식의 계산이 여러 개입니다. 두 방법의 차이와 손익분기에 쓸 계산 하나를 ‘기준으로 쓰기’로 정해 주세요. 앱이 대신 고르지 않습니다.
+                      </p>
+                    ) : null}
+                    {list.map((sc) => {
+                      const isPrimary = primary?.id === sc.id;
+                      return (
+                        <div key={sc.id} className="space-y-2 border-t border-stone-200 pt-3" data-testid={`scenario-${m}-${sc.id}`}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium">{sc.channel === "" ? "이름 없는 계산" : sc.channel}</p>
+                            {isPrimary ? (
+                              <Badge tone="teal">기준</Badge>
+                            ) : (
+                              <form action={setPrimaryScenarioAction}>
+                                <input type="hidden" name="itemId" value={item.id} />
+                                <input type="hidden" name="scenarioId" value={sc.id} />
+                                <button type="submit" className="btn px-2 py-0.5 text-xs">
+                                  기준으로 쓰기
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                          <NetBox sc={sc} net={netOf.get(sc.id)!} issues={issuesOf.get(sc.id)!} tid={isPrimary ? m : `${m}-${sc.id}`} />
+                          <details className="text-sm">
+                            <summary className="cursor-pointer text-stone-700">이 계산 고치기·지우기</summary>
+                            <div className="mt-2 space-y-3">
+                              <ScenarioForm
+                                itemId={item.id}
+                                method={m}
+                                scenarioId={sc.id}
+                                idSuffix={`-${sc.id}`}
+                                initial={scenarioInitial(sc)}
+                                basisOptions={basisOptions[m]}
+                                channelNames={channelNames}
+                              />
+                              <form action={deleteScenarioAction}>
+                                <input type="hidden" name="itemId" value={item.id} />
+                                <input type="hidden" name="scenarioId" value={sc.id} />
+                                <ConfirmSubmit message="이 계산을 지울까요? 되돌릴 수 없습니다.">이 계산 지우기</ConfirmSubmit>
+                              </form>
+                            </div>
+                          </details>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
-                <ScenarioForm itemId={item.id} method={m} initial={scenarioInitial(sc)} basisOptions={basisOptions[m]} />
+                {list.length >= 1 ? (
+                  <details className="text-sm" data-testid={`add-scenario-${m}`}>
+                    <summary className="cursor-pointer text-stone-700">다른 판매처 계산 추가</summary>
+                    <div className="mt-2">
+                      <p className="mb-2 text-xs text-stone-600">
+                        수수료와 비용은 판매처마다 직접 확인해 입력해 주세요. 앱에 내장된 판매처 목록이나 요율은 없습니다.
+                      </p>
+                      <ScenarioForm
+                        key={`new-${list.length}-${list.at(-1)!.id}`}
+                        itemId={item.id}
+                        method={m}
+                        idSuffix="-new"
+                        submitLabel="새 계산 저장"
+                        initial={scenarioInitial(undefined)}
+                        basisOptions={basisOptions[m]}
+                        channelNames={channelNames}
+                        copyOptions={copyOptions}
+                      />
+                    </div>
+                  </details>
+                ) : null}
               </div>
             );
           })}
@@ -532,7 +649,9 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
           <div className="space-y-3 text-sm">
             <p data-testid="net-diff" className={diff === null ? "warn" : "notice"}>
               {diff === null
-                ? scenarios.length < 2
+                ? undecidedPrimary.length > 0
+                  ? `${undecidedPrimary.map((m) => SALE_METHOD_LABEL[m]).join(", ")} 계산이 여러 개라 두 방법의 차이를 계산하지 않았습니다. 위 2단계에서 기준으로 쓸 계산을 정해 주세요.`
+                  : SALE_METHODS.some((m) => ofMethod(m).length === 0)
                   ? "한 가지 방법만 입력했습니다. 두 방법을 모두 입력하면 남는 금액의 차이를 보여 드립니다."
                   : SALE_METHODS.some((m) => issuesByMethod[m].length > 0)
                     ? "기준 가격 자료가 바뀌었거나 만료된 계산이 있어 두 방법의 차이를 계산하지 않았습니다."
@@ -540,7 +659,54 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                 : diff === 0
                   ? "두 방법의 예상 실수령액이 같습니다."
                   : `개인에게 직접 팔면 업체 판매보다 예상 실수령액이 ${formatMoney(Math.abs(diff))} ${diff > 0 ? "더 많습니다" : "더 적습니다"}.`}
+              {diff !== null && SALE_METHODS.some((m) => ofMethod(m).length > 1)
+                ? ` (기준 계산끼리 비교: ${SALE_METHODS.map((m) => scenarioLabel(SALE_METHOD_LABEL[m], byMethod(m)!.channel)).join(" / ")})`
+                : ""}
             </p>
+            {SALE_METHODS.some((m) => ofMethod(m).length > 1) ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm" data-testid="scenario-table">
+                  <caption className="mb-1 text-left text-xs text-stone-600">
+                    저장한 계산을 입력한 순서대로 나란히 놓았습니다. 순위가 아니며, 어느 쪽이 나은지는 직접 판단해 주세요.
+                  </caption>
+                  <thead className="text-xs text-stone-600">
+                    <tr>
+                      <th scope="col" className="py-1 pr-3 font-medium">방식 · 판매처</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">금액</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">예상 실수령액</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">어림한 시간</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scenarios.map((sc) => {
+                      const net = netOf.get(sc.id)!;
+                      const bad = issuesOf.get(sc.id)!.length > 0;
+                      return (
+                        <tr key={sc.id} className="border-t border-stone-200">
+                          <th scope="row" className="py-1 pr-3 font-normal">
+                            {scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel)}
+                            {byMethod(sc.method)?.id === sc.id ? <span className="ml-1 text-xs text-teal-900">(기준)</span> : null}
+                          </th>
+                          <td className="whitespace-nowrap py-1 pr-3">{formatMoney(sc.saleAmount)}</td>
+                          <td className="whitespace-nowrap py-1 pr-3">
+                            {bad ? (
+                              <span className="text-red-900">기준 자료 다시 확인</span>
+                            ) : net.complete ? (
+                              formatMoney(net.net!)
+                            ) : (
+                              <span className="text-amber-900">계산 불완전</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap py-1 pr-3">
+                            {sc.expectedMinutes === null ? <span className="text-amber-900">모름</span> : `${sc.expectedMinutes}분`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
             {breakEven?.ok && directSc ? (
               <p data-testid="break-even" className="text-stone-700">
                 지금 입력한 비용대로라면, 개인 판매금액이 <strong>{formatMoney(breakEven.saleAmount)}</strong> 이상일 때 업체 판매와 실수령액이 같거나
@@ -553,38 +719,42 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
               </p>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              {SALE_METHODS.filter((m) => byMethod(m)).map((m) => (
-                <form key={m} action={chooseMethodAction}>
-                  <input type="hidden" name="itemId" value={item.id} />
-                  <input type="hidden" name="method" value={m} />
-                  <button
-                    type="submit"
-                    className={item.chosenMethod === m ? "btn-primary" : "btn"}
-                    aria-pressed={item.chosenMethod === m}
-                    disabled={issuesByMethod[m].length > 0}
-                    title={issuesByMethod[m].length > 0 ? "기준 가격 자료를 다시 확인해 저장한 뒤 선택할 수 있습니다." : undefined}
-                  >
-                    {SALE_METHOD_LABEL[m]}
-                    {item.chosenMethod === m ? " ✓" : "로 정하기"}
-                  </button>
-                </form>
-              ))}
+              {scenarios.map((sc) => {
+                const picked = chosenSc?.id === sc.id;
+                const bad = issuesOf.get(sc.id)!.length > 0;
+                return (
+                  <form key={sc.id} action={chooseMethodAction}>
+                    <input type="hidden" name="itemId" value={item.id} />
+                    <input type="hidden" name="scenarioId" value={sc.id} />
+                    <button
+                      type="submit"
+                      className={picked ? "btn-primary" : "btn"}
+                      aria-pressed={picked}
+                      disabled={bad}
+                      title={bad ? "기준 가격 자료를 다시 확인해 저장한 뒤 선택할 수 있습니다." : undefined}
+                    >
+                      {scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel)}
+                      {picked ? " ✓" : "로 정하기"}
+                    </button>
+                  </form>
+                );
+              })}
               {item.chosenMethod ? (
                 <form action={chooseMethodAction}>
                   <input type="hidden" name="itemId" value={item.id} />
-                  <input type="hidden" name="method" value="" />
+                  <input type="hidden" name="scenarioId" value="" />
                   <button type="submit" className="btn">선택 취소</button>
                 </form>
               ) : null}
             </div>
             {item.chosenMethod && choiceOutdated ? (
               <p className="warn" data-testid="choice-outdated">
-                선택한 뒤 이 방법의 금액이나 비용을 바꿨습니다. 아래 숫자는 선택 당시 값입니다. 지금 계산으로 바꾸려면 다시 선택해 주세요.
+                선택한 뒤 이 방법의 금액이나 비용을 바꿨거나 그 계산을 지웠습니다. 아래 숫자는 선택 당시 값입니다. 지금 계산으로 바꾸려면 다시 선택해 주세요.
               </p>
             ) : null}
             {item.chosenMethod ? (
               <p data-testid="chosen" className="font-medium">
-                선택한 방법: {SALE_METHOD_LABEL[item.chosenMethod]} — 선택 당시 금액 {formatMoney(item.chosenSaleAmount ?? 0)}, 예상 실수령액{" "}
+                선택한 방법: {scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")} — 선택 당시 금액 {formatMoney(item.chosenSaleAmount ?? 0)}, 예상 실수령액{" "}
                 {item.chosenNetAmount === null ? "계산 불완전(비용 미입력)" : formatMoney(item.chosenNetAmount)}
               </p>
             ) : (
@@ -700,7 +870,7 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                   minutesSpent: result.minutesSpent === null ? "" : String(result.minutesSpent),
                   memo: result.memo ?? "",
                 }
-              : { soldDate: today }
+              : { soldDate: today, channel: item.chosenChannel ?? "" }
           }
         />
       </Section>
