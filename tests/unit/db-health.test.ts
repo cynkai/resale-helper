@@ -4,7 +4,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
-import { checkDbHealth } from "@/lib/db/health";
+import { checkDbHealth, dataStats } from "@/lib/db/health";
+import { createItem, deletePrices, getItem, insertPrice, listPrices, trashItem } from "@/lib/db/repo";
+import { validatePriceInput } from "@/lib/domain/price-input";
 import type Database from "better-sqlite3";
 
 let tmpDir: string;
@@ -56,5 +58,27 @@ describe("DB 점검", () => {
     });
     // 읽기만 한다
     expect((sqlite.prepare("select price_type from price_records where id = ?").get(priceId) as { price_type: string }).price_type).toBe("VERIFIED_SALE");
+  });
+});
+
+describe("내 자료 현황", () => {
+  it("모드별 건수(휴지통 따로)와 파일 크기만 센다", () => {
+    seedDemo(db, "2026-11-18");
+    const base = { category: "BOOK" as const, status: "OWNED" as const, condition: "GOOD" as const, identifier: null, defects: null, components: null, memo: null, author: null, publisher: null, edition: null, hasWriting: "UNKNOWN" as const, hasUnderline: "UNKNOWN" as const, hasDamage: "UNKNOWN" as const, hasSupplement: "UNKNOWN" as const };
+    const a = createItem(db, false, { ...base, name: "가" });
+    const b = createItem(db, false, { ...base, name: "나" });
+    for (const [id, ext] of [[a, "1"], [a, "2"], [b, "3"]] as const) {
+      const p = validatePriceInput({ priceType: "ASKING", amount: "1000", sourceName: "장터", checkedDate: "2026-11-18", externalId: ext }, { route: "MANUAL", today: "2026-11-18" });
+      if (!p.ok) throw new Error("p");
+      insertPrice(db, getItem(db, false, id)!, p.value, "MANUAL");
+    }
+    deletePrices(db, a, [listPrices(db, a)[0]!.id]);
+    trashItem(db, false, b);
+    const st = dataStats(sqlite, "/x.db", (f) => (f === "/x.db" ? 4096 : f === "/x.db-wal" ? 1024 : 0));
+    expect(st.fileBytes).toBe(5120);
+    expect(st.modes[0]).toEqual({ isDemo: false, items: 1, trashedItems: 1, prices: 1, trashedPrices: 2, results: 0 });
+    expect(st.modes[1]!.isDemo).toBe(true);
+    expect(st.modes[1]!.items).toBeGreaterThan(0);
+    expect(st.modes[1]!.trashedItems).toBe(0);
   });
 });

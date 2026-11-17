@@ -1422,6 +1422,8 @@ test("DB 점검: 버튼을 누르면 모든 항목을 보여 주고, 정상 DB�
   await expect(page.getByTestId("db-health-integrity")).toContainText("이상 없음");
   await expect(page.getByTestId("db-health-demo_isolation")).toContainText("이상 없음");
   await expect(box.locator("li")).toHaveCount(7);
+  await expect(page.getByTestId("data-stats-real")).toContainText("개");
+  await expect(page.getByTestId("data-stats-demo")).toContainText("데모");
 });
 
 test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지통으로 옮기며, 검색 조건은 유지한다", async ({ page }) => {

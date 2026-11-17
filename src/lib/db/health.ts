@@ -89,3 +89,31 @@ export function checkDbHealth(sqlite: Database.Database): HealthReport {
 
   return { ok: checks.every((c) => c.ok), checks };
 }
+
+export type DataStats = {
+  /** 모드별(실제·데모) 건수. 금액은 담지 않는다. */
+  modes: { isDemo: boolean; items: number; trashedItems: number; prices: number; trashedPrices: number; results: number }[];
+  /** DB 파일과 보조 파일(-wal, -shm)을 합친 크기(바이트). 파일이 없으면 0. */
+  fileBytes: number;
+};
+
+/** 설정 화면의 "내 자료 현황": 건수와 파일 크기만. */
+export function dataStats(sqlite: Database.Database, dbFile: string, fileSize: (f: string) => number): DataStats {
+  const n = (q: string, isDemo: boolean) => (sqlite.prepare(q).get(isDemo ? 1 : 0) as { n: number }).n;
+  const modes = [false, true].map((isDemo) => ({
+    isDemo,
+    items: n("select count(*) as n from items where is_demo = ? and deleted_at is null", isDemo),
+    trashedItems: n("select count(*) as n from items where is_demo = ? and deleted_at is not null", isDemo),
+    prices: n(
+      "select count(*) as n from price_records p join items i on i.id = p.item_id where p.is_demo = ? and p.deleted_at is null and i.deleted_at is null",
+      isDemo,
+    ),
+    trashedPrices: n(
+      "select count(*) as n from price_records p join items i on i.id = p.item_id where p.is_demo = ? and (p.deleted_at is not null or i.deleted_at is not null)",
+      isDemo,
+    ),
+    results: n("select count(*) as n from sale_results r join items i on i.id = r.item_id where i.is_demo = ? and i.deleted_at is null", isDemo),
+  }));
+  const fileBytes = ["", "-wal", "-shm"].reduce((sum, x) => sum + fileSize(`${dbFile}${x}`), 0);
+  return { modes, fileBytes };
+}
