@@ -30,6 +30,17 @@ import type { Category, InputRoute, ItemStatus, PriceType, SaleMethod } from "..
 
 const now = sql`(datetime('now'))`;
 
+/** 물건 번호별로 묶는다(물건마다 전체 배열을 다시 훑지 않도록). */
+function byItem<T extends { itemId: number }>(rows: T[]): Map<number, T[]> {
+  const m = new Map<number, T[]>();
+  for (const r of rows) {
+    const list = m.get(r.itemId);
+    if (list) list.push(r);
+    else m.set(r.itemId, [r]);
+  }
+  return m;
+}
+
 /** 그 모드의, 휴지통에 들어가지 않은 물건. 물건을 읽는 모든 조회가 이 조건을 쓴다. */
 const live = (isDemo: boolean) => and(eq(items.isDemo, isDemo), isNull(items.deletedAt))!;
 
@@ -883,10 +894,12 @@ export function listTriageCandidates(db: Db, isDemo: boolean): TriageCandidate[]
           .where(and(inArray(priceRecords.id, basisIds), eq(priceRecords.isDemo, isDemo), livePrice))
           .all()
       : [];
+  const scsBy = byItem(scs);
+  const recsBy = byItem(recs);
   return its.map((item) => ({
     item,
-    scenarios: scs.filter((s) => s.itemId === item.id),
-    basisRecords: recs.filter((r) => r.itemId === item.id),
+    scenarios: scsBy.get(item.id) ?? [],
+    basisRecords: recsBy.get(item.id) ?? [],
   }));
 }
 
@@ -909,11 +922,14 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).all();
+  const pricesBy = byItem(prices);
+  const scsBy = byItem(scs);
+  const offersBy = byItem(offerRows);
   return its.map((item) => ({
     item,
-    prices: prices.filter((p) => p.itemId === item.id),
-    scenarios: scs.filter((s) => s.itemId === item.id),
-    offers: offerRows.filter((o) => o.itemId === item.id),
+    prices: pricesBy.get(item.id) ?? [],
+    scenarios: scsBy.get(item.id) ?? [],
+    offers: offersBy.get(item.id) ?? [],
   }));
 }
 
@@ -948,28 +964,33 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
   const results = db.select().from(saleResults).where(inArray(saleResults.itemId, ids)).all();
   const posted = listPostedPricesByItem(db, isDemo);
   const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).orderBy(asc(offers.receivedDate), asc(offers.id)).all();
-  const histRows =
-    prices.length > 0
-      ? db
-          .select()
-          .from(priceHistory)
-          .where(inArray(priceHistory.priceRecordId, prices.map((p) => p.id)))
-          .orderBy(asc(priceHistory.checkedDate), asc(priceHistory.id))
-          .all()
-      : [];
+  // 이전 값: 가격 자료 번호를 하나하나 넘기지 않고(자료가 많으면 SQL 변수 한도에 걸린다) 같은 조건으로 묶어 읽는다.
+  const histRows = db
+    .select({ h: priceHistory })
+    .from(priceHistory)
+    .innerJoin(priceRecords, eq(priceRecords.id, priceHistory.priceRecordId))
+    .innerJoin(items, eq(items.id, priceRecords.itemId))
+    .where(and(live(isDemo), eq(priceRecords.isDemo, isDemo), livePrice))
+    .orderBy(asc(priceHistory.checkedDate), asc(priceHistory.id))
+    .all()
+    .map((r) => r.h);
   const history = new Map<number, PriceHistoryRow[]>();
   for (const h of histRows) {
     const list = history.get(h.priceRecordId);
     if (list) list.push(h);
     else history.set(h.priceRecordId, [h]);
   }
+  const pricesBy = byItem(prices);
+  const scsBy = byItem(scs);
+  const resultBy = new Map(results.map((r) => [r.itemId, r]));
+  const offersBy = byItem(offerRows);
   return its.map((item) => ({
     item,
-    prices: prices.filter((p) => p.itemId === item.id),
+    prices: pricesBy.get(item.id) ?? [],
     history,
-    scenarios: scs.filter((s) => s.itemId === item.id),
-    saleResult: results.find((r) => r.itemId === item.id),
-    offers: offerRows.filter((o) => o.itemId === item.id),
+    scenarios: scsBy.get(item.id) ?? [],
+    saleResult: resultBy.get(item.id),
+    offers: offersBy.get(item.id) ?? [],
     postedPrices: posted.get(item.id) ?? [],
   }));
 }
