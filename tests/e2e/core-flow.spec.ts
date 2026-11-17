@@ -837,3 +837,47 @@ test("물건 CSV: 여러 물건을 한 번에 등록하고, 오류·중복 행�
   expect(text).toContain("CSV 등록 도서,9780306406157,LIKE_NEW");
   expect(text.split("\r\n")[0]).not.toMatch(/price|amount/);
 });
+
+test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비를 보여 주고, 결과 돌아보기에서 처음 올린 가격과 견준다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("올린 가격 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop()!;
+
+  const buyback = page.getByTestId("scenario-BUYBACK");
+  await buyback.locator("#buyback-saleAmount").fill("15000");
+  for (const f of ["feeAmount", "shipping", "packing", "transport"]) await buyback.locator(`#buyback-${f}`).fill("0");
+  await buyback.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-BUYBACK")).toHaveText("15,000원");
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-saleAmount").fill("24000");
+  await direct.locator("#direct-shipping").fill("3000");
+  for (const f of ["feeAmount", "packing", "transport"]) await direct.locator(`#direct-${f}`).fill("0");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("21,000원");
+
+  const posted = page.getByTestId("posted-prices");
+  await posted.locator("#posted-postedDate").fill("2026-01-05");
+  await posted.locator("#posted-amount").fill("24000");
+  await posted.getByRole("button", { name: "올린 가격 기록" }).click();
+  await expect(page.getByTestId("posted-summary")).toContainText("처음 24,000원 → 지금 24,000원");
+  await posted.locator("#posted-postedDate").fill("2026-01-12");
+  await posted.locator("#posted-amount").fill("17000");
+  await posted.getByRole("button", { name: "올린 가격 기록" }).click();
+  // 손익분기: 15,000 + 배송비 3,000 = 18,000 → 17,000은 그보다 낮다
+  await expect(page.getByTestId("posted-summary")).toContainText("처음 24,000원 → 지금 17,000원 · 내린 횟수 1번, 올린 횟수 0번");
+  await expect(page.getByTestId("posted-summary")).toContainText("손익분기 개인 판매금액(18,000원)보다 낮음");
+  await expect(posted).toContainText("직전보다 -7,000원");
+  await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
+
+  await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-amount").fill("17000");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+  await expect(page.getByTestId("result-summary")).toBeVisible();
+  await page.goto("/results");
+  await expect(page.getByTestId(`posted-first-${id}`)).toHaveText("처음 올린 가격 24,000원 · 1번 내림");
+  await expect(page.getByTestId("posted-counts")).toContainText("낮게 판 것 1건");
+});

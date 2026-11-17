@@ -2,7 +2,8 @@ import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listSaleReviews } from "@/lib/db/repo";
+import { listPostedPricesByItem, listSaleReviews } from "@/lib/db/repo";
+import { countSoldVsFirstPosted, soldVsFirstPosted, summarizePosted } from "@/lib/domain/posted-price";
 import { formatMoney } from "@/lib/domain/money";
 import { COST_LABEL } from "@/lib/domain/net";
 import { isChoiceOutdated } from "@/lib/domain/scenario";
@@ -83,6 +84,16 @@ export default async function ResultsPage() {
     })
     .filter((x) => x !== null);
   const costCounts = countCostItemOutcomes(costRows);
+  // 처음 올린 가격과 실제 판매금액: 올린 가격을 적어 둔 기록만 본다.
+  const postedByItem = listPostedPricesByItem(getDb(), demo);
+  const firstPosted = (itemId: number) => summarizePosted(postedByItem.get(itemId) ?? []);
+  const postedCounts = countSoldVsFirstPosted(
+    rows.flatMap((r) => {
+      const p = firstPosted(r.item.id);
+      return p ? [soldVsFirstPosted(p.first, r.result.amount)] : [];
+    }),
+  );
+  const postedTotal = postedCounts.BELOW + postedCounts.EQUAL + postedCounts.ABOVE;
   const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
   const planned = (r: { item: { chosenMethod: string | null; chosenChannel: string | null } }) => (r.item.chosenMethod ? r.item.chosenChannel : null);
   const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(planned(r), r.result.channel)));
@@ -126,6 +137,12 @@ export default async function ResultsPage() {
               <p className="mt-1" data-testid="channel-counts">
                 고를 때 적어 둔 판매처와 <strong>같은 곳에서 판 것 {channelCounts.SAME}건</strong>, <strong>다른 곳 {channelCounts.DIFFERENT}건</strong>
                 , 적어 둔 이름 없음 {channelCounts.UNKNOWN}건
+              </p>
+            ) : null}
+            {postedTotal > 0 ? (
+              <p className="mt-1" data-testid="posted-counts">
+                올린 가격을 적어 둔 {postedTotal}건 — 처음 올린 가격보다 <strong>낮게 판 것 {postedCounts.BELOW}건</strong>,{" "}
+                <strong>같게 {postedCounts.EQUAL}건</strong>, <strong>높게 {postedCounts.ABOVE}건</strong>
               </p>
             ) : null}
             {counts.UNKNOWN > 0 ? (
@@ -222,6 +239,15 @@ export default async function ResultsPage() {
                     <td className="px-3 py-2 align-top">
                       {item.chosenSaleAmount !== null ? formatMoney(item.chosenSaleAmount) : "—"} → {formatMoney(result.amount)}
                       <div className={`text-xs ${tone(review.saleDiff)}`}>{signed(review.saleDiff, "won")}</div>
+                      {(() => {
+                        const p = firstPosted(item.id);
+                        return p ? (
+                          <div className="text-xs text-stone-600" data-testid={`posted-first-${item.id}`}>
+                            처음 올린 가격 {formatMoney(p.first)}
+                            {p.lowered > 0 ? ` · ${p.lowered}번 내림` : ""}
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="px-3 py-2 align-top">
                       {item.chosenNetAmount !== null ? formatMoney(item.chosenNetAmount) : "모름"} →{" "}

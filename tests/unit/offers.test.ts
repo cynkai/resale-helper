@@ -9,7 +9,11 @@ import {
   createItem,
   deleteItem,
   deleteOffer,
+  deletePostedPrice,
   insertOffer,
+  insertPostedPrice,
+  listPostedPrices,
+  listPostedPricesByItem,
   listFullExportSources,
   listItems,
   listOffers,
@@ -19,6 +23,13 @@ import {
 import { buildComparison } from "@/lib/domain/compare";
 import { buildFullExport } from "@/lib/domain/full-export";
 import type { ValidItemInput } from "@/lib/domain/item-input";
+import {
+  countSoldVsFirstPosted,
+  postedDeltas,
+  soldVsFirstPosted,
+  summarizePosted,
+  validatePostedPriceInput,
+} from "@/lib/domain/posted-price";
 import { countOfferStatuses, evaluateOffer, pickOfferScenario, validateOfferInput } from "@/lib/domain/offer";
 
 const TODAY = "2026-11-17";
@@ -163,5 +174,59 @@ describe("받은 제안 저장", () => {
     clearDemo(db);
     expect(listFullExportSources(db, true)).toHaveLength(0);
     expect(listOffers(db, id)).toHaveLength(1); // 실제 자료는 그대로
+  });
+});
+
+describe("내 판매글에 올린 가격", () => {
+  it("입력 검증: 날짜·금액 필수, 미래 날짜와 0원 거부", () => {
+    expect(validatePostedPriceInput({ postedDate: TODAY, amount: "24,000" }, TODAY)).toEqual({
+      ok: true,
+      value: { postedDate: TODAY, amount: 24000, channel: "", memo: null },
+    });
+    const bad = validatePostedPriceInput({ postedDate: "2026-11-18", amount: "0" }, TODAY);
+    expect(Object.keys(bad.ok ? {} : bad.errors).sort()).toEqual(["amount", "postedDate"]);
+  });
+
+  it("날짜순으로 정리해 처음·지금 가격과 내린·올린 횟수를 센다(금액을 더하지 않는다)", () => {
+    const rows = [
+      { id: 3, postedDate: "2026-11-10", amount: 22000 },
+      { id: 1, postedDate: "2026-11-01", amount: 24000 },
+      { id: 2, postedDate: "2026-11-05", amount: 24000 },
+      { id: 4, postedDate: "2026-11-12", amount: 23000 },
+    ];
+    expect(summarizePosted(rows)).toEqual({ first: 24000, latest: 23000, lowered: 1, raised: 1 });
+    expect(summarizePosted([])).toBeNull();
+    const d = postedDeltas(rows);
+    expect([d.get(1), d.get(2), d.get(3), d.get(4)]).toEqual([null, 0, -2000, 1000]);
+  });
+
+  it("처음 올린 가격과 실제 판매금액은 건수로만 견준다", () => {
+    expect(soldVsFirstPosted(24000, 22000)).toBe("BELOW");
+    expect(soldVsFirstPosted(24000, 24000)).toBe("EQUAL");
+    expect(soldVsFirstPosted(24000, 25000)).toBe("ABOVE");
+    expect(countSoldVsFirstPosted(["BELOW", "BELOW", "EQUAL"])).toEqual({ BELOW: 2, EQUAL: 1, ABOVE: 0 });
+  });
+
+  it("저장: 가격 자료와 따로 두고, 모드를 섞지 않으며, 내보내기에 실린다", () => {
+    const id = createItem(db, false, item("게임기"));
+    const other = createItem(db, false, item("다른 게임기"));
+    insertPostedPrice(db, id, { postedDate: "2026-11-10", amount: 22000, channel: "", memo: null });
+    const first = insertPostedPrice(db, id, { postedDate: "2026-11-01", amount: 24000, channel: "가", memo: null });
+    expect(listPostedPrices(db, id).map((p) => p.amount)).toEqual([24000, 22000]);
+    expect(listPrices(db, id)).toHaveLength(0);
+    deletePostedPrice(db, other, first); // 다른 물건의 기록은 못 지운다
+    expect(listPostedPrices(db, id)).toHaveLength(2);
+    expect(listPostedPricesByItem(db, false).get(id)).toHaveLength(2);
+    expect(listPostedPricesByItem(db, true).size).toBe(0);
+    const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
+    expect(out.items[0]!.postedPrices).toEqual([
+      { postedDate: "2026-11-01", amount: 24000, channel: "가", memo: null },
+      { postedDate: "2026-11-10", amount: 22000, channel: "", memo: null },
+    ]);
+    seedDemo(db, TODAY);
+    expect(listPostedPricesByItem(db, true).size).toBe(1);
+    clearDemo(db);
+    expect(listPostedPricesByItem(db, true).size).toBe(0);
+    expect(listPostedPrices(db, id)).toHaveLength(2);
   });
 });

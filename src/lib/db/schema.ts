@@ -197,6 +197,23 @@ export const offers = sqliteTable(
   (t) => [index("offers_item_idx").on(t.itemId)],
 );
 
+/** 내 판매글에 올린 가격 기록(사용자가 적는다). 가격 자료가 아니며 비교·요약에 쓰지 않는다. */
+export const postedPrices = sqliteTable(
+  "posted_prices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    postedDate: text("posted_date").notNull(), // YYYY-MM-DD
+    amount: integer("amount").notNull(), // KRW
+    channel: text("channel").notNull().default(""), // 어디에 올렸는지(사용자가 적은 이름)
+    memo: text("memo"),
+    ...timestamps,
+  },
+  (t) => [index("posted_prices_item_idx").on(t.itemId)],
+);
+
 /** 내가 만든 판매글 템플릿. 데모와 실제 모드가 따로 가진다. 본문은 사용자가 직접 쓴 글이다. */
 export const listingTemplates = sqliteTable(
   "listing_templates",
@@ -243,5 +260,6 @@ export type PriceHistoryRow = typeof priceHistory.$inferSelect;
 export type CostScenario = typeof costScenarios.$inferSelect;
 export type SaleResult = typeof saleResults.$inferSelect;
 export type Offer = typeof offers.$inferSelect;
+export type PostedPrice = typeof postedPrices.$inferSelect;
 export type ListingTemplate = typeof listingTemplates.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;

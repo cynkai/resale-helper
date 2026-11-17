@@ -7,6 +7,7 @@ import {
   importItemsCsvAction,
   saveExtensionIdAction,
   saveOfferAction,
+  savePostedPriceAction,
   saveTemplateAction,
   saveSaleResultAction,
   saveTimeValueAction,
@@ -224,12 +225,30 @@ export function TemplateForm({ templateId, initial }: { templateId?: number; ini
   );
 }
 
-/** 받은 제안 기록. 상대방 닉네임·연락처를 적는 칸은 없다. */
-export function OfferForm({ itemId, today, channelNames }: { itemId: number; today: string; channelNames: string[] }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(saveOfferAction, {});
-  const v = state.values ?? { receivedDate: today };
+type DatedAmountFormProps = {
+  itemId: number;
+  today: string;
+  channelNames: string[];
+};
+
+/** 날짜·금액·판매처·메모를 받는 작은 기록 폼(받은 제안, 올린 가격). 저장에 성공하면 비운다. */
+function DatedAmountForm({
+  itemId,
+  today,
+  channelNames,
+  serverAction,
+  prefix,
+  dateField,
+  labels,
+}: DatedAmountFormProps & {
+  serverAction: (prev: FormState, fd: FormData) => Promise<FormState>;
+  prefix: string;
+  dateField: string;
+  labels: { date: string; amount: string; channel: string; channelHint: string; memoHint: string; submit: string };
+}) {
+  const [state, action, pending] = useActionState<FormState, FormData>(serverAction, {});
+  const v = state.values ?? { [dateField]: today };
   const e = state.errors ?? {};
-  // 저장에 성공하면(values 없이 돌아오면) 폼을 비운다.
   const [seq, setSeq] = useState(0);
   const [seen, setSeen] = useState<FormState>(state);
   if (seen !== state) {
@@ -238,12 +257,12 @@ export function OfferForm({ itemId, today, channelNames }: { itemId: number; tod
   }
   const input = (name: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <input
-      id={`offer-${name}`}
+      id={`${prefix}-${name}`}
       name={name}
       className="input"
       defaultValue={v[name] ?? ""}
       aria-invalid={e[name] ? true : undefined}
-      aria-describedby={e[name] ? `offer-${name}-error` : undefined}
+      aria-describedby={e[name] ? `${prefix}-${name}-error` : undefined}
       {...props}
     />
   );
@@ -251,35 +270,75 @@ export function OfferForm({ itemId, today, channelNames }: { itemId: number; tod
     <form action={action} className="space-y-3" noValidate key={`${seq}-${JSON.stringify(state.values ?? {})}`}>
       <input type="hidden" name="itemId" value={itemId} />
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="제안받은 날짜" name="offer-receivedDate" error={e.receivedDate} required>
-          {input("receivedDate", { type: "date" })}
+        <Field label={labels.date} name={`${prefix}-${dateField}`} error={e[dateField]} required>
+          {input(dateField, { type: "date" })}
         </Field>
-        <Field label="제안 금액 (원)" name="offer-amount" error={e.amount} required>
+        <Field label={labels.amount} name={`${prefix}-amount`} error={e.amount} required>
           {input("amount", { inputMode: "numeric" })}
         </Field>
-        <Field label="어디서 받았나 (선택)" name="offer-channel" error={e.channel} hint="판매처 이름. 같은 이름의 계산이 있으면 그 비용으로 따져 봅니다.">
-          {input("channel", { maxLength: 100, list: channelNames.length > 0 ? "offer-channel-names" : undefined })}
+        <Field label={labels.channel} name={`${prefix}-channel`} error={e.channel} hint={labels.channelHint}>
+          {input("channel", { maxLength: 100, list: channelNames.length > 0 ? `${prefix}-channel-names` : undefined })}
         </Field>
       </div>
       {channelNames.length > 0 ? (
-        <datalist id="offer-channel-names">
+        <datalist id={`${prefix}-channel-names`}>
           {channelNames.map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
       ) : null}
-      <Field label="메모 (선택)" name="offer-memo" error={e.memo} hint="조건만 적어 주세요(예: 직거래 희망). 상대방 닉네임·연락처는 적지 마세요.">
+      <Field label="메모 (선택)" name={`${prefix}-memo`} error={e.memo} hint={labels.memoHint}>
         {input("memo", { maxLength: 500 })}
       </Field>
       <div className="flex items-center gap-3">
         <button type="submit" className="btn" disabled={pending}>
-          {pending ? "저장 중…" : "제안 기록"}
+          {pending ? "저장 중…" : labels.submit}
         </button>
         <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
           {state.message}
         </span>
       </div>
     </form>
+  );
+}
+
+/** 받은 제안 기록. 상대방 닉네임·연락처를 적는 칸은 없다. */
+export function OfferForm(props: DatedAmountFormProps) {
+  return (
+    <DatedAmountForm
+      {...props}
+      serverAction={saveOfferAction}
+      prefix="offer"
+      dateField="receivedDate"
+      labels={{
+        date: "제안받은 날짜",
+        amount: "제안 금액 (원)",
+        channel: "어디서 받았나 (선택)",
+        channelHint: "판매처 이름. 같은 이름의 계산이 있으면 그 비용으로 따져 봅니다.",
+        memoHint: "조건만 적어 주세요(예: 직거래 희망). 상대방 닉네임·연락처는 적지 마세요.",
+        submit: "제안 기록",
+      }}
+    />
+  );
+}
+
+/** 내 판매글에 올린 가격 기록. */
+export function PostedPriceForm(props: DatedAmountFormProps) {
+  return (
+    <DatedAmountForm
+      {...props}
+      serverAction={savePostedPriceAction}
+      prefix="posted"
+      dateField="postedDate"
+      labels={{
+        date: "올린(바꾼) 날짜",
+        amount: "올린 가격 (원)",
+        channel: "어디에 올렸나 (선택)",
+        channelHint: "판매처 이름",
+        memoHint: "예: 가격 내림, 끌어올림",
+        submit: "올린 가격 기록",
+      }}
+    />
   );
 }
 
