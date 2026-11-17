@@ -74,3 +74,16 @@ export function toRecord(d: {
   if (d.memo.trim()) rec.memo = d.memo.trim();
   return rec;
 }
+
+/** 지난번에 저장한 물건(이 브라우저의 확장 저장소에만 둔다). 선택지로 보여 줄 뿐 자동으로 고르지 않는다. */
+export type LastItem = { id: number; label: string };
+
+/** 저장소에서 꺼낸 값을 검사한다. 모양이 다르면 없는 것으로 본다. */
+export function parseLastItem(v: unknown): LastItem | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.id !== "number" || !Number.isSafeInteger(o.id) || o.id <= 0) return null;
+  if (typeof o.label !== "string") return null;
+  const label = o.label.trim().slice(0, 200);
+  return label ? { id: o.id, label } : null;
+}

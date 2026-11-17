@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { extract, parsers } from "../src/parsers";
 import { statusFromAvailability, wonFromOfferPrice } from "../src/parsers/common";
-import { buildDraft, toRecord } from "../src/suggest";
+import { buildDraft, parseLastItem, toRecord } from "../src/suggest";
 
 // 픽스처는 모두 직접 만든 최소 HTML이다. 실제 게시물을 저장한 것이 아니며 가상의 값만 들어 있다.
 function page(html: string): Document {
@@ -200,5 +200,14 @@ describe("앱 화면 링크", () => {
     ] as const) {
       expect(editUrl(bad[0], bad[1])).toBeNull();
     }
+  });
+});
+
+describe("지난번에 고른 물건", () => {
+  it("번호와 이름이 올바를 때만 쓰고, 이름은 다듬어 200자까지", () => {
+    expect(parseLastItem({ id: 3, label: " 전공책 " })).toEqual({ id: 3, label: "전공책" });
+    expect(parseLastItem({ id: 3, label: "가".repeat(300) })!.label).toHaveLength(200);
+    for (const bad of [null, undefined, "3", { id: "3", label: "a" }, { id: 0, label: "a" }, { id: 1.5, label: "a" }, { id: 3, label: "  " }, { id: 3 }])
+      expect(parseLastItem(bad)).toBeNull();
   });
 });

@@ -1,10 +1,11 @@
 // 팝업. 모든 동작은 사용자의 클릭에서만 시작한다(백그라운드 스크립트·콘텐츠 스크립트 없음).
 import { AppError, editUrl, importOne, searchItems } from "./api";
 import type { ExtractResult } from "./parsers";
-import { buildDraft, toRecord, type PreviewDraft } from "./suggest";
+import { buildDraft, parseLastItem, toRecord, type LastItem, type PreviewDraft } from "./suggest";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const TOKEN_KEY = "importToken";
+const LAST_ITEM_KEY = "lastItem";
 
 function todayYmd(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
@@ -83,6 +84,23 @@ function fill(d: PreviewDraft): void {
   $("preview").hidden = false;
 }
 
+function itemRadio(id: number, text: string): HTMLLabelElement {
+  const label = document.createElement("label");
+  const radio = document.createElement("input");
+  radio.type = "radio";
+  radio.name = "item";
+  radio.value = String(id);
+  label.append(radio, document.createTextNode(text));
+  return label;
+}
+
+/** 지난번에 저장한 물건을 선택지 하나로 보여 준다(고르지는 않는다). 검색하면 검색 결과로 바뀐다. */
+async function showLastItem(): Promise<void> {
+  const last = parseLastItem((await chrome.storage.local.get(LAST_ITEM_KEY))[LAST_ITEM_KEY]);
+  if (!last) return;
+  $("items").replaceChildren(itemRadio(last.id, `${last.label} — 지난번에 고른 물건`));
+}
+
 async function findItems(): Promise<void> {
   const token = await getToken();
   if (!token) return say("먼저 가져오기 토큰을 저장해 주세요.", "error");
@@ -90,15 +108,7 @@ async function findItems(): Promise<void> {
     const items = await searchItems(token, ($("itemQuery") as HTMLInputElement).value);
     const box = $("items");
     box.replaceChildren(
-      ...items.map((it) => {
-        const label = document.createElement("label");
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "item";
-        radio.value = String(it.id);
-        label.append(radio, document.createTextNode(`${it.name}${it.identifier ? ` (${it.identifier})` : ""}`));
-        return label;
-      }),
+      ...items.map((it) => itemRadio(it.id, `${it.name}${it.identifier ? ` (${it.identifier})` : ""}`)),
     );
     say(items.length === 0 ? "조건에 맞는 물건이 없습니다. 앱에서 물건을 먼저 등록해 주세요." : "");
   } catch (e) {
@@ -136,7 +146,13 @@ async function save(ev: Event): Promise<void> {
         checkedDate: v("checkedDate"),
       }),
     );
-    if (row.ok) say("저장했습니다. 앱의 물건 상세 화면에서 확인할 수 있습니다.", "ok");
+    if (row.ok) {
+      say("저장했습니다. 앱의 물건 상세 화면에서 확인할 수 있습니다.", "ok");
+      // 같은 물건에 매물을 이어 담을 때 다시 찾지 않도록, 고른 물건의 번호와 이름만 기억한다.
+      const label = (picked.parentElement?.textContent ?? "").replace(/ — 지난번에 고른 물건$/, "");
+      const last: LastItem = { id: Number(picked.value), label };
+      await chrome.storage.local.set({ [LAST_ITEM_KEY]: last });
+    }
     else {
       const href = row.duplicateOf !== undefined ? editUrl(Number(picked.value), row.duplicateOf) : null;
       say(row.error ?? "저장하지 못했습니다.", "error", href ? { href, label: "앱에서 그 자료 열기" } : undefined);
@@ -161,13 +177,14 @@ $("saveToken").addEventListener("click", async () => {
   say("토큰을 이 브라우저에 저장했습니다.", "ok");
 });
 $("clearToken").addEventListener("click", async () => {
-  await chrome.storage.local.remove(TOKEN_KEY);
+  await chrome.storage.local.remove([TOKEN_KEY, LAST_ITEM_KEY]);
   await refreshTokenStatus();
   say("토큰을 지웠습니다.");
 });
 $("readPage").addEventListener("click", async () => {
   say("");
   fill(buildDraft(await readActiveTab(), todayYmd()));
+  if (!document.querySelector('input[name="item"]')) await showLastItem();
 });
 $("findItems").addEventListener("click", () => void findItems());
 $("preview").addEventListener("submit", (ev) => void save(ev));
