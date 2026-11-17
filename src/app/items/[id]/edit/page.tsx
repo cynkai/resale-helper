@@ -17,6 +17,7 @@ export default async function EditItemPage({
   if (!item) notFound();
   const initial: Record<string, string> = {};
   for (const [k, v] of Object.entries(item)) if (typeof v === "string") initial[k] = v;
+  if (item.purchaseAmount !== null) initial.purchaseAmount = String(item.purchaseAmount);
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">물건 수정</h1>

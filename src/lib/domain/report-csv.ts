@@ -66,6 +66,7 @@ export const RESULTS_CSV_HEADERS = [
   "expected_minutes",
   "minutes_spent",
   "first_posted_price",
+  "purchase_amount",
   "is_demo",
 ];
 
@@ -77,6 +78,7 @@ export type ResultsCsvRow = ReviewInput & {
   /** 고른 방법 표시(없으면 빈 문자열) */
   chosen: string;
   firstPostedPrice: number | null;
+  purchaseAmount?: number | null;
   isDemo: boolean;
 };
 
@@ -100,6 +102,7 @@ export function buildResultsCsv(rows: ResultsCsvRow[]): string {
         r.expectedMinutes,
         r.minutesSpent,
         r.firstPostedPrice,
+        r.purchaseAmount ?? null,
         r.isDemo ? "true" : "false",
       ];
     }),

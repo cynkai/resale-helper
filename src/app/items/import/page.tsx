@@ -15,8 +15,8 @@ export default async function ImportItemsPage() {
       </p>
       <h1 className="text-xl font-bold">물건 한꺼번에 등록 (CSV)</h1>
       <p className="notice">
-        팔 물건이 많을 때 표로 정리해 둔 목록을 한 번에 등록합니다. 물건 정보만 들어가며 가격은 들어가지 않습니다. 가격 자료는 물건마다 직접 확인해
-        넣어 주세요.
+        팔 물건이 많을 때 표로 정리해 둔 목록을 한 번에 등록합니다. 물건 정보만 들어가며 시세·판매 가격은 들어가지 않습니다(내가 산 가격만 선택으로 적을 수 있습니다). 가격 자료는 물건마다
+        직접 확인해 넣어 주세요.
       </p>
       {demo ? <p className="warn">지금은 데모 모드입니다. 물건 가져오기는 실제 사용 모드에서만 됩니다.</p> : null}
 
@@ -33,6 +33,7 @@ export default async function ImportItemsPage() {
             <li>condition: {codes(CONDITIONS, CONDITION_LABEL)}. 물건 상태는 직접 보고 적어 주세요. 앱이 추정하지 않습니다.</li>
             <li>status(선택, 기본 OWNED): {codes(ITEM_STATUSES, ITEM_STATUS_LABEL)}</li>
             <li>identifier: 도서는 ISBN(검증 후 ISBN-13으로 저장), 그 외는 모델명</li>
+            <li>purchase_amount, purchase_date(선택): 내가 산 가격(원)과 산 날짜. 모르면 비워 둡니다</li>
             <li>has_writing 등 네 열(도서 전용): YES, NO, UNKNOWN. 비워 두면 모름</li>
             <li>카테고리·이름·식별자가 모두 같은 물건이 이미 있으면 그 행은 건너뜁니다(같은 파일을 다시 올려도 두 번 등록되지 않음).</li>
           </ul>

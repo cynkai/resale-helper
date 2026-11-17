@@ -32,6 +32,9 @@ export const items = sqliteTable(
     defects: text("defects"),
     components: text("components"),
     memo: text("memo"),
+    // 내가 산 가격과 산 날짜(사용자 입력, 선택). null = 적지 않음/모름. 0 = 거저 얻음.
+    purchaseAmount: integer("purchase_amount"),
+    purchaseDate: text("purchase_date"),
     // 도서 전용
     author: text("author"),
     publisher: text("publisher"),

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listPostedPricesByItem, listSaleReviews } from "@/lib/db/repo";
+import { countPurchaseOutcomes, vsPurchase } from "@/lib/domain/purchase";
 import { countSoldVsFirstPosted, soldVsFirstPosted, summarizePosted } from "@/lib/domain/posted-price";
 import { formatMoney } from "@/lib/domain/money";
 import { COST_LABEL } from "@/lib/domain/net";
@@ -94,6 +95,12 @@ export default async function ResultsPage() {
     }),
   );
   const postedTotal = postedCounts.BELOW + postedCounts.EQUAL + postedCounts.ABOVE;
+  // 산 가격과 실제 실수령액: 둘 다 아는 기록만 본다.
+  const purchaseDiffs = rows.flatMap((r) => {
+    const d = vsPurchase(r.review.actualNet, r.item.purchaseAmount);
+    return d === null ? [] : [d];
+  });
+  const purchaseCounts = countPurchaseOutcomes(purchaseDiffs);
   const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
   const planned = (r: { item: { chosenMethod: string | null; chosenChannel: string | null } }) => (r.item.chosenMethod ? r.item.chosenChannel : null);
   const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(planned(r), r.result.channel)));
@@ -149,6 +156,12 @@ export default async function ResultsPage() {
               <p className="mt-1" data-testid="posted-counts">
                 올린 가격을 적어 둔 {postedTotal}건 — 처음 올린 가격보다 <strong>낮게 판 것 {postedCounts.BELOW}건</strong>,{" "}
                 <strong>같게 {postedCounts.EQUAL}건</strong>, <strong>높게 {postedCounts.ABOVE}건</strong>
+              </p>
+            ) : null}
+            {purchaseDiffs.length > 0 ? (
+              <p className="mt-1" data-testid="purchase-counts">
+                산 가격을 적어 둔 {purchaseDiffs.length}건 — 실수령액이 산 가격보다 <strong>많음 {purchaseCounts.ABOVE}건</strong>,{" "}
+                <strong>같음 {purchaseCounts.EQUAL}건</strong>, <strong>적음 {purchaseCounts.BELOW}건</strong>
               </p>
             ) : null}
             {counts.UNKNOWN > 0 ? (
@@ -259,6 +272,11 @@ export default async function ResultsPage() {
                       {item.chosenNetAmount !== null ? formatMoney(item.chosenNetAmount) : "모름"} →{" "}
                       {review.actualNet !== null ? formatMoney(review.actualNet) : "모름"}
                       <div className={`text-xs ${tone(review.netDiff)}`}>{signed(review.netDiff, "won")}</div>
+                      {vsPurchase(review.actualNet, item.purchaseAmount) !== null ? (
+                        <div className="text-xs text-stone-600" data-testid={`purchase-${item.id}`}>
+                          산 가격 {formatMoney(item.purchaseAmount!)} 대비 {signed(vsPurchase(review.actualNet, item.purchaseAmount), "won")}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 align-top">
                       {expectedMinutes !== null ? `${expectedMinutes}분` : "모름"} →{" "}

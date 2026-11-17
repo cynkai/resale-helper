@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { normalizeIsbn } from "./isbn";
+import { parseAmount } from "./money";
 import {
   CATEGORIES,
   CONDITIONS,
@@ -29,6 +30,8 @@ export const ITEM_FIELDS = [
   "hasUnderline",
   "hasDamage",
   "hasSupplement",
+  "purchaseAmount",
+  "purchaseDate",
 ] as const;
 export type ItemField = (typeof ITEM_FIELDS)[number];
 export type ItemInputRaw = Partial<Record<ItemField, string>>;
@@ -49,6 +52,9 @@ export type ValidItemInput = {
   hasUnderline: TriState;
   hasDamage: TriState;
   hasSupplement: TriState;
+  /** 내가 산 가격(원)과 산 날짜. 적지 않으면 null(모름). 0원은 "거저 얻음"으로 모름과 다르다. */
+  purchaseAmount?: number | null;
+  purchaseDate?: string | null;
 };
 
 const opt = (max: number) =>
@@ -81,7 +87,15 @@ export type ItemValidation =
   | { ok: true; value: ValidItemInput }
   | { ok: false; errors: Partial<Record<ItemField, string>> };
 
-export function validateItemInput(raw: ItemInputRaw): ItemValidation {
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+function isYmd(s: string): boolean {
+  if (!YMD.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/** today를 주면 산 날짜가 오늘 이후인지도 확인한다. */
+export function validateItemInput(raw: ItemInputRaw, today?: string): ItemValidation {
   const input = {
     category: raw.category ?? "",
     status: raw.status || "OWNED",
@@ -108,7 +122,22 @@ export function validateItemInput(raw: ItemInputRaw): ItemValidation {
     }
     return { ok: false, errors };
   }
-  const v = { ...parsed.data };
+  // 산 가격·산 날짜(선택). 빈칸은 모름이며 0원과 다르다.
+  let purchaseAmount: number | null = null;
+  const pa = (raw.purchaseAmount ?? "").trim();
+  if (pa !== "") {
+    const a = parseAmount(pa, "KRW");
+    if (!a.ok) return { ok: false, errors: { purchaseAmount: a.error } };
+    purchaseAmount = a.minor;
+  }
+  let purchaseDate: string | null = null;
+  const pd = (raw.purchaseDate ?? "").trim();
+  if (pd !== "") {
+    if (!isYmd(pd)) return { ok: false, errors: { purchaseDate: "산 날짜를 YYYY-MM-DD 형식으로 입력해 주세요." } };
+    if (today && pd > today) return { ok: false, errors: { purchaseDate: "산 날짜는 오늘 이후일 수 없습니다." } };
+    purchaseDate = pd;
+  }
+  const v: ValidItemInput = { ...parsed.data, purchaseAmount, purchaseDate };
   if (v.category === "BOOK") {
     // ISBN은 있으면 반드시 검증하고 ISBN-13으로 정규화해 저장한다.
     if (v.identifier) {

@@ -59,7 +59,7 @@ async function requireItem(rawId: string) {
 export async function saveItemAction(_prev: FormState, fd: FormData): Promise<FormState> {
   const raw: ItemInputRaw = {};
   for (const f of ITEM_FIELDS) raw[f] = s(fd, f);
-  const result = validateItemInput(raw);
+  const result = validateItemInput(raw, todayYmd());
   if (!result.ok) return { errors: result.errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
 
   const db = getDb();

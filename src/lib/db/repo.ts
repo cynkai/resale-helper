@@ -66,7 +66,7 @@ export function getItem(db: Db, isDemo: boolean, id: number): Item | undefined {
 export function createItem(db: Db, isDemo: boolean, v: ValidItemInput): number {
   const r = db
     .insert(items)
-    .values({ ...v, isDemo })
+    .values({ ...v, purchaseAmount: v.purchaseAmount ?? null, purchaseDate: v.purchaseDate ?? null, isDemo })
     .returning({ id: items.id })
     .get();
   return r.id;
@@ -74,7 +74,7 @@ export function createItem(db: Db, isDemo: boolean, v: ValidItemInput): number {
 
 export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInput): void {
   db.update(items)
-    .set({ ...v, updatedAt: now })
+    .set({ ...v, purchaseAmount: v.purchaseAmount ?? null, purchaseDate: v.purchaseDate ?? null, updatedAt: now })
     .where(and(eq(items.id, id), eq(items.isDemo, isDemo)))
     .run();
 }
@@ -90,7 +90,7 @@ export function createItems(db: Db, isDemo: boolean, values: ValidItemInput[]): 
 
 /**
  * 같은 물건을 하나 더 등록한다(책 두 권, 같은 기기 두 대). 물건 정보만 베끼고 상태는 보유 중으로 둔다.
- * 가격 자료·계산·선택·판매 결과·제안·올린 가격은 베끼지 않는다(물건마다 따로 확인해야 하는 값이다).
+ * 가격 자료·계산·선택·판매 결과·제안·올린 가격·산 가격은 베끼지 않는다(물건마다 따로 확인해야 하는 값이다).
  */
 export function duplicateItem(db: Db, isDemo: boolean, id: number): number | null {
   const src = getItem(db, isDemo, id);

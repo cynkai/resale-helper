@@ -23,6 +23,7 @@ import { getDb } from "@/lib/db/client";
 import { getItem, getSaleResult, listChannelNames, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { renderTemplate } from "@/lib/domain/listing-template";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
+import { heldDays, vsPurchase } from "@/lib/domain/purchase";
 import { buildTimeline, TIMELINE_KIND_LABEL } from "@/lib/domain/timeline";
 import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
 import { countOfferStatuses, evaluateOffer, OFFER_STATUS_LABEL, OFFER_STATUSES, pickOfferScenario } from "@/lib/domain/offer";
@@ -100,7 +101,20 @@ function scenarioInitial(sc: CostScenario | undefined): Record<string, string> {
 }
 
 /** tid: 그 방식의 기준 계산(또는 하나뿐인 계산)이면 방식 이름, 아니면 방식-계산 id. */
-function NetBox({ sc, net, issues, tid }: { sc: CostScenario; net: NetResult; issues: BasisIssue[]; tid: string }) {
+function NetBox({
+  sc,
+  net,
+  issues,
+  tid,
+  purchaseAmount,
+}: {
+  sc: CostScenario;
+  net: NetResult;
+  issues: BasisIssue[];
+  tid: string;
+  purchaseAmount: number | null;
+}) {
+  const overPurchase = vsPurchase(net.net, purchaseAmount);
   const basisType = sc.basisPriceType;
   const row = (label: string, value: number | null) => (
     <div className="flex justify-between gap-4">
@@ -154,6 +168,11 @@ function NetBox({ sc, net, issues, tid }: { sc: CostScenario; net: NetResult; is
       ) : null}
       {sc.expectedMinutes !== null ? (
         <p className="mt-2 text-stone-700">내가 어림한 소요시간: {sc.expectedMinutes}분</p>
+      ) : null}
+      {overPurchase !== null ? (
+        <p className="mt-2 text-stone-700" data-testid={`vs-purchase-${tid}`}>
+          산 가격({formatMoney(purchaseAmount!)})과 견주면 {overPurchase === 0 ? "같음" : signed(overPurchase)}
+        </p>
       ) : null}
       {sc.memo ? <p className="mt-1 whitespace-pre-wrap text-stone-700">메모: {sc.memo}</p> : null}
     </div>
@@ -439,6 +458,14 @@ export default async function ItemPage({
                 : []),
               ["하자", item.defects],
               ["구성품", item.components],
+              [
+                "산 가격",
+                item.purchaseAmount !== null
+                  ? `${formatMoney(item.purchaseAmount)}${item.purchaseDate ? ` (${item.purchaseDate})` : ""}`
+                  : item.purchaseDate
+                    ? `가격 모름 (${item.purchaseDate})`
+                    : null,
+              ],
               ["메모", item.memo],
             ] as [string, string | null][]
           ).map(([k, val]) => (
@@ -598,7 +625,7 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                     {only ? (
                       <>
                         {only.channel !== "" ? <p className="text-sm font-medium">{only.channel}</p> : null}
-                        <NetBox sc={only} net={netOf.get(only.id)!} issues={issuesOf.get(only.id)!} tid={m} />
+                        <NetBox sc={only} net={netOf.get(only.id)!} issues={issuesOf.get(only.id)!} tid={m} purchaseAmount={item.purchaseAmount} />
                       </>
                     ) : null}
                     <ScenarioForm
@@ -635,7 +662,7 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                               </form>
                             )}
                           </div>
-                          <NetBox sc={sc} net={netOf.get(sc.id)!} issues={issuesOf.get(sc.id)!} tid={isPrimary ? m : `${m}-${sc.id}`} />
+                          <NetBox sc={sc} net={netOf.get(sc.id)!} issues={issuesOf.get(sc.id)!} tid={isPrimary ? m : `${m}-${sc.id}`} purchaseAmount={item.purchaseAmount} />
                           <details className="text-sm">
                             <summary className="cursor-pointer text-stone-700">이 계산 고치기·지우기</summary>
                             <div className="mt-2 space-y-3">
@@ -1044,6 +1071,20 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
               {result.costTotal !== null ? ` · 실제 비용 ${formatMoney(result.costTotal)}` : " · 실제 비용 모름"}
               {result.minutesSpent !== null ? ` · 들인 시간 ${result.minutesSpent}분` : ""}
             </p>
+            {item.purchaseAmount !== null || item.purchaseDate ? (
+              <p data-testid="result-vs-purchase">
+                {item.purchaseAmount !== null
+                  ? result.costTotal !== null
+                    ? `산 가격 ${formatMoney(item.purchaseAmount)} → 실제 실수령액 ${formatMoney(result.amount - result.costTotal)} (${
+                        result.amount - result.costTotal - item.purchaseAmount === 0 ? "같음" : signed(result.amount - result.costTotal - item.purchaseAmount)
+                      })`
+                    : `산 가격 ${formatMoney(item.purchaseAmount)} — 실제 비용을 몰라 실수령액과 견주지 않았습니다.`
+                  : ""}
+                {heldDays(item.purchaseDate, result.soldDate) !== null
+                  ? `${item.purchaseAmount !== null ? " · " : ""}산 날부터 판매까지 ${heldDays(item.purchaseDate, result.soldDate)}일`
+                  : ""}
+              </p>
+            ) : null}
             {item.chosenSaleAmount !== null ? (
               <ul className="list-disc space-y-1 pl-5" data-testid="result-diff">
                 <li>

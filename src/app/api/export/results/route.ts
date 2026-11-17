@@ -25,6 +25,7 @@ export async function GET() {
     costTotal: r.result.costTotal,
     minutesSpent: r.result.minutesSpent,
     firstPostedPrice: summarizePosted(posted.get(r.item.id) ?? [])?.first ?? null,
+    purchaseAmount: r.item.purchaseAmount,
     isDemo: r.item.isDemo,
   }));
   return new Response(buildResultsCsv(rows), {

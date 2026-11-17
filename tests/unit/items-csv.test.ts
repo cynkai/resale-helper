@@ -4,6 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "@/lib/db/client";
 import { createItems, listAllItems, listItems, listPrices } from "@/lib/db/repo";
+import { validateItemInput } from "@/lib/domain/item-input";
+import { buildListingDraft } from "@/lib/domain/listing";
+import { TEMPLATE_TOKENS } from "@/lib/domain/listing-template";
+import { countPurchaseOutcomes, heldDays, vsPurchase } from "@/lib/domain/purchase";
+import { buildTimeline } from "@/lib/domain/timeline";
 import { buildItemsCsv, isSameItem, MAX_ITEM_CSV_ROWS, planItemsCsvImport } from "@/lib/domain/items-csv";
 
 const HEAD = "category,name,identifier,condition,edition,defects";
@@ -50,6 +55,63 @@ describe("물건 CSV 읽기", () => {
     for (const col of ["price", "amount", "asking", "sale_amount"]) {
       expect(planItemsCsvImport(`category,name,condition,${col}\nBOOK,책,GOOD,1000`, []).headerError).toContain(col);
     }
+  });
+});
+
+describe("산 가격", () => {
+  const base = { category: "CONSOLE", name: "게임기", condition: "GOOD" };
+
+  it("빈칸은 모름(null), 0원은 거저 얻음으로 구분한다", () => {
+    expect(validateItemInput(base)).toMatchObject({ ok: true, value: { purchaseAmount: null, purchaseDate: null } });
+    expect(validateItemInput({ ...base, purchaseAmount: "0" })).toMatchObject({ ok: true, value: { purchaseAmount: 0 } });
+    expect(validateItemInput({ ...base, purchaseAmount: "30,000", purchaseDate: "2026-01-05" }, "2026-11-17")).toMatchObject({
+      ok: true,
+      value: { purchaseAmount: 30000, purchaseDate: "2026-01-05" },
+    });
+  });
+
+  it("잘못된 금액·날짜와 미래 날짜는 거부한다", () => {
+    expect(validateItemInput({ ...base, purchaseAmount: "-1" })).toMatchObject({ ok: false });
+    expect(validateItemInput({ ...base, purchaseDate: "2026-13-01" })).toMatchObject({ ok: false });
+    const future = validateItemInput({ ...base, purchaseDate: "2026-11-18" }, "2026-11-17");
+    expect(future.ok ? "" : future.errors.purchaseDate).toContain("오늘 이후");
+  });
+
+  it("실수령액과 견주기: 어느 한쪽을 모르면 비교하지 않는다", () => {
+    expect(vsPurchase(17000, 30000)).toBe(-13000);
+    expect(vsPurchase(17000, 0)).toBe(17000);
+    expect(vsPurchase(null, 30000)).toBeNull();
+    expect(vsPurchase(17000, null)).toBeNull();
+    expect(vsPurchase(17000, undefined)).toBeNull();
+    expect(countPurchaseOutcomes([-13000, 0, 500, 2000])).toEqual({ ABOVE: 2, EQUAL: 1, BELOW: 1 });
+  });
+
+  it("산 날부터 지난 일수: 산 날짜를 모르거나 앞뒤가 바뀌면 내지 않는다", () => {
+    expect(heldDays("2026-01-05", "2026-01-15")).toBe(10);
+    expect(heldDays("2026-01-05", "2026-01-05")).toBe(0);
+    expect(heldDays(null, "2026-01-15")).toBeNull();
+    expect(heldDays("2026-02-01", "2026-01-15")).toBeNull();
+  });
+
+  it("물건 CSV로 넣고 뺄 수 있고, 판매글 초안에는 들어가지 않는다", () => {
+    const plan = planItemsCsvImport("category,name,condition,purchase_amount,purchase_date\nCONSOLE,게임기,GOOD,30000,2026-01-05\nCONSOLE,다른 게임기,GOOD,,", []);
+    expect(plan.errors).toEqual([]);
+    expect(plan.valid[0]!.value).toMatchObject({ purchaseAmount: 30000, purchaseDate: "2026-01-05" });
+    expect(plan.valid[1]!.value).toMatchObject({ purchaseAmount: null, purchaseDate: null });
+    const csv = buildItemsCsv([{ ...plan.valid[0]!.value, isDemo: false }]);
+    expect(csv.split("\r\n")[1]).toContain(",30000,2026-01-05,false");
+    const draft = buildListingDraft({ ...plan.valid[0]!.value }, 50000);
+    expect(`${draft.title} ${draft.body} ${draft.compact}`).not.toContain("30,000");
+    expect(TEMPLATE_TOKENS.map((t) => t.name)).not.toContain("산가격");
+  });
+
+  it("타임라인에 구입이 맨 아래에 온다", () => {
+    const tl = buildTimeline({
+      item: { createdAt: "2026-11-01 00:00:00", purchaseAmount: 30000, purchaseDate: "2026-01-05", chosenMethod: null, chosenSaleAmount: null, chosenAt: null },
+      prices: [], history: new Map(), posted: [], offers: [], result: undefined,
+    });
+    expect(tl.map((e) => e.kind)).toEqual(["REGISTERED", "PURCHASED"]);
+    expect(tl[1]!.text).toBe("30,000원에 삼(내가 적은 값)");
   });
 });
 
