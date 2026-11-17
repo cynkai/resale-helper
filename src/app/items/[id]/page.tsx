@@ -22,6 +22,7 @@ import { getDb } from "@/lib/db/client";
 import { getItem, getSaleResult, listChannelNames, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { renderTemplate } from "@/lib/domain/listing-template";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
+import { buildTimeline, TIMELINE_KIND_LABEL } from "@/lib/domain/timeline";
 import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
 import { countOfferStatuses, evaluateOffer, OFFER_STATUS_LABEL, OFFER_STATUSES, pickOfferScenario } from "@/lib/domain/offer";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
@@ -239,6 +240,7 @@ export default async function ItemPage({
   // 제안을 받았을 때 비교할 업체 실수령액: 업체 기준 계산이 완전하고 기준 자료 문제가 없을 때만.
   const offerBuybackNet = byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? (nets.BUYBACK?.net ?? null) : null;
   const acceptedOffer = offers.find((o) => o.status === "ACCEPTED");
+  const timeline = buildTimeline({ item, prices, history, posted, offers, result });
 
   const usable = prices.filter((p) => p.currency === "KRW" && !isQuoteExpired(p, today));
   const optionLabel = (p: PriceRecord) =>
@@ -403,6 +405,7 @@ export default async function ItemPage({
           ["#listing", "4. 판매글"],
           ["#offers", "받은 제안"],
           ["#result", "5. 판매 결과"],
+          ["#timeline", "기록"],
         ].map(([href, label]) => (
           <a key={href} href={href} className="rounded-full border border-stone-300 bg-white px-3 py-1 hover:bg-stone-100">
             {label}
@@ -1107,6 +1110,22 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                 }
           }
         />
+      </Section>
+
+      <Section id="timeline" title="기록 한눈에 보기">
+        <p className="text-sm text-stone-700">
+          이 물건에 적어 둔 기록을 날짜순(최신이 위)으로 늘어놓은 것입니다. 줄마다 무엇의 금액인지 적었고, 서로 다른 종류의 금액을 비교하거나 합치지
+          않습니다.
+        </p>
+        <ol className="mt-3 space-y-1 text-sm" data-testid="timeline">
+          {timeline.map((e) => (
+            <li key={e.key} className="flex flex-wrap gap-x-3">
+              <span className="w-24 shrink-0 text-stone-600">{e.date}</span>
+              <span className="w-32 shrink-0 text-stone-600">{TIMELINE_KIND_LABEL[e.kind]}</span>
+              <span>{e.text}</span>
+            </li>
+          ))}
+        </ol>
       </Section>
     </div>
   );

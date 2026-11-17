@@ -877,6 +877,13 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   await page.locator("#result-amount").fill("17000");
   await page.getByRole("button", { name: "판매 결과 저장" }).click();
   await expect(page.getByTestId("result-summary")).toBeVisible();
+  // 기록 한눈에 보기: 올린 가격 두 번과 판매가 날짜순으로 나온다
+  const timeline = page.getByTestId("timeline");
+  await expect(timeline).toContainText("가 장터에서 17,000원에 판매(내가 기록한 값)");
+  await expect(timeline.locator("li").filter({ hasText: "내 판매글 가격" })).toHaveCount(2);
+  await expect(timeline.locator("li").filter({ hasText: "물건을 등록함" })).toHaveCount(1);
+  // 날짜순(최신이 위): 테스트에서 적은 올린 가격은 과거 날짜라 맨 아래에 온다
+  await expect(timeline.locator("li").last()).toContainText("2026-01-05");
   await page.goto("/results");
   await expect(page.getByTestId(`posted-first-${id}`)).toHaveText("처음 올린 가격 24,000원 · 1번 내림");
   await expect(page.getByTestId("posted-counts")).toContainText("낮게 판 것 1건");

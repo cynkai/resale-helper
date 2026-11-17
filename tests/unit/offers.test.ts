@@ -30,6 +30,7 @@ import {
   summarizePosted,
   validatePostedPriceInput,
 } from "@/lib/domain/posted-price";
+import { buildTimeline, utcToSeoulYmd } from "@/lib/domain/timeline";
 import { countOfferStatuses, evaluateOffer, pickOfferScenario, validateOfferInput } from "@/lib/domain/offer";
 
 const TODAY = "2026-11-17";
@@ -228,5 +229,50 @@ describe("내 판매글에 올린 가격", () => {
     clearDemo(db);
     expect(listPostedPricesByItem(db, true).size).toBe(0);
     expect(listPostedPrices(db, id)).toHaveLength(2);
+  });
+});
+
+describe("기록 한눈에 보기", () => {
+  it("UTC 저장 시각을 한국 날짜로 바꾼다", () => {
+    expect(utcToSeoulYmd("2026-11-16 14:59:59")).toBe("2026-11-16");
+    expect(utcToSeoulYmd("2026-11-16 15:00:00")).toBe("2026-11-17");
+    expect(utcToSeoulYmd(null)).toBeNull();
+    expect(utcToSeoulYmd("어제")).toBeNull();
+  });
+
+  it("저장된 기록을 날짜순(최신이 위)으로 늘어놓고, 줄마다 무엇의 금액인지 적는다", () => {
+    const tl = buildTimeline({
+      item: { createdAt: "2026-10-31 16:00:00", chosenMethod: "DIRECT", chosenChannel: "가 장터", chosenSaleAmount: 24000, chosenAt: "2026-11-05 01:00:00" },
+      prices: [{ id: 1, priceType: "ASKING", amountMinor: 20000, currency: "KRW", sourceName: "나 장터", checkedDate: "2026-11-10" }],
+      history: new Map([[1, [{ id: 7, priceType: "ASKING", amountMinor: 22000, currency: "KRW", checkedDate: "2026-11-02" }]]]),
+      posted: [
+        { id: 1, postedDate: "2026-11-05", amount: 24000, channel: "가 장터" },
+        { id: 2, postedDate: "2026-11-12", amount: 22000, channel: "" },
+      ],
+      offers: [{ id: 1, receivedDate: "2026-11-12", amount: 21000, channel: "", status: "ACCEPTED" }],
+      result: { soldDate: "2026-11-13", amount: 21000, channel: "가 장터" },
+    });
+    expect(tl.map((e) => `${e.date} ${e.kind}`)).toEqual([
+      "2026-11-13 SOLD",
+      "2026-11-12 OFFER",
+      "2026-11-12 POSTED",
+      "2026-11-10 PRICE_CHECKED",
+      "2026-11-05 CHOSEN",
+      "2026-11-05 POSTED",
+      "2026-11-02 PRICE_PREVIOUS",
+      "2026-11-01 REGISTERED",
+    ]);
+    expect(tl[0]!.text).toBe("가 장터에서 21,000원에 판매(내가 기록한 값)");
+    expect(tl[1]!.text).toBe("제안 21,000원 — 받기로 함");
+    expect(tl[3]!.text).toBe("[판매 중 희망가] 나 장터 20,000원 확인");
+    expect(tl[4]!.text).toBe("개인에게 직접 판매 · 가 장터로 정함 (당시 금액 24,000원)");
+    expect(tl[6]!.text).toContain("22,000원 확인(나중에 바뀜)");
+  });
+
+  it("기록이 없으면 등록만 나온다. 외화 자료는 원래 통화로 적는다", () => {
+    const base = { item: { createdAt: "2026-11-01 00:00:00", chosenMethod: null, chosenSaleAmount: null, chosenAt: null }, history: new Map(), posted: [], offers: [], result: undefined };
+    expect(buildTimeline({ ...base, prices: [] }).map((e) => e.kind)).toEqual(["REGISTERED"]);
+    const fx = buildTimeline({ ...base, prices: [{ id: 1, priceType: "ASKING", amountMinor: 1250, currency: "USD", sourceName: "해외", checkedDate: "2026-11-02" }] });
+    expect(fx[0]!.text).toBe("[판매 중 희망가] 해외 USD 12.50 확인");
   });
 });
