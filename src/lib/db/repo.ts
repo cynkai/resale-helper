@@ -47,6 +47,7 @@ export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
       priceCount: sql<number>`(select count(*) from price_records p where p.item_id = "items"."id")`,
       scenarioCount: sql<number>`(select count(*) from cost_scenarios c where c.item_id = "items"."id")`,
       resultCount: sql<number>`(select count(*) from sale_results r where r.item_id = "items"."id")`,
+      openOfferCount: sql<number>`(select count(*) from offers o where o.item_id = "items"."id" and o.status = 'OPEN')`,
     })
     .from(items)
     .where(and(...conds))
@@ -85,6 +86,32 @@ export function createItems(db: Db, isDemo: boolean, values: ValidItemInput[]): 
     for (const v of values) tx.insert(items).values({ ...v, isDemo }).run();
   });
   return values.length;
+}
+
+/**
+ * 같은 물건을 하나 더 등록한다(책 두 권, 같은 기기 두 대). 물건 정보만 베끼고 상태는 보유 중으로 둔다.
+ * 가격 자료·계산·선택·판매 결과·제안·올린 가격은 베끼지 않는다(물건마다 따로 확인해야 하는 값이다).
+ */
+export function duplicateItem(db: Db, isDemo: boolean, id: number): number | null {
+  const src = getItem(db, isDemo, id);
+  if (!src) return null;
+  return createItem(db, isDemo, {
+    category: src.category,
+    status: "OWNED",
+    name: src.name,
+    identifier: src.identifier,
+    condition: src.condition,
+    defects: src.defects,
+    components: src.components,
+    memo: src.memo,
+    author: src.author,
+    publisher: src.publisher,
+    edition: src.edition,
+    hasWriting: src.hasWriting,
+    hasUnderline: src.hasUnderline,
+    hasDamage: src.hasDamage,
+    hasSupplement: src.hasSupplement,
+  });
 }
 
 /** 현재 모드의 물건 전체(등록 순서). CSV 내보내기·중복 확인용. */
@@ -588,10 +615,12 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
     .where(and(inArray(priceRecords.itemId, ids), eq(priceRecords.isDemo, isDemo)))
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
+  const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).all();
   return its.map((item) => ({
     item,
     prices: prices.filter((p) => p.itemId === item.id),
     scenarios: scs.filter((s) => s.itemId === item.id),
+    offers: offerRows.filter((o) => o.itemId === item.id),
   }));
 }
 

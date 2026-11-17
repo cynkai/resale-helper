@@ -88,7 +88,7 @@ describe("자료 점검", () => {
     expect(needsAttention(valid)).toBe(false);
     const old = checkupItem({ prices: [price({ id: 1, checkedDate: "2026-01-01" }), price({ id: 2, checkedDate: "2026-02-01" })], scenarios: [] }, TODAY);
     expect(needsAttention(old)).toBe(true);
-    expect(countFindings([valid, old])).toEqual({ QUOTE_EXPIRED: 0, QUOTE_VALID: 1, OLD_DATA: 2, BASIS_ISSUE: 0 });
+    expect(countFindings([valid, old])).toEqual({ QUOTE_EXPIRED: 0, QUOTE_VALID: 1, OLD_DATA: 2, BASIS_ISSUE: 0, OPEN_OFFERS: 0 });
   });
 
   it("외화 견적은 통화를 함께 알려 준다(원화로 바꿔 보이지 않게)", () => {
@@ -98,5 +98,24 @@ describe("자료 점검", () => {
   it("금액을 평가하는 내용은 없다", () => {
     const f = checkupItem({ prices: [price({ checkedDate: "2026-01-01" })], scenarios: [] }, TODAY);
     expect(JSON.stringify(f)).not.toMatch(/cheap|expensive|싸|비싸|recommend/i);
+  });
+
+  it("답하지 않은 제안이 있으면 건수와 가장 오래된 날짜를 알려 준다(답한 제안은 세지 않는다)", () => {
+    const f = checkupItem(
+      {
+        prices: [],
+        scenarios: [],
+        offers: [
+          { status: "OPEN", receivedDate: "2026-11-05" },
+          { status: "DECLINED", receivedDate: "2026-11-01" },
+          { status: "OPEN", receivedDate: "2026-11-09" },
+        ],
+      },
+      "2026-11-11",
+    );
+    expect(f).toEqual([{ kind: "OPEN_OFFERS", count: 2, oldestReceivedDate: "2026-11-05", oldestDays: 6 }]);
+    expect(needsAttention(f)).toBe(true);
+    expect(countFindings([f]).OPEN_OFFERS).toBe(2);
+    expect(checkupItem({ prices: [], scenarios: [], offers: [{ status: "ACCEPTED", receivedDate: "2026-11-05" }] }, "2026-11-11")).toEqual([]);
   });
 });

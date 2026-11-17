@@ -32,9 +32,13 @@ export type CheckupFinding =
   /** 비교에 포함된 자료 중 확인한 지 오래된 것 */
   | { kind: "OLD_DATA"; count: number; oldestCheckedDate: string; oldestDays: number }
   /** 저장한 계산의 기준 자료에 문제가 있음 */
-  | { kind: "BASIS_ISSUE"; method: SaleMethod; channel: string; issues: BasisIssue[] };
+  | { kind: "BASIS_ISSUE"; method: SaleMethod; channel: string; issues: BasisIssue[] }
+  /** 답하지 않은 제안이 있음(며칠 지났는지만 알려 준다. "빨리 답하라"는 기준은 두지 않는다) */
+  | { kind: "OPEN_OFFERS"; count: number; oldestReceivedDate: string; oldestDays: number };
 
-export type CheckupInput = { prices: CheckupPrice[]; scenarios: CheckupScenario[] };
+export type CheckupOffer = { status: string; receivedDate: string };
+
+export type CheckupInput = { prices: CheckupPrice[]; scenarios: CheckupScenario[]; offers?: CheckupOffer[] };
 
 export function checkupItem(input: CheckupInput, today: string): CheckupFinding[] {
   const out: CheckupFinding[] = [];
@@ -57,6 +61,11 @@ export function checkupItem(input: CheckupInput, today: string): CheckupFinding[
     const issues = basisIssues(sc, basis, today);
     if (issues.length > 0) out.push({ kind: "BASIS_ISSUE", method: sc.method, channel: sc.channel ?? "", issues });
   }
+  const open = (input.offers ?? []).filter((o) => o.status === "OPEN");
+  if (open.length > 0) {
+    const oldest = open.reduce((a, b) => (a.receivedDate <= b.receivedDate ? a : b));
+    out.push({ kind: "OPEN_OFFERS", count: open.length, oldestReceivedDate: oldest.receivedDate, oldestDays: daysBetween(oldest.receivedDate, today) });
+  }
   return out;
 }
 
@@ -66,7 +75,7 @@ export function needsAttention(findings: CheckupFinding[]): boolean {
 }
 
 export function countFindings(all: CheckupFinding[][]): Record<CheckupFinding["kind"], number> {
-  const c = { QUOTE_EXPIRED: 0, QUOTE_VALID: 0, OLD_DATA: 0, BASIS_ISSUE: 0 };
-  for (const list of all) for (const f of list) c[f.kind] += f.kind === "OLD_DATA" ? f.count : 1;
+  const c = { QUOTE_EXPIRED: 0, QUOTE_VALID: 0, OLD_DATA: 0, BASIS_ISSUE: 0, OPEN_OFFERS: 0 };
+  for (const list of all) for (const f of list) c[f.kind] += f.kind === "OLD_DATA" || f.kind === "OPEN_OFFERS" ? f.count : 1;
   return c;
 }

@@ -125,7 +125,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       ) : (
         <ul className="space-y-2">
-          {rows.map(({ item, priceCount, step }) => {
+          {rows.map(({ item, priceCount, step, openOfferCount }) => {
             return (
             <li key={item.id}>
               <Link href={`/items/${item.id}`} className="card block hover:border-teal-700">
@@ -138,6 +138,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {item.isDemo ? <Badge tone="amber">가상 데이터</Badge> : null}
+                    {openOfferCount > 0 && item.status !== "SOLD" ? <Badge tone="amber">답하지 않은 제안 {openOfferCount}건</Badge> : null}
                     <Badge>{CATEGORY_LABEL[item.category]}</Badge>
                     <Badge tone={item.status === "SOLD" ? "teal" : item.status === "LISTED" ? "blue" : "neutral"}>
                       {ITEM_STATUS_LABEL[item.status]}

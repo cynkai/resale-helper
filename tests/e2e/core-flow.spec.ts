@@ -189,7 +189,8 @@ test("데모는 명시적으로 들어가야 하고, 가상 데이터 표시가 
   await expect(page.getByRole("status").filter({ hasText: "데모 모드" })).toContainText("가상 데이터");
   await expect(page.getByRole("link", { name: /선형대수학 입문/ })).toHaveCount(0);
   // 데모 자료에는 만료된 견적이 있어 목록에서 점검으로 가는 안내가 보인다
-  await expect(page.getByTestId("checkup-link")).toHaveText("다시 확인할 물건 1개");
+  // (만료된 견적이 있는 물건 1개 + 답하지 않은 제안이 있는 물건 1개)
+  await expect(page.getByTestId("checkup-link")).toHaveText("다시 확인할 물건 2개");
   const demoLink = page.getByRole("link", { name: /\(데모\) 가상 전공서/ });
   await expect(demoLink).toContainText("가상 데이터");
   await demoLink.click();
@@ -906,4 +907,37 @@ test("배분·판매 결과를 CSV로 내려받는다(물건별 값만, 합계 �
   expect(rText.split("\r\n")[0]).toContain("item_name,category,sold_date,channel");
   expect(rText).toContain("올린 가격 게임기");
   expect(rText).not.toContain("(데모)");
+});
+
+test("답하지 않은 제안은 목록·점검에 나타나고, 같은 물건을 하나 더 등록하면 물건 정보만 베낀다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("복제 테스트 게임기");
+  await page.locator("#identifier").fill("DUP-1");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop()!;
+
+  await page.locator("#offer-amount").fill("12000");
+  await page.getByRole("button", { name: "제안 기록" }).click();
+  await expect(page.getByTestId("offer-counts")).toContainText("답하지 않음 1건");
+
+  await page.goto("/?q=복제 테스트");
+  await expect(page.locator("main")).toContainText("답하지 않은 제안 1건");
+  await page.goto("/checkup");
+  await expect(page.getByTestId(`checkup-${id}`)).toContainText("답하지 않은 제안 1건");
+
+  await page.goto(`/items/${id}`);
+  await page.getByRole("button", { name: "같은 물건 하나 더 등록" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+\/edit\?copied=1$/);
+  await expect(page.getByTestId("copied-notice")).toContainText("물건 정보만 베껴");
+  await expect(page.locator("#name")).toHaveValue("복제 테스트 게임기");
+  await expect(page.locator("#identifier")).toHaveValue("DUP-1");
+  const copyId = page.url().match(/items\/(\d+)/)![1];
+  expect(copyId).not.toBe(id);
+  await page.goto(`/items/${copyId}`);
+  await expect(page.locator('[data-testid^="offer-"]').filter({ hasText: "12,000원" })).toHaveCount(0);
+  await page.goto("/?q=복제 테스트");
+  await expect(page.getByRole("link", { name: /복제 테스트 게임기/ })).toHaveCount(2);
 });
