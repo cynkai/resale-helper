@@ -109,6 +109,17 @@ export async function emptyTrashAction(): Promise<void> {
   revalidatePath("/trash");
 }
 
+/** 보유 중 ↔ 판매 중 빠른 변경. 판매 완료는 판매 결과 기록으로만 된다. */
+export async function setItemStatusAction(fd: FormData): Promise<void> {
+  const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
+  const status = s(fd, "status");
+  if (status !== "OWNED" && status !== "LISTED") return;
+  repo.setItemStatus(db, isDemo, item.id, status);
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/");
+  revalidatePath("/triage");
+}
+
 export async function duplicateItemAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
   const id = repo.duplicateItem(db, isDemo, item.id);

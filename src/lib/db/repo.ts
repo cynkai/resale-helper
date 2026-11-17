@@ -98,6 +98,23 @@ export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInpu
     .run();
 }
 
+/**
+ * 물건 상태를 보유 중·판매 중 사이에서 바꾼다(수정 화면을 거치지 않는 빠른 변경).
+ * 판매 완료는 판매 결과를 기록할 때만 되므로 여기서는 만들지 않고, 판매 결과가 있는 물건은 바꾸지 않는다.
+ */
+export function setItemStatus(db: Db, isDemo: boolean, id: number, status: "OWNED" | "LISTED"): boolean {
+  const hasResult = db.select({ id: saleResults.id }).from(saleResults).where(eq(saleResults.itemId, id)).get();
+  if (hasResult) return false;
+  return (
+    db
+      .update(items)
+      .set({ status, updatedAt: now })
+      .where(and(eq(items.id, id), live(isDemo)))
+      .returning({ id: items.id })
+      .all().length === 1
+  );
+}
+
 // ---- 휴지통 ----
 
 /** 물건을 휴지통으로 옮긴다. 딸린 자료는 그대로 두므로 되살리면 모두 돌아온다. */

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deleteItemAction, duplicateItemAction } from "@/app/actions";
+import { deleteItemAction, duplicateItemAction, setItemStatusAction } from "@/app/actions";
 import { ConfirmSubmit } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -44,6 +44,20 @@ export default async function ItemPage({
             {item.isDemo ? <Badge tone="amber">가상 데이터</Badge> : null}
             <Badge>{CATEGORY_LABEL[item.category]}</Badge>
             <Badge tone={item.status === "SOLD" ? "teal" : "neutral"}>{ITEM_STATUS_LABEL[item.status]}</Badge>
+            {/* 판매 완료는 판매 결과를 기록할 때만 된다. 결과 기록이 있으면 상태를 바꾸지 않는다. */}
+            {!v.result
+              ? (["OWNED", "LISTED"] as const)
+                  .filter((st) => st !== item.status)
+                  .map((st) => (
+                    <form key={st} action={setItemStatusAction}>
+                      <input type="hidden" name="itemId" value={item.id} />
+                      <input type="hidden" name="status" value={st} />
+                      <button type="submit" className="btn px-2 py-0.5 text-xs" data-testid={`set-status-${st}`}>
+                        {st === "LISTED" ? "판매 중으로 표시" : "보유 중으로 되돌리기"}
+                      </button>
+                    </form>
+                  ))
+              : null}
           </div>
         </div>
         <div className="flex gap-2">

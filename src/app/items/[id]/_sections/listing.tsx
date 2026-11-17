@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { deletePostedPriceAction } from "@/app/actions";
+import { deletePostedPriceAction, setItemStatusAction } from "@/app/actions";
 import { ConfirmSubmit, CopyButton, PostedPriceForm } from "@/components/client-bits";
 import { Section } from "@/components/ui";
 import { renderTemplate } from "@/lib/domain/listing-template";
@@ -66,6 +66,16 @@ export function ListingSection({ v }: { v: ItemView }) {
             판매글을 올리거나 가격을 바꿀 때마다 적어 두면 가격을 어떻게 바꿔 왔는지 볼 수 있습니다. 가격 자료와는 따로 두며, 얼마에 올릴지는 앱이
             정하지 않습니다.
           </p>
+          {posted.length > 0 && item.status === "OWNED" ? (
+            <form action={setItemStatusAction} className="mt-2 flex flex-wrap items-center gap-2 text-sm" data-testid="posted-status-hint">
+              <input type="hidden" name="itemId" value={item.id} />
+              <input type="hidden" name="status" value="LISTED" />
+              <span className="text-stone-700">올린 가격을 적어 두었는데 상태는 ‘보유 중’입니다.</span>
+              <button type="submit" className="btn px-2 py-0.5 text-xs">
+                판매 중으로 표시
+              </button>
+            </form>
+          ) : null}
           {posted.length > 0 ? (
             <>
               {postedSummary ? (
