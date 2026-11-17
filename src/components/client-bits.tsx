@@ -45,6 +45,15 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+/** 브라우저 인쇄 창을 연다(저장은 PDF로 인쇄를 고르면 된다). */
+export function PrintButton() {
+  return (
+    <button type="button" className="btn-primary no-print" onClick={() => window.print()}>
+      인쇄하기
+    </button>
+  );
+}
+
 /** 삭제처럼 되돌릴 수 없는 동작 전에 한 번 확인한다. */
 export function ConfirmSubmit({
   message,

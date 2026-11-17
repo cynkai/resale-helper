@@ -1298,3 +1298,32 @@ test("같은 모델을 전에 판 기록: 물건 화면에 보여 주되 가격 
   await expect(past).toContainText("2026-01-20 · 가 장터 · 23,000원 (실수령 20,000원)");
   await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
 });
+
+test("한 장 요약: 물건 정보·매입 견적·내 계산만 담고 메모와 산 가격은 넣지 않는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("요약 테스트 게임기");
+  await page.locator("#identifier").fill("SUM-1");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.locator("#purchaseAmount").fill("55555");
+  await page.locator("#memo").fill("비밀 메모 문구");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  await page.getByRole("link", { name: "가격 자료 추가" }).click();
+  await page.locator("#priceType").selectOption("BUYBACK_QUOTE");
+  await page.locator("#amount").fill("30000");
+  await page.locator("#sourceName").fill("가 매입점");
+  await page.locator("#memo").fill("매장 방문 견적");
+  await page.getByRole("button", { name: "가격 자료 저장", exact: true }).click();
+  await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+
+  await page.getByRole("link", { name: "한 장 요약" }).click();
+  const summary = page.getByTestId("item-summary");
+  await expect(summary).toContainText("요약 테스트 게임기");
+  await expect(summary).toContainText("SUM-1");
+  await expect(page.getByTestId("summary-quotes")).toContainText("가 매입점");
+  await expect(page.getByTestId("summary-quotes")).toContainText("30,000원");
+  await expect(summary).not.toContainText("비밀 메모 문구");
+  await expect(summary).not.toContainText("55,555");
+  await expect(page.getByRole("button", { name: "인쇄하기" })).toBeVisible();
+});
