@@ -86,6 +86,7 @@ function scenarioInitial(sc: CostScenario | undefined): Record<string, string> {
     packing: str(sc.packing),
     transport: str(sc.transport),
     expectedMinutes: str(sc.expectedMinutes),
+    memo: sc.memo ?? "",
   };
 }
 
@@ -145,6 +146,7 @@ function NetBox({ sc, net, issues, tid }: { sc: CostScenario; net: NetResult; is
       {sc.expectedMinutes !== null ? (
         <p className="mt-2 text-stone-700">내가 어림한 소요시간: {sc.expectedMinutes}분</p>
       ) : null}
+      {sc.memo ? <p className="mt-1 whitespace-pre-wrap text-stone-700">메모: {sc.memo}</p> : null}
     </div>
   );
 }

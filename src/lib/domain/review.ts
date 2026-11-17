@@ -73,3 +73,20 @@ export function countTimeOutcomes(rows: Pick<ReviewRow, "minutesDiff">[]): Recor
   for (const r of rows) c[timeOutcome(r)]++;
   return c;
 }
+
+export type ChannelOutcome = "SAME" | "DIFFERENT" | "UNKNOWN";
+
+/**
+ * 고를 때 적어 둔 판매처 이름과 실제로 판 곳이 같은지. 이름은 channelKey로 맞춘다(앞뒤 공백·대소문자 무시).
+ * 판매 방법을 고르지 않았거나 고른 계산에 이름이 없으면 비교하지 않는다(UNKNOWN).
+ */
+export function channelOutcome(plannedChannel: string | null | undefined, actualChannel: string): ChannelOutcome {
+  if (!plannedChannel || plannedChannel.trim() === "") return "UNKNOWN";
+  return channelKey(plannedChannel) === channelKey(actualChannel) ? "SAME" : "DIFFERENT";
+}
+
+export function countChannelOutcomes(outcomes: ChannelOutcome[]): Record<ChannelOutcome, number> {
+  const c = { SAME: 0, DIFFERENT: 0, UNKNOWN: 0 };
+  for (const o of outcomes) c[o] += 1;
+  return c;
+}
