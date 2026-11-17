@@ -7,7 +7,8 @@ import { seedDemo } from "@/lib/db/demo-seed";
 import {
   clearDemo,
   createItem,
-  deleteItem,
+  purgeItem,
+  trashItem,
   deleteOffer,
   deletePostedPrice,
   duplicateItem,
@@ -161,7 +162,8 @@ describe("받은 제안 저장", () => {
     expect(listPrices(db, id)).toHaveLength(0);
     const it0 = listItems(db, false)[0]!.item;
     expect(JSON.stringify(buildComparison(it0, listPrices(db, id), TODAY, null))).not.toContain("15000");
-    deleteItem(db, false, id);
+    trashItem(db, false, id);
+    purgeItem(db, false, id);
     expect(listOffers(db, id)).toHaveLength(0);
   });
 

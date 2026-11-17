@@ -240,12 +240,6 @@ export function listAllItems(db: Db, isDemo: boolean): Item[] {
   return db.select().from(items).where(live(isDemo)).orderBy(asc(items.id)).all();
 }
 
-export function deleteItem(db: Db, isDemo: boolean, id: number): void {
-  db.delete(items)
-    .where(and(eq(items.id, id), eq(items.isDemo, isDemo)))
-    .run();
-}
-
 // ---- 가격 자료 ----
 
 /** 휴지통에 없는 가격 자료. 비교·점검·내보내기 등 자료를 읽는 곳은 모두 이 조건을 쓴다. */
