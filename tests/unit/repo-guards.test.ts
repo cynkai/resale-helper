@@ -56,3 +56,39 @@ describe("repo.ts 가격 자료 쿼리 규칙", () => {
     expect(fns.size).toBeGreaterThan(15);
   });
 });
+
+// 물건(items)을 다루는 함수는 현재 모드·휴지통 조건(live(isDemo) 또는 휴지통 화면의 trashed(isDemo))을 써야 한다.
+const ITEM_ALLOWED: Record<string, string> = {
+  updateScenario: "이미 확인한 물건 번호로 그 물건의 선택한 계산 이름만 맞춘다",
+  countDemoItems: "데모 자료 전체(휴지통 포함) 수",
+  clearDemo: "데모 자료 전체(휴지통 포함)를 지운다",
+};
+
+function itemFunctions(src: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const part of src.split(/\n(?=export function |function |const [A-Za-z0-9_]+ = \()/)) {
+    const m = /^(?:export )?(?:function|const) ([A-Za-z0-9_]+)/.exec(part);
+    if (m && /\b(?:from|innerJoin|leftJoin|update|delete)\(items\b|"items"/.test(part)) out.set(m[1]!, part);
+  }
+  return out;
+}
+
+function missingLive(src: string): string[] {
+  return [...itemFunctions(src)].filter(([name, body]) => !(name in ITEM_ALLOWED) && !/\blive\(|\btrashed\(/.test(body)).map(([name]) => name);
+}
+
+describe("repo.ts 물건 쿼리 규칙", () => {
+  const src = fs.readFileSync(path.join(process.cwd(), "src/lib/db/repo.ts"), "utf8");
+
+  it("물건을 다루는 함수는 현재 모드·휴지통 조건을 쓴다(예외는 이유와 함께 목록에)", () => {
+    expect(missingLive(src)).toEqual([]);
+  });
+
+  it("조건을 빠뜨린 새 함수를 찾아내고, 예외 목록에 사라진 함수가 남지 않는다", () => {
+    const bad = `${src}\nexport function rawItems(db: Db) {\n  return db.select().from(items).all();\n}\n`;
+    expect(missingLive(bad)).toEqual(["rawItems"]);
+    const fns = itemFunctions(src);
+    expect(Object.keys(ITEM_ALLOWED).filter((n) => !fns.has(n))).toEqual([]);
+    expect(fns.has("listItems")).toBe(true);
+  });
+});
