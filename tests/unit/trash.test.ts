@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "@/lib/db/client";
 import {
@@ -189,5 +190,18 @@ describe("가격 자료 한꺼번에 다루기", () => {
     expect(listPrices(db, b.id)).toHaveLength(1);
     expect(setPricesIncluded(db, a.id, [], false)).toBe(0);
     expect(deletePrices(db, a.id, [])).toBe(0);
+  });
+});
+
+describe("물건 목록 정렬", () => {
+  it("이름순·등록순·최근에 고친 순", () => {
+    const b = createItem(db, false, { ...input("나 게임기"), identifier: "N-1" });
+    const a = createItem(db, false, { ...input("가 게임기"), identifier: "G-1" });
+    const c = createItem(db, false, { ...input("다 게임기"), identifier: "D-1" });
+    expect(listItems(db, false, { sort: "name" }).map((r) => r.item.id)).toEqual([a, b, c]);
+    expect(listItems(db, false, { sort: "registered" }).map((r) => r.item.id)).toEqual([c, a, b]);
+    db.run(sql`update items set updated_at = '2030-01-01 00:00:00' where id = ${b}`);
+    expect(listItems(db, false, { sort: "updated" }).map((r) => r.item.id)[0]).toBe(b);
+    expect(listItems(db, false).map((r) => r.item.id)[0]).toBe(b); // 기본은 최근에 고친 순
   });
 });

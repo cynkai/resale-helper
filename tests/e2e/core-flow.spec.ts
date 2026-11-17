@@ -1113,3 +1113,17 @@ test("백업 사본: 버튼으로 만들고, 내려받고, 지운다. 이상한 
   // 사본을 지운 뒤 내려받기 주소도 더는 열리지 않는다
   expect((await page.request.get(`/api/backup/snapshots/${name}`)).status()).toBe(404);
 });
+
+test("물건 목록 정렬: 이름순으로 바꾸면 주소에 남고, 할 일 필터를 눌러도 유지된다", async ({ page }) => {
+  await page.goto("/?q=테스트 게임기");
+  await page.locator("#sort").selectOption("name");
+  await page.getByRole("button", { name: "찾기" }).click();
+  await expect(page).toHaveURL(/sort=name/);
+  const names = await page.locator("main ul li p.font-semibold").allInnerTexts();
+  expect(names.length).toBeGreaterThan(2);
+  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "ko")));
+  const chip = page.getByTestId("step-filter").locator("a").nth(1);
+  await chip.click();
+  await expect(page).toHaveURL(/sort=name/);
+  await expect(page.locator("#sort")).toHaveValue("name");
+});
