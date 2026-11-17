@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb, getSqlite, resolveDbPath } from "@/lib/db/client";
 import { createSnapshot, deleteSnapshot } from "@/lib/db/snapshots";
+import { clearImportEvents } from "@/lib/import/events";
 import { seedDemo } from "@/lib/db/demo-seed";
 import * as repo from "@/lib/db/repo";
 import { isQuoteExpired } from "@/lib/domain/compare";
@@ -585,6 +586,12 @@ export async function generateImportTokenAction(_prev: ImportTokenState, _fd: Fo
   repo.setImportTokenHash(getDb(), hash);
   revalidatePath("/settings");
   return { token, message: "새 토큰을 만들었습니다. 지금만 볼 수 있으니 바로 복사해 두세요." };
+}
+
+/** 가져오기 API 사용 기록을 비운다. */
+export async function clearImportEventsAction(): Promise<void> {
+  clearImportEvents(getDb());
+  revalidatePath("/settings");
 }
 
 // ---- 백업 사본 ----

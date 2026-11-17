@@ -42,7 +42,7 @@ export type ImportAccessSettings = {
 
 export type ImportAccess =
   | { ok: true; route: Extract<InputRoute, "CLIP" | "EXTERNAL">; corsOrigin: string | null }
-  | { ok: false; status: 401 | 403; error: string; corsOrigin: string | null };
+  | { ok: false; status: 401 | 403; error: string; corsOrigin: string | null; reason: "ORIGIN" | "DISABLED" | "TOKEN" };
 
 /**
  * Origin 판정.
@@ -72,7 +72,7 @@ export function authorizeImport(
 ): ImportAccess {
   const o = classifyOrigin(headers.origin, settings.extensionId);
   if (!o.allowed) {
-    return { ok: false, status: 403, error: "허용되지 않은 Origin입니다. 설정에 등록한 확장 또는 로컬 도구만 사용할 수 있습니다.", corsOrigin: null };
+    return { ok: false, status: 403, error: "허용되지 않은 Origin입니다. 설정에 등록한 확장 또는 로컬 도구만 사용할 수 있습니다.", corsOrigin: null, reason: "ORIGIN" };
   }
   if (!settings.tokenHash) {
     return {
@@ -80,11 +80,12 @@ export function authorizeImport(
       status: 403,
       error: "가져오기 API가 꺼져 있습니다. 앱의 설정 화면에서 가져오기 토큰을 먼저 만들어 주세요.",
       corsOrigin: o.corsOrigin,
+      reason: "DISABLED",
     };
   }
   const m = /^Bearer ([A-Za-z0-9_-]{1,200})$/.exec(headers.authorization ?? "");
   if (!m || !verifyImportToken(m[1]!, settings.tokenHash)) {
-    return { ok: false, status: 401, error: "가져오기 토큰이 없거나 올바르지 않습니다.", corsOrigin: o.corsOrigin };
+    return { ok: false, status: 401, error: "가져오기 토큰이 없거나 올바르지 않습니다.", corsOrigin: o.corsOrigin, reason: "TOKEN" };
   }
   return { ok: true, route: o.route, corsOrigin: o.corsOrigin };
 }

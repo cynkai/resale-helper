@@ -3,6 +3,7 @@
 import { getDb } from "../db/client";
 import { getImportSettings } from "../db/repo";
 import { authorizeImport, classifyOrigin, corsHeaders, type ImportAccess } from "./access";
+import { recordImportEvent, type ImportEventInput } from "./events";
 import { MAX_IMPORT_BODY_BYTES } from "./records";
 
 export function json(body: unknown, status: number, corsOrigin: string | null): Response {
@@ -12,14 +13,31 @@ export function json(body: unknown, status: number, corsOrigin: string | null): 
   });
 }
 
-/** 요청 헤더로 접근을 판정한다. 실패면 바로 돌려줄 응답을 함께 준다. */
-export function checkAccess(req: Request): { access: Extract<ImportAccess, { ok: true }> } | { response: Response } {
+/** 사용 기록을 남긴다. 기록이 실패해도 요청 처리는 계속한다. */
+export function logImport(e: ImportEventInput): void {
+  try {
+    recordImportEvent(getDb(), e);
+  } catch {
+    // 기록은 부가 기능이다. 실패해도 API 동작을 바꾸지 않는다.
+  }
+}
+
+const DENY_OUTCOME = { ORIGIN: "DENIED_ORIGIN", DISABLED: "DISABLED", TOKEN: "BAD_TOKEN" } as const;
+
+/** 요청 헤더로 접근을 판정한다. 실패면 바로 돌려줄 응답을 함께 준다(거부한 요청은 사용 기록에 남긴다). */
+export function checkAccess(
+  req: Request,
+  endpoint: "prices" | "items",
+): { access: Extract<ImportAccess, { ok: true }> } | { response: Response } {
   const s = getImportSettings(getDb());
   const access = authorizeImport(
     { authorization: req.headers.get("authorization"), origin: req.headers.get("origin") },
     { tokenHash: s.tokenHash, extensionId: s.extensionId },
   );
-  if (!access.ok) return { response: json({ error: access.error }, access.status, access.corsOrigin) };
+  if (!access.ok) {
+    logImport({ endpoint, outcome: DENY_OUTCOME[access.reason], status: access.status, origin: req.headers.get("origin") });
+    return { response: json({ error: access.error }, access.status, access.corsOrigin) };
+  }
   return { access };
 }
 

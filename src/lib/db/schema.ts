@@ -12,6 +12,7 @@ import type {
   TriState,
 } from "../domain/types";
 import type { OfferStatus } from "../domain/offer";
+import type { ImportOutcome } from "../import/events";
 
 const timestamps = {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
@@ -265,6 +266,24 @@ export const userSettings = sqliteTable("user_settings", {
   ...timestamps,
 });
 
+/**
+ * 가져오기 API 사용 기록. 누가 언제 이 문을 두드렸는지 사용자가 볼 수 있게 남긴다.
+ * 토큰이나 Authorization 헤더, 요청 본문은 저장하지 않는다. 같은 요청이 연달아 오면 한 줄에 횟수만 올린다.
+ */
+export const importEvents = sqliteTable("import_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  at: text("at").notNull().default(sql`(datetime('now'))`), // 마지막으로 온 시각(UTC)
+  endpoint: text("endpoint").$type<"prices" | "items">().notNull(),
+  outcome: text("outcome").$type<ImportOutcome>().notNull(),
+  status: integer("status").notNull(), // HTTP 상태 코드
+  route: text("route").$type<"CLIP" | "EXTERNAL">(), // 통과한 요청만
+  origin: text("origin"), // 브라우저가 보낸 Origin(없으면 null = 로컬 도구)
+  itemId: integer("item_id"),
+  imported: integer("imported"),
+  rejected: integer("rejected"),
+  count: integer("count").notNull().default(1), // 같은 요청이 연달아 온 횟수
+});
+
 /** 외부 서지정보 조회 캐시 */
 export const lookupCache = sqliteTable(
   "lookup_cache",
@@ -287,4 +306,5 @@ export type Offer = typeof offers.$inferSelect;
 export type PostedPrice = typeof postedPrices.$inferSelect;
 export type ListingTemplate = typeof listingTemplates.$inferSelect;
 export type CostPreset = typeof costPresets.$inferSelect;
+export type ImportEvent = typeof importEvents.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
