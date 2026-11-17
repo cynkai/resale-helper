@@ -150,6 +150,11 @@ export async function savePriceAction(_prev: FormState, fd: FormData): Promise<F
     };
   }
   revalidatePath(`/items/${item.id}`);
+  // "저장하고 하나 더": 같은 출처의 매물을 연달아 넣을 때 유형·출처·통화만 이어 준다(금액과 매물 번호는 이어 주지 않는다).
+  if (priceId === null && s(fd, "again") === "1") {
+    const q = new URLSearchParams({ saved: "1", type: result.value.priceType, source: result.value.sourceName, currency: result.value.currency });
+    redirect(`/items/${item.id}/prices/new?${q.toString()}`);
+  }
   redirect(`/items/${item.id}#prices`);
 }
 

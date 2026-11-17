@@ -220,6 +220,11 @@ export function PriceForm({
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : "가격 자료 저장"}
         </button>
+        {priceId === undefined ? (
+          <button type="submit" name="again" value="1" className="btn" disabled={pending}>
+            저장하고 하나 더 추가
+          </button>
+        ) : null}
         <Link href={`/items/${itemId}#prices`} className="btn">
           취소
         </Link>

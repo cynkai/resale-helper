@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "@/lib/db/client";
 import {
+  adjacentItems,
   countTrashedItems,
   createItem,
   deletePrices,
@@ -220,5 +221,20 @@ describe("물건 상태 빠른 변경", () => {
     const trashedId = createItem(db, false, { ...input("버린 게임기"), identifier: "T-1" });
     trashItem(db, false, trashedId);
     expect(setItemStatus(db, false, trashedId, "LISTED")).toBe(false); // 휴지통의 물건
+  });
+});
+
+describe("이전·다음 물건", () => {
+  it("등록 순서로 이웃을 찾고, 휴지통과 다른 모드의 물건은 건너뛴다", () => {
+    const a = createItem(db, false, { ...input("가"), identifier: "1" });
+    const demo = createItem(db, true, { ...input("데모"), identifier: "d" });
+    const b = createItem(db, false, { ...input("나"), identifier: "2" });
+    const c = createItem(db, false, { ...input("다"), identifier: "3" });
+    expect(adjacentItems(db, false, b)).toEqual({ prev: { id: a, name: "가" }, next: { id: c, name: "다" } });
+    expect(adjacentItems(db, false, a)).toEqual({ prev: null, next: { id: b, name: "나" } });
+    expect(adjacentItems(db, true, demo)).toEqual({ prev: null, next: null });
+    trashItem(db, false, b);
+    expect(adjacentItems(db, false, a).next).toEqual({ id: c, name: "다" });
+    expect(adjacentItems(db, false, c).prev).toEqual({ id: a, name: "가" });
   });
 });
