@@ -28,6 +28,7 @@ import {
   countSoldVsFirstPosted,
   postedDeltas,
   soldVsFirstPosted,
+  daysFromFirstPost,
   summarizePosted,
   validatePostedPriceInput,
 } from "@/lib/domain/posted-price";
@@ -196,8 +197,13 @@ describe("내 판매글에 올린 가격", () => {
       { id: 2, postedDate: "2026-11-05", amount: 24000 },
       { id: 4, postedDate: "2026-11-12", amount: 23000 },
     ];
-    expect(summarizePosted(rows)).toEqual({ first: 24000, latest: 23000, lowered: 1, raised: 1 });
+    expect(summarizePosted(rows)).toEqual({ first: 24000, firstDate: "2026-11-01", latest: 23000, lowered: 1, raised: 1 });
     expect(summarizePosted([])).toBeNull();
+    // 처음 올린 날부터 판 날까지(내가 적은 날짜끼리의 차이). 판 날이 더 앞이면 기록이 어긋난 것이라 비워 둔다.
+    expect(daysFromFirstPost("2026-11-01", "2026-11-12")).toBe(11);
+    expect(daysFromFirstPost("2026-11-01", "2026-11-01")).toBe(0);
+    expect(daysFromFirstPost("2026-11-01", "2026-10-31")).toBeNull();
+    expect(daysFromFirstPost("2026-02-28", "2026-03-01")).toBe(1);
     const d = postedDeltas(rows);
     expect([d.get(1), d.get(2), d.get(3), d.get(4)]).toEqual([null, 0, -2000, 1000]);
   });

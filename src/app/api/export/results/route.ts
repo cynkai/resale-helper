@@ -30,6 +30,7 @@ export async function GET(req: Request) {
     costTotal: r.result.costTotal,
     minutesSpent: r.result.minutesSpent,
     firstPostedPrice: summarizePosted(posted.get(r.item.id) ?? [])?.first ?? null,
+    firstPostedDate: summarizePosted(posted.get(r.item.id) ?? [])?.firstDate ?? null,
     purchaseAmount: r.item.purchaseAmount,
     isDemo: r.item.isDemo,
   }));

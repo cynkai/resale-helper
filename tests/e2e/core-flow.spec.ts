@@ -902,7 +902,9 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   // 날짜순(최신이 위): 테스트에서 적은 올린 가격은 과거 날짜라 맨 아래에 온다
   await expect(timeline.locator("li").last()).toContainText("2026-01-05");
   await page.goto("/results");
-  await expect(page.getByTestId(`posted-first-${id}`)).toHaveText("처음 올린 가격 24,000원 · 1번 내림");
+  await expect(page.getByTestId(`posted-first-${id}`)).toContainText("처음 올린 가격 24,000원 · 1번 내림");
+  // 판 날(오늘)과 처음 올린 날의 차이. 날짜는 테스트를 돌리는 날에 따라 달라지므로 형식만 본다.
+  await expect(page.getByTestId(`days-to-sell-${id}`)).toHaveText(/^처음 올린 날\(2026-01-05\)부터 \d+일 만에 판매$/);
   await expect(page.getByTestId("posted-counts")).toContainText("낮게 판 것 1건");
 });
 
