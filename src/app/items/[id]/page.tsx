@@ -33,8 +33,12 @@ import {
   daysBetween,
   EXCLUSION_LABEL,
   isQuoteExpired,
+  PRICE_SORT_LABEL,
+  PRICE_SORTS,
+  sortForDisplay,
   WARNING_LABEL,
   type Classified,
+  type PriceSort,
 } from "@/lib/domain/compare";
 import { CSV_COLUMNS } from "@/lib/domain/csv";
 import { buildListingDraft, charCount } from "@/lib/domain/listing";
@@ -196,6 +200,20 @@ export default async function ItemPage({
   const today = todayYmd();
   const windowParam = WINDOWS.some((w) => w.value === sp.days) ? sp.days! : "180";
   const windowDays = windowParam === "all" ? null : Number(windowParam);
+  // 가격 자료 목록의 보기 순서와 제외 자료 숨김. 보기만 바꾸며 요약·비교에는 영향이 없다.
+  const priceSort: PriceSort = PRICE_SORTS.includes(sp.sort as PriceSort) ? (sp.sort as PriceSort) : "default";
+  const hideExcluded = sp.hide === "excluded";
+  const pricesHref = (over: { days?: string; sort?: PriceSort; hide?: boolean }) => {
+    const days = over.days ?? windowParam;
+    const sort = over.sort ?? priceSort;
+    const hide = over.hide ?? hideExcluded;
+    const q = new URLSearchParams();
+    if (days !== "180") q.set("days", days);
+    if (sort !== "default") q.set("sort", sort);
+    if (hide) q.set("hide", "excluded");
+    const qs = q.toString();
+    return `/items/${item.id}${qs ? `?${qs}` : ""}#prices`;
+  };
   const prices = listPrices(db, item.id);
   const history = listPriceHistory(db, item.id);
   const comparison = buildComparison(item, prices, today, windowDays);
@@ -524,7 +542,7 @@ export default async function ItemPage({
               {WINDOWS.map((w) => (
                 <Link
                   key={w.value}
-                  href={`/items/${item.id}?days=${w.value}#prices`}
+                  href={pricesHref({ days: w.value })}
                   aria-current={w.value === windowParam ? "true" : undefined}
                   className={`rounded-full border px-2.5 py-0.5 ${
                     w.value === windowParam ? "border-teal-800 bg-teal-800 text-white" : "border-stone-300 bg-white hover:bg-stone-100"
@@ -533,6 +551,26 @@ export default async function ItemPage({
                   {w.label}
                 </Link>
               ))}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" data-testid="price-sort">
+              <span className="text-stone-700">보기 순서:</span>
+              {PRICE_SORTS.map((so) => (
+                <Link
+                  key={so}
+                  href={pricesHref({ sort: so })}
+                  aria-current={so === priceSort ? "true" : undefined}
+                  className={`rounded-full border px-2.5 py-0.5 ${
+                    so === priceSort ? "border-teal-800 bg-teal-50 font-medium" : "border-stone-300 bg-white hover:bg-stone-100"
+                  }`}
+                >
+                  {PRICE_SORT_LABEL[so]}
+                </Link>
+              ))}
+              {comparison.excludedCount > 0 ? (
+                <Link href={pricesHref({ hide: !hideExcluded })} className="underline" data-testid="toggle-excluded">
+                  {hideExcluded ? `제외된 자료 ${comparison.excludedCount}건 보이기` : "제외된 자료 숨기기"}
+                </Link>
+              ) : null}
             </div>
             <p className="mt-2 text-sm text-stone-700">
               전체 {prices.length}건 중 비교에 포함 {comparison.eligibleCount}건, 제외 {comparison.excludedCount}건. 유형이 다른 가격은 서로 합치지 않습니다.
@@ -574,7 +612,9 @@ export default async function ItemPage({
                           <th scope="col" className="px-2 py-1 font-medium">관리</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-stone-200">{[...g.eligible, ...g.excluded].map(priceRow)}</tbody>
+                      <tbody className="divide-y divide-stone-200">
+                        {[...sortForDisplay(g.eligible, priceSort), ...(hideExcluded ? [] : sortForDisplay(g.excluded, priceSort))].map(priceRow)}
+                      </tbody>
                     </table>
                   </div>
                 </div>
