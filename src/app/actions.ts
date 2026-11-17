@@ -3,7 +3,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getDb } from "@/lib/db/client";
+import { getDb, getSqlite, resolveDbPath } from "@/lib/db/client";
+import { createSnapshot, deleteSnapshot } from "@/lib/db/snapshots";
 import { seedDemo } from "@/lib/db/demo-seed";
 import * as repo from "@/lib/db/repo";
 import { isQuoteExpired } from "@/lib/domain/compare";
@@ -543,6 +544,23 @@ export async function generateImportTokenAction(_prev: ImportTokenState, _fd: Fo
   repo.setImportTokenHash(getDb(), hash);
   revalidatePath("/settings");
   return { token, message: "새 토큰을 만들었습니다. 지금만 볼 수 있으니 바로 복사해 두세요." };
+}
+
+// ---- 백업 사본 ----
+
+/** 지금 DB의 사본을 backups 폴더에 만든다. 사용자가 누를 때만 실행한다. */
+export async function createSnapshotAction(_prev: FormState, _fd: FormData): Promise<FormState> {
+  void _prev;
+  void _fd;
+  const r = createSnapshot(getSqlite(), resolveDbPath());
+  revalidatePath("/settings");
+  if (!r.ok) return { message: r.error };
+  return { ok: true, message: `사본을 만들었습니다: ${r.snapshot.name} (실제 물건 ${r.items}개, 실제 가격 자료 ${r.prices}건)` };
+}
+
+export async function deleteSnapshotAction(fd: FormData): Promise<void> {
+  deleteSnapshot(resolveDbPath(), s(fd, "name"));
+  revalidatePath("/settings");
 }
 
 export async function revokeImportTokenAction(): Promise<void> {

@@ -6,6 +6,7 @@ import {
   importCsvAction,
   importItemsCsvAction,
   saveExtensionIdAction,
+  createSnapshotAction,
   saveOfferAction,
   savePostedPriceAction,
   saveTemplateAction,
@@ -179,6 +180,21 @@ export function SaleResultForm({ itemId, initial }: { itemId: number; initial: R
           {state.message}
         </span>
       </div>
+    </form>
+  );
+}
+
+/** 백업 사본 만들기 버튼과 결과 안내. */
+export function SnapshotButton() {
+  const [state, action, pending] = useActionState<FormState, FormData>(createSnapshotAction, {});
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-3">
+      <button type="submit" className="btn-primary" disabled={pending}>
+        {pending ? "만드는 중…" : "지금 백업 사본 만들기"}
+      </button>
+      <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"} data-testid="snapshot-status">
+        {state.message}
+      </span>
     </form>
   );
 }
