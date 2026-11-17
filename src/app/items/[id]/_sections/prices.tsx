@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { bulkPriceAction, deletePriceAction, recheckPriceAction, togglePriceAction } from "@/app/actions";
-import { ConfirmSubmit, CsvImportForm } from "@/components/client-bits";
+import { ConfirmSubmit, CsvImportForm, SelectAllToggle } from "@/components/client-bits";
 import { convertToKrw, fxRateToPlain } from "@/lib/domain/fx";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import type { PriceRecord } from "@/lib/db/schema";
@@ -256,6 +256,7 @@ export function PricesSection({ v }: { v: ItemView }) {
           <form id="bulk-prices" action={bulkPriceAction} className="mt-3 flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-prices">
             <input type="hidden" name="itemId" value={item.id} />
             <span className="text-stone-700">‘선택’으로 고른 자료를 한꺼번에:</span>
+            <SelectAllToggle formId="bulk-prices" name="priceIds" />
             <button type="submit" name="op" value="EXCLUDE" className="btn px-2 py-1 text-xs">
               비교에서 빼기
             </button>
