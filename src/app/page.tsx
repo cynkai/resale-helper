@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
+import { bulkItemsAction } from "@/app/actions";
+import { ConfirmSubmit } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listCheckupSources, listItems, countTrashedItems, countTrashedPrices, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
@@ -44,6 +46,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const attention = listCheckupSources(db, demo).filter((s) => needsAttention(checkupItem(s, today))).length;
   const trashCount = countTrashedItems(db, demo);
   const trashPriceCount = countTrashedPrices(db, demo);
+  // 한꺼번에 바꾼 뒤 같은 목록으로 돌아오기 위한 지금의 검색 조건.
+  const listQuery = (() => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (category) p.set("category", category);
+    if (status) p.set("status", status);
+    if (sort !== "updated") p.set("sort", sort);
+    if (step) p.set("step", step);
+    return p.toString();
+  })();
+  const BULK_DONE_LABEL: Record<string, string> = { LISTED: "판매 중으로 표시했습니다", OWNED: "보유 중으로 되돌렸습니다", TRASH: "휴지통으로 옮겼습니다" };
+  const bulkDone = sp.bulk && BULK_DONE_LABEL[sp.bulk] && /^\d+$/.test(sp.done ?? "") ? { op: sp.bulk, done: Number(sp.done), skipped: Number(sp.skipped ?? 0) } : null;
   const stepHref = (code?: NextStepCode) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -57,6 +71,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <div className="space-y-4">
+      {bulkDone ? (
+        <p className="notice" role="status" data-testid="bulk-items-notice">
+          물건 {bulkDone.done}개를 {BULK_DONE_LABEL[bulkDone.op]}.
+          {bulkDone.skipped > 0 ? ` ${bulkDone.skipped}개는 판매 완료(판매 결과 있음)이거나 이미 없는 물건이라 건너뛰었습니다.` : ""}
+          {bulkDone.op === "TRASH" && bulkDone.done > 0 ? (
+            <>
+              {" "}
+              <Link href="/trash" className="underline">
+                휴지통에서 되살리기
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       {sp.trashed === "1" ? (
         <p className="notice" role="status" data-testid="trashed-notice">
           물건을 휴지통으로 옮겼습니다.{" "}
@@ -154,11 +182,34 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           )}
         </div>
       ) : (
+        <>
+        <form id="bulk-items" action={bulkItemsAction} className="flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-items">
+          <input type="hidden" name="back" value={listQuery} />
+          <span className="text-stone-700">‘선택’으로 고른 물건을 한꺼번에:</span>
+          <button type="submit" name="op" value="LISTED" className="btn px-2 py-1 text-xs">
+            판매 중으로 표시
+          </button>
+          <button type="submit" name="op" value="OWNED" className="btn px-2 py-1 text-xs">
+            보유 중으로 되돌리기
+          </button>
+          <ConfirmSubmit
+            name="op"
+            value="TRASH"
+            message="고른 물건을 휴지통으로 옮깁니다. 딸린 자료는 그대로 두며 휴지통에서 되살릴 수 있습니다. 계속할까요?"
+            className="btn-danger px-2 py-1 text-xs"
+          >
+            휴지통으로
+          </ConfirmSubmit>
+        </form>
         <ul className="space-y-2">
           {rows.map(({ item, priceCount, step, openOfferCount }) => {
             return (
-            <li key={item.id}>
-              <Link href={`/items/${item.id}`} className="card block hover:border-teal-700">
+            <li key={item.id} className="relative">
+              <label className="absolute right-3 bottom-3 z-10 flex items-center gap-1 rounded bg-white px-1 text-xs text-stone-600">
+                <input type="checkbox" name="itemIds" value={item.id} form="bulk-items" aria-label={`${item.name} 선택`} />
+                선택
+              </label>
+              <Link href={`/items/${item.id}`} className="card block pb-9 hover:border-teal-700 sm:pb-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{item.name}</p>
@@ -188,6 +239,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             );
           })}
         </ul>
+        </>
       )}
     </div>
   );

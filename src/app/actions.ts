@@ -126,6 +126,29 @@ export async function purgePriceAction(fd: FormData): Promise<void> {
   revalidatePath("/trash");
 }
 
+const BULK_ITEM_OPS = ["LISTED", "OWNED", "TRASH"] as const;
+const MAX_BULK_ITEMS = 1000;
+
+/** 목록에서 고른 물건을 한꺼번에 판매 중·보유 중으로 바꾸거나 휴지통으로 옮긴다. 결과는 목록 위에 알린다. */
+export async function bulkItemsAction(fd: FormData): Promise<void> {
+  const op = s(fd, "op") as (typeof BULK_ITEM_OPS)[number];
+  // 돌아갈 목록 주소: 같은 화면의 검색 조건만(다른 주소로 보내지 않는다).
+  const back = new URLSearchParams(s(fd, "back").replace(/^\?/, ""));
+  for (const k of ["bulk", "done", "skipped"]) back.delete(k);
+  if (!BULK_ITEM_OPS.includes(op)) redirect(`/?${back.toString()}`);
+  const ids = [...new Set(fd.getAll("itemIds").map((v) => (typeof v === "string" ? intId(v) : null)))].filter((v): v is number => v !== null);
+  if (ids.length > 0 && ids.length <= MAX_BULK_ITEMS) {
+    const r = repo.bulkItems(getDb(), await isDemoMode(), ids, op);
+    back.set("bulk", op);
+    back.set("done", String(r.done));
+    back.set("skipped", String(r.skipped));
+    revalidatePath("/");
+    revalidatePath("/triage");
+    revalidatePath("/trash");
+  }
+  redirect(`/?${back.toString()}`);
+}
+
 /** 보유 중 ↔ 판매 중 빠른 변경. 판매 완료는 판매 결과 기록으로만 된다. */
 export async function setItemStatusAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));

@@ -129,6 +129,23 @@ export function setItemStatus(db: Db, isDemo: boolean, id: number, status: "OWNE
   );
 }
 
+/**
+ * 여러 물건을 한꺼번에 판매 중·보유 중으로 바꾸거나 휴지통으로 옮긴다(현재 모드의 살아 있는 물건만).
+ * 상태 변경은 판매 결과가 있는 물건(판매 완료)을 건너뛴다. 바뀐 수와 건너뛴 수를 돌려준다.
+ */
+export function bulkItems(db: Db, isDemo: boolean, ids: number[], op: "LISTED" | "OWNED" | "TRASH"): { done: number; skipped: number } {
+  return db.transaction(() => {
+    let done = 0;
+    for (const id of ids) {
+      if (op === "TRASH") {
+        const r = db.update(items).set({ deletedAt: now, updatedAt: now }).where(and(eq(items.id, id), live(isDemo))).returning({ id: items.id }).all();
+        done += r.length;
+      } else if (setItemStatus(db, isDemo, id, op)) done += 1;
+    }
+    return { done, skipped: ids.length - done };
+  });
+}
+
 /** 등록 순서로 바로 앞·뒤 물건(같은 모드, 휴지통 제외). 여러 물건을 차례로 손볼 때 쓴다. */
 export function adjacentItems(db: Db, isDemo: boolean, id: number): { prev: { id: number; name: string } | null; next: { id: number; name: string } | null } {
   const pick = { id: items.id, name: items.name };
