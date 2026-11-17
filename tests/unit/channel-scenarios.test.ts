@@ -25,8 +25,11 @@ import {
   costItemDiffs,
   countChannelOutcomes,
   countCostItemOutcomes,
+  isMonthKey,
+  monthsWithRecords,
   plannedCostItems,
   resolveActualCostTotal,
+  soldMonth,
 } from "@/lib/domain/review";
 import { listFullExportSources } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
@@ -366,5 +369,17 @@ describe("실제 비용 항목별", () => {
     expect(out.items[0]!.saleResult!.costItems).toEqual({ fee: 0, shipping: 3500, packing: 0, transport: 0 });
     upsertSaleResult(db, false, id, { channel: "가", soldDate: TODAY, amount: 10000, costTotal: null, minutesSpent: null, memo: null });
     expect(listSaleReviews(db, false)[0]!.result).toMatchObject({ feeActual: null, shippingActual: null, costTotal: null });
+  });
+});
+
+describe("판매한 달", () => {
+  it("판매일에서 달을 뽑고, 기록이 있는 달만 최근 달부터 돌려준다", () => {
+    expect(soldMonth("2026-11-17")).toBe("2026-11");
+    expect(monthsWithRecords(["2026-10-03", "2026-11-17", "2026-10-30", "2025-12-31"])).toEqual(["2026-11", "2026-10", "2025-12"]);
+    expect(monthsWithRecords([])).toEqual([]);
+  });
+  it("주소로 받은 달은 형식을 확인한다", () => {
+    for (const ok of ["2026-01", "2026-12"]) expect(isMonthKey(ok)).toBe(true);
+    for (const bad of [undefined, "", "2026-13", "2026-1", "2026-00", "2026-11-01", "../x"]) expect(isMonthKey(bad)).toBe(false);
   });
 });

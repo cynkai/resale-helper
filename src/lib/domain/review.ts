@@ -156,3 +156,19 @@ export function countCostItemOutcomes(rows: Record<CostKey, CostItemDiff>[]): Re
   }
   return out;
 }
+
+// ---- 기간 ----
+
+/** 판매일(YYYY-MM-DD)의 달(YYYY-MM). */
+export function soldMonth(soldDate: string): string {
+  return soldDate.slice(0, 7);
+}
+
+export function isMonthKey(s: string | undefined): s is string {
+  return s !== undefined && /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
+}
+
+/** 기록이 있는 달(최근 달부터). 기록이 없는 달은 만들지 않는다. */
+export function monthsWithRecords(soldDates: string[]): string[] {
+  return [...new Set(soldDates.map(soldMonth))].sort().reverse();
+}

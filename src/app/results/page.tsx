@@ -14,6 +14,7 @@ import {
   countCostItemOutcomes,
   plannedCostItems,
 } from "@/lib/domain/review";
+import { isMonthKey, monthsWithRecords, soldMonth } from "@/lib/domain/review";
 import { channelKey, channelOutcome, countChannelOutcomes, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
@@ -61,9 +62,14 @@ function GroupTable({ title, head, groups, label }: { title: string; head: strin
   );
 }
 
-export default async function ResultsPage() {
+export default async function ResultsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const demo = await isDemoMode();
-  const rows = listSaleReviews(getDb(), demo).map((r) => ({
+  const sp = await searchParams;
+  const allRows = listSaleReviews(getDb(), demo);
+  // 기간: 기록이 있는 달 중 하나를 고르면 그 달에 판 기록만 본다(건수만 세는 원칙은 같다).
+  const months = monthsWithRecords(allRows.map((r) => r.result.soldDate));
+  const month = isMonthKey(sp.month) && months.includes(sp.month) ? sp.month : null;
+  const rows = allRows.filter((r) => month === null || soldMonth(r.result.soldDate) === month).map((r) => ({
     ...r,
     review: reviewRow({
       chosenSaleAmount: r.item.chosenSaleAmount,
@@ -108,6 +114,7 @@ export default async function ResultsPage() {
   const review = (r: Row) => r.review;
   const byCategory = groupOutcomes(rows, (r) => r.item.category, review);
   const byMethod = groupOutcomes(rows, (r) => r.item.chosenMethod ?? "NONE", review);
+  const byMonth = groupOutcomes(rows, (r) => soldMonth(r.result.soldDate), review).sort((a, b) => b.key.localeCompare(a.key));
   const byChannel = groupOutcomes(rows, (r) => channelKey(r.result.channel), review);
   // 판매처 표시 이름은 그 묶음에서 처음 나온 표기
   const channelName = new Map<string, string>();
@@ -131,8 +138,29 @@ export default async function ResultsPage() {
         </div>
       ) : (
         <>
+          {months.length > 1 ? (
+            <nav aria-label="판매한 달로 보기" className="flex flex-wrap gap-2 text-sm" data-testid="month-filter">
+              <Link
+                href="/results"
+                aria-current={month === null ? "true" : undefined}
+                className={`rounded-full border px-3 py-1 ${month === null ? "border-teal-800 bg-teal-50 font-medium" : "border-stone-300 bg-white hover:bg-stone-100"}`}
+              >
+                전체 {allRows.length}
+              </Link>
+              {months.map((mo) => (
+                <Link
+                  key={mo}
+                  href={`/results?month=${mo}`}
+                  aria-current={month === mo ? "true" : undefined}
+                  className={`rounded-full border px-3 py-1 ${month === mo ? "border-teal-800 bg-teal-50 font-medium" : "border-stone-300 bg-white hover:bg-stone-100"}`}
+                >
+                  {mo} {allRows.filter((r) => soldMonth(r.result.soldDate) === mo).length}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
           <p className="text-sm">
-            <a href="/api/export/results" className="underline" download>
+            <a href={month ? `/api/export/results?month=${month}` : "/api/export/results"} className="underline" download>
               이 기록을 CSV로 받기
             </a>{" "}
             <span className="text-stone-600">— 물건별 값만 담고 합계는 없습니다.</span>
@@ -217,6 +245,9 @@ export default async function ResultsPage() {
                 groups={byMethod}
                 label={(k) => (k === "NONE" ? "방법 선택 안 함" : SALE_METHOD_LABEL[k as keyof typeof SALE_METHOD_LABEL])}
               />
+              {month === null && months.length > 1 ? (
+                <GroupTable title="판매한 달별" head="달" groups={byMonth} label={(k) => k} />
+              ) : null}
               <GroupTable title="판매처별" head="판매처(내가 적은 이름)" groups={byChannel} label={(k) => channelName.get(k) ?? k} />
             </div>
           </section>
