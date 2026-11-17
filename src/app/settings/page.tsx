@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import fs from "node:fs";
 import path from "node:path";
 import { clearImportEventsAction, deleteSnapshotAction, revokeImportTokenAction } from "@/app/actions";
 import { ConfirmSubmit, DbHealthButton, ExtensionIdForm, ImportTokenForm, SnapshotButton } from "@/components/client-bits";
 import { Badge, Section } from "@/components/ui";
-import { getDb, resolveDbPath } from "@/lib/db/client";
+import { getDb, getSqlite, resolveDbPath } from "@/lib/db/client";
+import { dataStats } from "@/lib/db/health";
 import { listSnapshots, snapshotDir } from "@/lib/db/snapshots";
 import { getImportSettings } from "@/lib/db/repo";
 import { countSuspiciousImportEvents, IMPORT_OUTCOME_LABEL, listImportEvents, MAX_IMPORT_EVENTS } from "@/lib/import/events";
@@ -22,6 +24,14 @@ export default async function SettingsPage() {
   const dbPath = resolveDbPath();
   const snapshots = listSnapshots(dbPath);
   const snapshotFolder = path.relative(process.cwd(), snapshotDir(dbPath)) || snapshotDir(dbPath);
+  const stats = dataStats(getSqlite(), dbPath, (f) => {
+    try {
+      return fs.statSync(f).size;
+    } catch {
+      return 0;
+    }
+  });
+  const kb = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))}KB` : `${(b / 1024 / 1024).toFixed(1)}MB`);
 
   return (
     <div className="space-y-4">
@@ -162,6 +172,42 @@ export default async function SettingsPage() {
           <p className="text-stone-700">
             사본으로 되돌리려면 앱을 끈 뒤 터미널에서 <code>pnpm db:restore &lt;사본 파일 경로&gt;</code>를 실행합니다. 되돌리기 전의 DB는 따로 남겨 둡니다.
           </p>
+        </div>
+      </Section>
+
+      <Section id="data-stats" title="내 자료 현황">
+        <div className="space-y-2 text-sm">
+          <p>
+            DB 파일 <code>{path.relative(process.cwd(), dbPath) || dbPath}</code> · 크기 {kb(stats.fileBytes)}(실행 중 생기는 보조 파일 포함). 건수만 보여 주며 금액은
+            합치지 않습니다.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] border-collapse" data-testid="data-stats">
+              <caption className="sr-only">모드별 자료 건수</caption>
+              <thead className="text-xs text-stone-600">
+                <tr className="border-b border-stone-300 text-left">
+                  <th scope="col" className="py-1 pr-2 font-medium">모드</th>
+                  <th scope="col" className="px-2 py-1 text-right font-medium">물건</th>
+                  <th scope="col" className="px-2 py-1 text-right font-medium">가격 자료</th>
+                  <th scope="col" className="px-2 py-1 text-right font-medium">판매 결과</th>
+                  <th scope="col" className="py-1 pl-2 text-right font-medium">휴지통(물건 · 가격 자료)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.modes.map((m) => (
+                  <tr key={String(m.isDemo)} className="border-t border-stone-200" data-testid={`data-stats-${m.isDemo ? "demo" : "real"}`}>
+                    <th scope="row" className="py-1 pr-2 text-left font-normal">{m.isDemo ? "데모(가상 데이터)" : "실제 사용"}</th>
+                    <td className="px-2 py-1 text-right">{m.items}개</td>
+                    <td className="px-2 py-1 text-right">{m.prices}건</td>
+                    <td className="px-2 py-1 text-right">{m.results}건</td>
+                    <td className="py-1 pl-2 text-right">
+                      {m.trashedItems}개 · {m.trashedPrices}건
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Section>
 
