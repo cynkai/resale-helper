@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import path from "node:path";
 import { clearImportEventsAction, deleteSnapshotAction, revokeImportTokenAction } from "@/app/actions";
-import { ConfirmSubmit, ExtensionIdForm, ImportTokenForm, SnapshotButton } from "@/components/client-bits";
+import { ConfirmSubmit, DbHealthButton, ExtensionIdForm, ImportTokenForm, SnapshotButton } from "@/components/client-bits";
 import { Badge, Section } from "@/components/ui";
 import { getDb, resolveDbPath } from "@/lib/db/client";
 import { listSnapshots, snapshotDir } from "@/lib/db/snapshots";
@@ -162,6 +162,16 @@ export default async function SettingsPage() {
           <p className="text-stone-700">
             사본으로 되돌리려면 앱을 끈 뒤 터미널에서 <code>pnpm db:restore &lt;사본 파일 경로&gt;</code>를 실행합니다. 되돌리기 전의 DB는 따로 남겨 둡니다.
           </p>
+        </div>
+      </Section>
+
+      <Section id="db-health" title="DB 점검">
+        <div className="space-y-3 text-sm">
+          <p>
+            DB 파일이 손상되지 않았는지, 끊어진 참조가 없는지, 이 앱이 지키는 규칙(데모 자료 격리, 검증된 체결가는 직접 만들 수 없음, 방식마다 기준 계산
+            하나 등)이 지켜지고 있는지 확인합니다. 읽기만 하고 아무것도 고치지 않습니다. 실제 자료와 데모 자료를 모두 봅니다.
+          </p>
+          <DbHealthButton />
         </div>
       </Section>
     </div>

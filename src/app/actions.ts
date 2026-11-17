@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb, getSqlite, resolveDbPath } from "@/lib/db/client";
 import { createSnapshot, deleteSnapshot } from "@/lib/db/snapshots";
+import { checkDbHealth, type HealthReport } from "@/lib/db/health";
 import { clearImportEvents } from "@/lib/import/events";
 import { seedDemo } from "@/lib/db/demo-seed";
 import * as repo from "@/lib/db/repo";
@@ -623,6 +624,16 @@ export async function createSnapshotAction(_prev: FormState, _fd: FormData): Pro
   revalidatePath("/settings");
   if (!r.ok) return { message: r.error };
   return { ok: true, message: `사본을 만들었습니다: ${r.snapshot.name} (실제 물건 ${r.items}개, 실제 가격 자료 ${r.prices}건)` };
+}
+
+export type DbHealthState = { report?: HealthReport; checkedAt?: string };
+
+/** DB 점검: 읽기만 하고 고치지 않는다. 결과는 화면에만 보여 주고 저장하지 않는다. */
+export async function checkDbHealthAction(_prev: DbHealthState, _fd: FormData): Promise<DbHealthState> {
+  void _prev;
+  void _fd;
+  const checkedAt = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+  return { report: checkDbHealth(getSqlite()), checkedAt };
 }
 
 export async function deleteSnapshotAction(fd: FormData): Promise<void> {
