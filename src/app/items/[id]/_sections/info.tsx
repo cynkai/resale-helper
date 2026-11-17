@@ -1,14 +1,35 @@
 import { Section } from "@/components/ui";
 import { formatMoney } from "@/lib/domain/money";
-import { CONDITION_LABEL } from "@/lib/domain/types";
+import Link from "next/link";
+import { CONDITION_LABEL, ITEM_STATUS_LABEL } from "@/lib/domain/types";
 import { TRI_TEXT } from "./shared";
 import type { ItemView } from "../view";
 
 export function InfoSection({ v }: { v: ItemView }) {
-  const { item } = v;
+  const { item, siblings } = v;
 
   return (
     <Section id="info" title="물건 정보">
+      {siblings.length > 0 ? (
+        <div className="notice mb-3" data-testid="same-identifier-items">
+          <p>
+            같은 {item.category === "BOOK" ? "ISBN" : "모델명"}으로 등록한 다른 물건이 {siblings.length}개 있습니다. 같은 물건을 두 번 등록했다면 하나를 휴지통으로
+            옮기세요(여러 개를 가지고 있다면 그대로 두면 됩니다).
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {siblings.map((s) => (
+              <li key={s.id}>
+                <Link href={`/items/${s.id}`} className="underline">
+                  {s.name}
+                </Link>{" "}
+                <span className="text-stone-600">
+                  ({ITEM_STATUS_LABEL[s.status]} · {CONDITION_LABEL[s.condition]})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         {(
           [

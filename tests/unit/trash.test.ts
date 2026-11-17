@@ -29,6 +29,7 @@ import {
   listPriceHistory,
   listPrices,
   listSourceNames,
+  listSameIdentifierItems,
   listSaleReviews,
   listTrashedItems,
   listTrashedPrices,
@@ -435,5 +436,24 @@ describe("물건 한꺼번에 다루기", () => {
     expect(listTrashedItems(db, false).map((r) => r.item.id).sort()).toEqual([a, sold].sort());
     expect(getItem(db, true, demo)).toBeDefined();
     expect(bulkItems(db, false, [a], "TRASH")).toEqual({ done: 0, skipped: 1 }); // 이미 휴지통
+  });
+});
+
+describe("같은 식별자로 등록한 다른 물건", () => {
+  it("같은 카테고리·식별자(대소문자·공백 무시)의 아직 안 판 물건만, 자기 자신·휴지통·다른 모드는 빼고", () => {
+    const a = createItem(db, false, { ...input("가"), identifier: "AB-1" });
+    const b = createItem(db, false, { ...input("나"), identifier: "ab-1 " });
+    const sold = fullItem("판 물건", true); // identifier ABC-1, 판매 결과 있음
+    const other = createItem(db, false, { ...input("다른 카테고리"), category: "ELECTRONICS", identifier: "AB-1" });
+    const trashed = createItem(db, false, { ...input("휴지통"), identifier: "AB-1" });
+    trashItem(db, false, trashed);
+    createItem(db, true, { ...input("데모"), identifier: "AB-1" });
+    const self = getItem(db, false, a)!;
+    expect(listSameIdentifierItems(db, false, self).map((r) => r.id)).toEqual([b]);
+    expect(listSameIdentifierItems(db, false, { ...self, identifier: null })).toEqual([]);
+    expect(listSameIdentifierItems(db, false, getItem(db, false, other)!)).toEqual([]);
+    const soldItem = getItem(db, false, sold)!;
+    const c = createItem(db, false, { ...input("판 물건과 같은"), identifier: soldItem.identifier });
+    expect(listSameIdentifierItems(db, false, getItem(db, false, c)!)).toEqual([]); // 판 물건은 '전에 판 기록'에 나온다
   });
 });

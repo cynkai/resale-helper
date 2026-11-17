@@ -2,7 +2,7 @@
 
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
-import { countTrashedPrices, getSaleResult, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { countTrashedPrices, getSaleResult, listSameIdentifierItems, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
@@ -135,10 +135,13 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
 
   // 같은 ISBN·모델명의 물건을 전에 판 내 기록(보여 주기만, 비교에는 넣지 않는다).
   const pastSales = listPastSalesForSameIdentifier(db, demo, item);
+  // 같은 식별자로 등록한 다른 물건(아직 안 판 것). 두 번 등록했는지 알아차리게 한다.
+  const siblings = listSameIdentifierItems(db, demo, item);
 
   return {
     item,
     pastSales,
+    siblings,
     demo,
     today,
     windowParam,
