@@ -1090,3 +1090,23 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await expect(group).not.toContainText("라 장터");
   await expect(group).toContainText("가 장터");
 });
+
+test("백업 사본: 버튼으로 만들고, 내려받고, 지운다. 이상한 이름으로는 다른 파일을 읽을 수 없다", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "지금 백업 사본 만들기" }).click();
+  await expect(page.getByTestId("snapshot-status")).toContainText("사본을 만들었습니다: e2e-");
+  const row = page.getByTestId("snapshot-list").locator("li").first();
+  const name = (await row.locator("code").innerText()).trim();
+  expect(name).toMatch(/^e2e-\d{8}-\d{6}\.db$/);
+
+  const res = await page.request.get(`/api/backup/snapshots/${name}`);
+  expect(res.status()).toBe(200);
+  expect((await res.body()).subarray(0, 15).toString("latin1")).toBe("SQLite format 3");
+  for (const bad of ["..%2Fe2e.db", "e2e.db", "resale-20260101-000000.db"]) {
+    expect((await page.request.get(`/api/backup/snapshots/${bad}`)).status()).toBe(404);
+  }
+
+  page.once("dialog", (d) => void d.accept());
+  await row.getByRole("button", { name: "사본 지우기" }).click();
+  await expect(page.getByTestId("snapshot-list").locator("li").filter({ hasText: name })).toHaveCount(0);
+});
