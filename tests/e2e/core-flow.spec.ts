@@ -1384,3 +1384,20 @@ test("화면마다 브라우저 탭 제목이 다르다", async ({ page }) => {
   await page.goto("/items/999999");
   await expect(page).not.toHaveTitle(/undefined/);
 });
+
+test("인쇄: 데모 띠는 안내 문장만 남고, 머리말과 화면 조작 버튼은 빠진다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /가상 데이터로 둘러보기/ }).click();
+  await expect(page.getByText("데모 모드", { exact: true })).toBeVisible();
+  const href = (await page.locator('a[href^="/items/"]').filter({ hasText: "(데모)" }).first().getAttribute("href"))!;
+  await page.goto(`${href}/summary`);
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByText("데모 모드", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "데모 초기화" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "실제 사용으로 돌아가기" })).toBeHidden();
+  await expect(page.getByRole("button", { name: /인쇄/ })).toBeHidden();
+  await expect(page.locator("header")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "실제 사용으로 돌아가기" }).click();
+  await expect(page.getByText("데모 모드", { exact: true })).toHaveCount(0);
+});
