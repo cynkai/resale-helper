@@ -36,8 +36,17 @@ curl -sS http://127.0.0.1:3000/api/import/prices \
 - 저장 규칙은 다른 경로와 같다. 같은 검증(`price-input.ts`)과 같은 저장 함수(`insertPrice`)를 거친다.
   - `VERIFIED_SALE`은 만들 수 없다. 해당 행은 오류로 거부되고 다른 유형으로 바뀌지 않는다.
   - 같은 매물(출처+매물 번호 또는 정규화 URL)은 중복으로 거부된다. 거부한 행의 결과에는 `duplicateOf`(이미 저장된 가격 자료 번호)와 `changed`(보낸 유형·금액·통화가 저장된 값과 다른지)가 붙는다. 저장된 금액 자체는 돌려주지 않고, 자동으로 갱신하지도 않는다. 가격이 바뀌었으면 앱에서 그 자료를 수정한다.
+  - 휴지통에 같은 매물이 있으면 거부하고, 고칠 수 없는 자료이므로 `duplicateOf`를 붙이지 않는다.
   - **항상 실제 사용 모드의 물건에만 저장한다.** 데모 물건 번호는 404다.
 - 입력 경로(`CLIP`/`EXTERNAL`)는 요청이 주장할 수 없고 서버가 `Origin`으로 정한다.
+
+### 예시 스크립트
+
+[`examples/import-prices.mjs`](../examples/import-prices.mjs)는 내가 정리해 둔 JSON 파일([`examples/import-prices-example.json`](../examples/import-prices-example.json) 모양)을 읽어 100건씩 나눠 보내고 행마다 결과를 보여 준다. 로컬 파일만 읽고 요청은 내 컴퓨터의 앱으로만 보낸다(다른 포트는 `RESALE_APP_ORIGIN=http://127.0.0.1:<포트>`, 그 밖의 주소는 거부). 토큰은 환경변수 `RESALE_IMPORT_TOKEN`에서 읽고 화면에 찍지 않는다.
+
+```bash
+node examples/import-prices.mjs examples/import-prices-example.json
+```
 
 ### `GET /api/import/items?q=<검색어>`
 

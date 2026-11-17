@@ -1,0 +1,23 @@
+{
+  "itemId": 1,
+  "records": [
+    {
+      "price_type": "ASKING",
+      "amount": 15000,
+      "source_name": "예시마켓",
+      "source_url": "https://example.com/items/101",
+      "external_id": "101",
+      "checked_date": "2026-11-01",
+      "condition": "GOOD"
+    },
+    {
+      "price_type": "BUYBACK_QUOTE",
+      "amount": 6000,
+      "source_name": "예시서점",
+      "checked_date": "2026-11-05",
+      "quote_valid_until": "2026-11-12",
+      "deduction_terms": "필기 발견 시 감액",
+      "memo": "매장 방문 견적"
+    }
+  ]
+}
