@@ -6,10 +6,10 @@
 
 | 위협 | 막는 방법 | 확인하는 테스트 |
 |---|---|---|
-| 내가 방문한 웹사이트가 DNS 리바인딩으로 이 앱을 읽거나 조작 | 모든 요청의 `Host`가 `localhost`·`127.0.0.1`·`[::1]`이 아니면 403 (`src/proxy.ts`, `src/lib/host.ts`) | `tests/unit/safety.test.ts`, E2E "localhost가 아닌 Host…" |
+| 내가 방문한 웹사이트가 DNS 리바인딩으로 이 앱을 읽거나 조작 | 모든 요청의 `Host`가 `localhost`·`*.localhost`·`127.0.0.1`·`[::1]`이 아니면 403 (`src/proxy.ts`, `src/lib/host.ts`) | `tests/unit/safety.test.ts`, E2E "localhost가 아닌 Host…" |
 | 웹사이트가 브라우저를 통해 가져오기 API에 쓰기 요청 | `Origin` 검사(등록한 확장 한 개 또는 Origin 없는 로컬 도구만), 토큰 필수, CORS `*` 없음 (`src/lib/import/access.ts`) | `tests/unit/safety.test.ts`, E2E "가져오기 API…" |
 | 토큰 유출 | 원문은 만든 직후 한 번만 표시, DB에는 SHA-256 해시만, 상수 시간 비교, 응답·오류·로그·내보내기에 넣지 않음 | `tests/unit/safety.test.ts`, `tests/unit/full-export.test.ts` |
-| 주입된 스크립트 실행, 외부로의 전송 | 요청마다 새 nonce로만 스크립트를 허용하는 CSP(`unsafe-inline`·`unsafe-eval` 없음), `connect-src 'self'` (`src/lib/security-headers.ts`) | `tests/unit/safety.test.ts`, E2E "보안 헤더…" |
+| 주입된 스크립트 실행, 외부로의 전송 | 요청마다 새 nonce로만 스크립트를 허용하는 CSP(스크립트에 `unsafe-inline` 없음, 운영 빌드에 `unsafe-eval` 없음. 스타일은 Next.js 때문에 인라인 허용), `connect-src 'self'` (`src/lib/security-headers.ts`) | `tests/unit/safety.test.ts`, E2E "보안 헤더…" |
 | 다른 사이트가 이 앱을 프레임에 넣어 클릭 유도 | `frame-ancestors 'none'`, `X-Frame-Options: DENY` | E2E "보안 헤더…" |
 | 원문 URL로 나갈 때 이 앱의 주소 노출 | `Referrer-Policy: no-referrer`, 링크에 `noopener noreferrer` | E2E "보안 헤더…" |
 | 서버가 임의 주소로 요청(SSRF) | 사용자가 넣은 원문 URL을 서버가 요청하지 않는다. 서버가 접속하는 곳은 코드에 고정된 서지정보 API 두 곳(`openlibrary.org`, `www.nl.go.kr`)뿐 | `tests/unit/safety.test.ts` "서버가 밖으로 나가는 곳" |
