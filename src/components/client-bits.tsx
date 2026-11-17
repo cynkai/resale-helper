@@ -48,14 +48,21 @@ export function ConfirmSubmit({
   message,
   className,
   children,
+  name,
+  value,
 }: {
   message: string;
   className?: string;
   children: React.ReactNode;
+  /** 한 폼에 제출 버튼이 여러 개일 때 어느 버튼인지 서버에 알린다. */
+  name?: string;
+  value?: string;
 }) {
   return (
     <button
       type="submit"
+      name={name}
+      value={value}
       className={className ?? "btn-danger"}
       onClick={(ev) => {
         if (!window.confirm(message)) ev.preventDefault();
