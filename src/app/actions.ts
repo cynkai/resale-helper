@@ -13,6 +13,7 @@ import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
 import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
+import { COST_KEYS, resolveActualCostTotal } from "@/lib/domain/review";
 import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
 import { validateTimeValue } from "@/lib/domain/settings-input";
 import { SALE_METHODS, type PriceType, type SaleMethod } from "@/lib/domain/types";
@@ -325,12 +326,36 @@ export async function saveSaleResultAction(_prev: FormState, fd: FormData): Prom
   if (!a.ok) errors.amount = a.error;
   else if (a.minor <= 0) errors.amount = "금액은 0보다 커야 합니다.";
   else amount = a.minor;
-  const costTotal = optionalWon(s(fd, "costTotal"), "costTotal", errors);
+  const typedTotal = optionalWon(s(fd, "costTotal"), "costTotal", errors);
+  const costItems = {
+    fee: optionalWon(s(fd, "feeActual"), "feeActual", errors),
+    shipping: optionalWon(s(fd, "shippingActual"), "shippingActual", errors),
+    packing: optionalWon(s(fd, "packingActual"), "packingActual", errors),
+    transport: optionalWon(s(fd, "transportActual"), "transportActual", errors),
+  };
+  let costTotal = typedTotal;
+  if (!errors.costTotal && !COST_KEYS.some((k) => errors[`${k}Actual`])) {
+    const r = resolveActualCostTotal(typedTotal, costItems);
+    if (!r.ok) errors.costTotal = r.error;
+    else costTotal = r.total;
+  }
   const minutesSpent = optionalMinutes(s(fd, "minutesSpent"), "minutesSpent", errors);
   const memo = s(fd, "memo").trim().slice(0, 1000) || null;
   if (Object.keys(errors).length > 0) return { errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
 
-  repo.upsertSaleResult(db, isDemo, item.id, { channel, soldDate, amount, costTotal, minutesSpent, memo });
+  repo.upsertSaleResult(db, isDemo, item.id, {
+    channel,
+    soldDate,
+    amount,
+    costTotal,
+    feeActual: costItems.fee,
+    shippingActual: costItems.shipping,
+    packingActual: costItems.packing,
+    transportActual: costItems.transport,
+    minutesSpent,
+    memo,
+  });
+  revalidatePath("/results");
   revalidatePath(`/items/${item.id}`);
   revalidatePath("/");
   return { ok: true, message: "판매 결과를 저장했습니다.", values: values(fd) };

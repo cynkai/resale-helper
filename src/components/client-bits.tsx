@@ -137,6 +137,29 @@ export function SaleResultForm({ itemId, initial }: { itemId: number; initial: R
           {input("memo")}
         </Field>
       </div>
+      <details
+        className="rounded-md border border-stone-200 p-3 text-sm"
+        open={["feeActual", "shippingActual", "packingActual", "transportActual"].some((k) => v[k] || e[k])}
+      >
+        <summary className="cursor-pointer text-stone-700">실제 비용을 항목별로 적기 (선택)</summary>
+        <p className="mt-2 text-xs text-stone-600">
+          어느 비용을 잘못 어림했는지 보려면 항목별로 적어 주세요. 없으면 0, 모르면 비워 두세요. 네 항목을 모두 적으면 합계는 그 합으로 저장됩니다.
+        </p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-4">
+          <Field label="수수료" name="result-feeActual" error={e.feeActual}>
+            {input("feeActual", { inputMode: "numeric" })}
+          </Field>
+          <Field label="내가 낸 배송비" name="result-shippingActual" error={e.shippingActual}>
+            {input("shippingActual", { inputMode: "numeric" })}
+          </Field>
+          <Field label="포장비" name="result-packingActual" error={e.packingActual}>
+            {input("packingActual", { inputMode: "numeric" })}
+          </Field>
+          <Field label="교통비" name="result-transportActual" error={e.transportActual}>
+            {input("transportActual", { inputMode: "numeric" })}
+          </Field>
+        </div>
+      </details>
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : "판매 결과 저장"}

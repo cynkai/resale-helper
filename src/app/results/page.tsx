@@ -4,6 +4,14 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listSaleReviews } from "@/lib/db/repo";
 import { formatMoney } from "@/lib/domain/money";
+import { COST_LABEL } from "@/lib/domain/net";
+import { isChoiceOutdated } from "@/lib/domain/scenario";
+import {
+  COST_KEYS,
+  costItemDiffs,
+  countCostItemOutcomes,
+  plannedCostItems,
+} from "@/lib/domain/review";
 import { channelKey, channelOutcome, countChannelOutcomes, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
 import { CATEGORY_LABEL, SALE_METHOD_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
@@ -65,6 +73,16 @@ export default async function ResultsPage() {
     }),
   }));
   const counts = countOutcomes(rows.map((r) => r.review));
+  // 비용 항목별: 실제 비용을 항목별로 적은 기록만 본다. 고른 계산이 선택 뒤에 바뀌었으면 어림값과 비교하지 않는다.
+  const costRows = rows
+    .map((r) => {
+      const actual = { fee: r.result.feeActual, shipping: r.result.shippingActual, packing: r.result.packingActual, transport: r.result.transportActual };
+      if (!COST_KEYS.some((k) => actual[k] !== null)) return null;
+      const usable = r.scenario && !isChoiceOutdated(r.item, r.scenario);
+      return costItemDiffs(usable ? plannedCostItems(r.scenario!) : null, actual);
+    })
+    .filter((x) => x !== null);
+  const costCounts = countCostItemOutcomes(costRows);
   const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
   const planned = (r: { item: { chosenMethod: string | null; chosenChannel: string | null } }) => (r.item.chosenMethod ? r.item.chosenChannel : null);
   const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(planned(r), r.result.channel)));
@@ -116,6 +134,37 @@ export default async function ResultsPage() {
               </p>
             ) : null}
           </section>
+
+          {costRows.length > 0 ? (
+            <section aria-label="비용 항목별" className="card text-sm" data-testid="cost-item-counts">
+              <h2 className="font-semibold">비용 항목별 (실제 비용을 항목별로 적은 {costRows.length}건)</h2>
+              <p className="mt-1 text-xs text-stone-600">
+                고른 계산에 어림해 둔 비용과 실제 비용을 항목별로 견준 건수입니다. 금액은 더하거나 평균 내지 않습니다. 어림이나 실제를 모르는 항목은 비교 불가입니다.
+              </p>
+              <table className="mt-2 w-full max-w-xl text-sm">
+                <thead className="text-xs text-stone-600">
+                  <tr>
+                    <th scope="col" className="py-1 pr-2 text-left font-medium">항목</th>
+                    <th scope="col" className="px-2 py-1 text-right font-medium">어림보다 더 듦</th>
+                    <th scope="col" className="px-2 py-1 text-right font-medium">같음</th>
+                    <th scope="col" className="px-2 py-1 text-right font-medium">덜 듦</th>
+                    <th scope="col" className="py-1 pl-2 text-right font-medium">비교 불가</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COST_KEYS.map((k) => (
+                    <tr key={k} className="border-t border-stone-200" data-testid={`cost-item-${k}`}>
+                      <th scope="row" className="py-1 pr-2 text-left font-normal">{COST_LABEL[k]}</th>
+                      <td className="px-2 py-1 text-right">{costCounts[k].OVER}</td>
+                      <td className="px-2 py-1 text-right">{costCounts[k].EQUAL}</td>
+                      <td className="px-2 py-1 text-right">{costCounts[k].UNDER}</td>
+                      <td className="py-1 pl-2 text-right">{costCounts[k].UNKNOWN}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          ) : null}
 
           <section aria-label="묶어 보기" className="card space-y-4" data-testid="review-groups">
             <div>

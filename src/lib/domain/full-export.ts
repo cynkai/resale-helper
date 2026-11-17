@@ -129,6 +129,13 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
               soldDate: saleResult.soldDate,
               amount: saleResult.amount,
               costTotal: saleResult.costTotal,
+              // 항목별 실제 비용(적은 경우만 값이 있다. null = 적지 않음/모름).
+              costItems: {
+                fee: saleResult.feeActual,
+                shipping: saleResult.shippingActual,
+                packing: saleResult.packingActual,
+                transport: saleResult.transportActual,
+              },
               minutesSpent: saleResult.minutesSpent,
               memo: saleResult.memo,
               review: reviewRow({
