@@ -64,6 +64,13 @@
       "when": 1794885594717,
       "tag": "0008_windy_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794885916707,
+      "tag": "0009_silky_stingray",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,14 @@ import {
 } from "@/lib/db/repo";
 import { sql } from "drizzle-orm";
 import { buildFullExport } from "@/lib/domain/full-export";
-import { channelOutcome, countChannelOutcomes } from "@/lib/domain/review";
+import {
+  channelOutcome,
+  costItemDiffs,
+  countChannelOutcomes,
+  countCostItemOutcomes,
+  plannedCostItems,
+  resolveActualCostTotal,
+} from "@/lib/domain/review";
 import { listFullExportSources } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel } from "@/lib/domain/scenario";
@@ -304,5 +311,60 @@ describe("분류와 내보내기", () => {
     ]);
     expect(it0.chosen).toMatchObject({ method: "DIRECT", channel: "나" });
     expect(it0.saleResult!.review).toMatchObject({ minutesDiff: 5 }); // 50분 − 고른 계산의 45분
+  });
+});
+
+describe("실제 비용 항목별", () => {
+  const none = { fee: null, shipping: null, packing: null, transport: null };
+
+  it("항목을 적지 않으면 적은 합계 그대로(없으면 모름)", () => {
+    expect(resolveActualCostTotal(null, none)).toEqual({ ok: true, total: null });
+    expect(resolveActualCostTotal(3000, none)).toEqual({ ok: true, total: 3000 });
+  });
+
+  it("네 항목을 모두 적으면 합계는 그 합이고, 따로 적은 합계가 다르면 거부한다", () => {
+    const all = { fee: 500, shipping: 3000, packing: 0, transport: 0 };
+    expect(resolveActualCostTotal(null, all)).toEqual({ ok: true, total: 3500 });
+    expect(resolveActualCostTotal(3500, all)).toEqual({ ok: true, total: 3500 });
+    expect(resolveActualCostTotal(4000, all)).toMatchObject({ ok: false });
+  });
+
+  it("일부만 적으면 모르는 항목을 0으로 치지 않는다", () => {
+    const some = { ...none, shipping: 3000 };
+    expect(resolveActualCostTotal(null, some)).toEqual({ ok: true, total: null });
+    expect(resolveActualCostTotal(5000, some)).toEqual({ ok: true, total: 5000 });
+    expect(resolveActualCostTotal(2000, some)).toMatchObject({ ok: false });
+  });
+
+  it("항목별 차이: 어림이나 실제를 모르면 비교 불가, 비율 수수료는 예상 판매금액 기준", () => {
+    const planned = plannedCostItems({ saleAmount: 20000, feeMode: "RATE", feeAmount: null, feeRateBp: 1000, shipping: 3000, packing: null, transport: 0 });
+    expect(planned).toEqual({ fee: 2000, shipping: 3000, packing: null, transport: 0 });
+    const d = costItemDiffs(planned, { fee: 1800, shipping: 3500, packing: 500, transport: null });
+    expect(d.fee.diff).toBe(-200);
+    expect(d.shipping.diff).toBe(500);
+    expect(d.packing.diff).toBeNull();
+    expect(d.transport.diff).toBeNull();
+    expect(costItemDiffs(null, { fee: 1800, shipping: 0, packing: 0, transport: 0 }).fee).toEqual({ planned: null, actual: 1800, diff: null });
+    const counts = countCostItemOutcomes([d, costItemDiffs(planned, { fee: 2000, shipping: 3000, packing: 0, transport: 0 })]);
+    expect(counts.fee).toEqual({ OVER: 0, EQUAL: 1, UNDER: 1, UNKNOWN: 0 });
+    expect(counts.shipping).toEqual({ OVER: 1, EQUAL: 1, UNDER: 0, UNKNOWN: 0 });
+    expect(counts.packing).toEqual({ OVER: 0, EQUAL: 0, UNDER: 0, UNKNOWN: 2 });
+  });
+
+  it("항목별 비용이 저장되고, 돌아보기에 고른 계산이 함께 온다. 항목 없이 다시 저장하면 지워진다", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "DIRECT", scenario({ shipping: 3000 }), "가");
+    setChosenMethod(db, false, id, { method: "DIRECT", channel: "가", saleAmount: 10000, netAmount: 7000 });
+    upsertSaleResult(db, false, id, {
+      channel: "가", soldDate: TODAY, amount: 10000, costTotal: 3500,
+      feeActual: 0, shippingActual: 3500, packingActual: 0, transportActual: 0, minutesSpent: null, memo: null,
+    });
+    const row = listSaleReviews(db, false)[0]!;
+    expect(row.result).toMatchObject({ feeActual: 0, shippingActual: 3500, costTotal: 3500 });
+    expect(row.scenario).toMatchObject({ channel: "가", shipping: 3000 });
+    const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
+    expect(out.items[0]!.saleResult!.costItems).toEqual({ fee: 0, shipping: 3500, packing: 0, transport: 0 });
+    upsertSaleResult(db, false, id, { channel: "가", soldDate: TODAY, amount: 10000, costTotal: null, minutesSpent: null, memo: null });
+    expect(listSaleReviews(db, false)[0]!.result).toMatchObject({ feeActual: null, shippingActual: null, costTotal: null });
   });
 });

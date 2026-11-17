@@ -723,3 +723,48 @@ test("받은 제안: 제안 금액을 내 계산의 비용에 넣어 따져 보�
   await offer.getByRole("button", { name: "지우기" }).click();
   await expect(page.locator('[data-testid^="offer-"]').filter({ hasText: "18,000원" })).toHaveCount(0);
 });
+
+test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별로 견주고, 합계와 어긋나면 저장하지 않는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("비용 항목 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-saleAmount").fill("20000");
+  await direct.locator("#direct-feeAmount").fill("0");
+  await direct.locator("#direct-shipping").fill("3000");
+  await direct.locator("#direct-packing").fill("500");
+  await direct.locator("#direct-transport").fill("0");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("16,500원");
+  await page.getByRole("button", { name: "개인에게 직접 판매로 정하기" }).click();
+  await expect(page.getByTestId("chosen")).toContainText("16,500원");
+
+  await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-amount").fill("19000");
+  await page.getByText("실제 비용을 항목별로 적기 (선택)").click();
+  await page.locator("#result-feeActual").fill("0");
+  await page.locator("#result-shippingActual").fill("4000");
+  await page.locator("#result-packingActual").fill("500");
+  await page.locator("#result-transportActual").fill("0");
+  // 합계를 따로 적었는데 항목의 합과 다르면 저장하지 않는다
+  await page.locator("#result-costTotal").fill("4000");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+  await expect(page.locator("#result-costTotal-error")).toContainText("항목의 합(4,500원)과 다릅니다");
+  await page.locator("#result-costTotal").fill("");
+  await page.getByRole("button", { name: "판매 결과 저장" }).click();
+
+  await expect(page.getByTestId("result-summary")).toContainText("실제 비용 4,500원");
+  const items = page.getByTestId("result-cost-items");
+  await expect(items).toContainText("판매자 부담 배송비: 3,000원 → 4,000원 (+1,000원)");
+  await expect(items).toContainText("포장비: 500원 → 500원 (같음)");
+
+  await page.goto("/results");
+  await expect(page.getByTestId("cost-item-shipping")).toContainText("판매자 부담 배송비");
+  const cells = page.getByTestId("cost-item-shipping").locator("td");
+  await expect(cells.nth(0)).toHaveText("1"); // 어림보다 더 듦
+  await expect(page.getByTestId("cost-item-packing").locator("td").nth(1)).toHaveText("1"); // 같음
+});

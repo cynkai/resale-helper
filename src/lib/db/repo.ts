@@ -335,6 +335,11 @@ export type SaleResultInput = {
   soldDate: string;
   amount: number;
   costTotal: number | null;
+  /** 항목별 실제 비용(선택). 넘기지 않으면 적지 않은 것으로 저장한다. */
+  feeActual?: number | null;
+  shippingActual?: number | null;
+  packingActual?: number | null;
+  transportActual?: number | null;
   minutesSpent: number | null;
   memo: string | null;
 };
@@ -343,7 +348,14 @@ export function getSaleResult(db: Db, itemId: number) {
   return db.select().from(saleResults).where(eq(saleResults.itemId, itemId)).get();
 }
 
-export function upsertSaleResult(db: Db, isDemo: boolean, itemId: number, v: SaleResultInput): void {
+export function upsertSaleResult(db: Db, isDemo: boolean, itemId: number, input: SaleResultInput): void {
+  const v = {
+    ...input,
+    feeActual: input.feeActual ?? null,
+    shippingActual: input.shippingActual ?? null,
+    packingActual: input.packingActual ?? null,
+    transportActual: input.transportActual ?? null,
+  };
   db.transaction((tx) => {
     tx.insert(saleResults)
       .values({ ...v, itemId })
@@ -356,10 +368,10 @@ export function upsertSaleResult(db: Db, isDemo: boolean, itemId: number, v: Sal
   });
 }
 
-/** 현재 모드의 판매 완료 기록 전체(판매일 최신순). 고른 방법의 예상 소요시간도 함께 가져온다. */
+/** 현재 모드의 판매 완료 기록 전체(판매일 최신순). 고른 계산(있으면)과 그 예상 소요시간도 함께 가져온다. */
 export function listSaleReviews(db: Db, isDemo: boolean) {
   return db
-    .select({ item: items, result: saleResults, expectedMinutes: costScenarios.expectedMinutes })
+    .select({ item: items, result: saleResults, expectedMinutes: costScenarios.expectedMinutes, scenario: costScenarios })
     .from(saleResults)
     .innerJoin(items, eq(items.id, saleResults.itemId))
     .leftJoin(

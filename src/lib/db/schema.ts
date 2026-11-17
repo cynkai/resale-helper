@@ -166,6 +166,11 @@ export const saleResults = sqliteTable("sale_results", {
   soldDate: text("sold_date").notNull(),
   amount: integer("amount").notNull(), // KRW
   costTotal: integer("cost_total"), // null = 모름
+  // 실제 비용을 항목별로 적은 경우(선택). null = 적지 않음/모름. 네 항목을 모두 적으면 합계는 그 합이다.
+  feeActual: integer("fee_actual"),
+  shippingActual: integer("shipping_actual"),
+  packingActual: integer("packing_actual"),
+  transportActual: integer("transport_actual"),
   minutesSpent: integer("minutes_spent"),
   memo: text("memo"),
   ...timestamps,

@@ -19,6 +19,7 @@ import { ScenarioForm, type BasisOption, type CopyOption } from "@/components/Sc
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { getItem, getSaleResult, listChannelNames, listOffers, listPriceHistory, listPrices, listScenarios } from "@/lib/db/repo";
+import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
 import { countOfferStatuses, evaluateOffer, OFFER_STATUS_LABEL, OFFER_STATUSES, pickOfferScenario } from "@/lib/domain/offer";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
 import {
@@ -218,6 +219,14 @@ export default async function ItemPage({
   const breakEven =
     directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
   const choiceOutdated = isChoiceOutdated(item, chosenSc);
+  // 실제 비용을 항목별로 적었을 때만: 고른 계산의 어림값과 항목별로 비교한다(선택 뒤 계산이 바뀌었으면 비교하지 않는다).
+  const resultActual = result
+    ? { fee: result.feeActual, shipping: result.shippingActual, packing: result.packingActual, transport: result.transportActual }
+    : null;
+  const resultCostDiffs =
+    resultActual && COST_KEYS.some((k) => resultActual[k] !== null)
+      ? costItemDiffs(chosenSc && !choiceOutdated ? plannedCostItems(chosenSc) : null, resultActual)
+      : null;
   const offers = listOffers(db, item.id);
   const offerCounts = countOfferStatuses(offers.map((o) => o.status));
   // 제안을 받았을 때 비교할 업체 실수령액: 업체 기준 계산이 완전하고 기준 자료 문제가 없을 때만.
@@ -951,6 +960,25 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
             ) : (
               <p className="text-stone-600">판매 방법을 선택하지 않고 판매해서 예상 금액과 비교할 수 없습니다.</p>
             )}
+            {resultCostDiffs ? (
+              <div data-testid="result-cost-items">
+                <p className="font-medium">비용 항목별 (어림 → 실제)</p>
+                <ul className="list-disc space-y-0.5 pl-5">
+                  {COST_KEYS.filter((k) => resultCostDiffs[k].actual !== null).map((k) => {
+                    const d = resultCostDiffs[k];
+                    return (
+                      <li key={k}>
+                        {COST_LABEL[k]}: {d.planned !== null ? formatMoney(d.planned) : "어림 없음"} → {formatMoney(d.actual!)}
+                        {d.diff !== null ? ` (${d.diff === 0 ? "같음" : signed(d.diff)})` : ""}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {choiceOutdated || !chosenSc ? (
+                  <p className="text-stone-600">고른 계산이 없거나 선택 뒤에 바뀌어 어림값과는 비교하지 않았습니다.</p>
+                ) : null}
+              </div>
+            ) : null}
             <form action={deleteSaleResultAction}>
               <input type="hidden" name="itemId" value={item.id} />
               <ConfirmSubmit message="판매 결과 기록을 삭제할까요?" className="btn-danger px-2 py-1 text-xs">
@@ -972,6 +1000,10 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
                   soldDate: result.soldDate,
                   amount: String(result.amount),
                   costTotal: result.costTotal === null ? "" : String(result.costTotal),
+                  feeActual: result.feeActual === null ? "" : String(result.feeActual),
+                  shippingActual: result.shippingActual === null ? "" : String(result.shippingActual),
+                  packingActual: result.packingActual === null ? "" : String(result.packingActual),
+                  transportActual: result.transportActual === null ? "" : String(result.transportActual),
                   minutesSpent: result.minutesSpent === null ? "" : String(result.minutesSpent),
                   memo: result.memo ?? "",
                 }
