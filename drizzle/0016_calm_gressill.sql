@@ -1,0 +1,1 @@
+ALTER TABLE `price_records` ADD `deleted_at` text;

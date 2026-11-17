@@ -8,6 +8,7 @@ import {
   clearDemo,
   createItem,
   deletePrice,
+  purgePrice,
   exportRows,
   getItem,
   getSaleResult,
@@ -102,6 +103,7 @@ describe("중복 저장 방지", () => {
     expect(insertPrice(db, item, price({ externalId: "A1", amount: "9000" }), "MANUAL")).toEqual({
       ok: false,
       reason: "DUPLICATE",
+      inTrash: false,
     });
     expect(insertPrice(db, item, price({ sourceUrl: "https://example.com/p/1?utm_source=a" }), "MANUAL").ok).toBe(true);
     expect(insertPrice(db, item, price({ sourceUrl: "https://www.example.com/p/1/" }), "MANUAL").ok).toBe(false);
@@ -166,7 +168,7 @@ describe("같은 매물의 가격 변동 이력", () => {
     const a = insertPrice(db, item, price({ externalId: "A", amount: "1000" }), "MANUAL");
     const b = insertPrice(db, item, price({ externalId: "B", amount: "2000" }), "MANUAL");
     if (!a.ok || !b.ok) throw new Error("insert");
-    expect(updatePrice(db, item, b.id, price({ externalId: "A", amount: "3000" }))).toEqual({ ok: false, reason: "DUPLICATE" });
+    expect(updatePrice(db, item, b.id, price({ externalId: "A", amount: "3000" }))).toEqual({ ok: false, reason: "DUPLICATE", inTrash: false });
     expect(listPriceHistory(db, item.id).size).toBe(0);
   });
 });
@@ -284,7 +286,14 @@ describe("계산의 기준 자료 삭제", () => {
       expectedMinutes: null,
       memo: null,
     });
+    // 휴지통으로 옮기면 기준 자료를 찾을 수 없어 '삭제됨'으로 보이고, 되살리면 돌아온다(id는 남아 있음).
     deletePrice(db, item.id, saved.id);
+    const trashed = listScenarios(db, item.id)[0]!;
+    expect(trashed.basisPriceRecordId).toBe(saved.id);
+    expect(listPrices(db, item.id).find((p) => p.id === saved.id)).toBeUndefined();
+    expect(basisIssues(trashed, undefined, TODAY)).toEqual(["BASIS_DELETED"]);
+    // 완전히 지우면 id는 비지만 유형 스냅샷으로 '삭제됨'을 알 수 있다
+    purgePrice(db, false, saved.id);
     const sc = listScenarios(db, item.id)[0]!;
     expect(sc.basisPriceRecordId).toBeNull();
     expect(sc.basisPriceType).toBe("BUYBACK_QUOTE");

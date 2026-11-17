@@ -2,7 +2,7 @@
 
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
-import { getSaleResult, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { countTrashedPrices, getSaleResult, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
@@ -41,6 +41,7 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     return `/items/${item.id}${qs ? `?${qs}` : ""}#prices`;
   };
   const prices = listPrices(db, item.id);
+  const trashedPriceCount = countTrashedPrices(db, demo, item.id);
   const history = listPriceHistory(db, item.id);
   const comparison = buildComparison(item, prices, today, windowDays);
   const scenarios = listScenarios(db, item.id);
@@ -146,6 +147,7 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     hideExcluded,
     pricesHref,
     prices,
+    trashedPriceCount,
     history,
     comparison,
     scenarios,

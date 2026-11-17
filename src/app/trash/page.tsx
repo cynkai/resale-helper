@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { emptyTrashAction, purgeItemAction, restoreItemAction } from "@/app/actions";
+import { emptyTrashAction, purgeItemAction, purgePriceAction, restoreItemAction, restorePriceAction } from "@/app/actions";
 import { ConfirmSubmit } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listTrashedItems } from "@/lib/db/repo";
+import { listTrashedItems, listTrashedPrices } from "@/lib/db/repo";
+import { formatMoney } from "@/lib/domain/money";
+import { PriceTypeBadge } from "@/components/ui";
 import { utcToSeoulYmd } from "@/lib/domain/timeline";
 import { CATEGORY_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
@@ -13,7 +15,10 @@ export const metadata: Metadata = { title: "휴지통" };
 
 export default async function TrashPage() {
   const demo = await isDemoMode();
-  const rows = listTrashedItems(getDb(), demo);
+  const db = getDb();
+  const rows = listTrashedItems(db, demo);
+  const prices = listTrashedPrices(db, demo);
+  const total = rows.length + prices.length;
   return (
     <div className="space-y-4">
       <p className="text-sm">
@@ -21,20 +26,24 @@ export default async function TrashPage() {
       </p>
       <h1 className="text-xl font-bold">휴지통{demo ? " (데모)" : ""}</h1>
       <p className="notice">
-        삭제한 물건은 여기로 옵니다. 휴지통의 물건은 목록·배분·점검·판매 결과·내보내기 어디에도 나오지 않습니다. 되살리면 가격 자료와 계산, 기록이 모두
-        그대로 돌아옵니다. 자동으로 비워지지 않으며, 완전히 지운 것은 되돌릴 수 없습니다.
+        삭제한 물건과 가격 자료는 여기로 옵니다. 휴지통의 자료는 목록·비교·배분·점검·판매 결과·내보내기 어디에도 쓰이지 않습니다. 물건을 되살리면 가격 자료와
+        계산, 기록이 모두 그대로 돌아오고, 가격 자료를 되살리면 이전 값 기록과 함께 돌아옵니다. 휴지통에 있는 매물과 같은 매물은 다시 넣을 수 없습니다. 자동으로
+        비워지지 않으며, 완전히 지운 것은 되돌릴 수 없습니다.
       </p>
-      {rows.length === 0 ? (
+      {total === 0 ? (
         <div className="card py-10 text-center" data-testid="trash-empty">
           <p className="font-medium">휴지통이 비어 있습니다.</p>
         </div>
       ) : (
         <>
           <form action={emptyTrashAction}>
-            <ConfirmSubmit message={`휴지통의 물건 ${rows.length}개와 딸린 자료를 모두 완전히 지웁니다. 되돌릴 수 없습니다. 계속할까요?`}>
-              휴지통 비우기 ({rows.length}개)
+            <ConfirmSubmit
+              message={`휴지통의 ${[rows.length > 0 ? `물건 ${rows.length}개(딸린 자료 포함)` : null, prices.length > 0 ? `가격 자료 ${prices.length}건` : null].filter(Boolean).join("와 ")}을 모두 완전히 지웁니다. 되돌릴 수 없습니다. 계속할까요?`}
+            >
+              휴지통 비우기 ({[rows.length > 0 ? `물건 ${rows.length}개` : null, prices.length > 0 ? `가격 자료 ${prices.length}건` : null].filter(Boolean).join(", ")})
             </ConfirmSubmit>
           </form>
+          {rows.length > 0 ? <h2 className="text-base font-semibold">물건</h2> : null}
           <ul className="space-y-2">
             {rows.map(({ item, priceCount, scenarioCount, resultCount }) => (
               <li key={item.id} className="card" data-testid={`trashed-${item.id}`}>
@@ -66,6 +75,45 @@ export default async function TrashPage() {
               </li>
             ))}
           </ul>
+          {prices.length > 0 ? (
+            <section aria-labelledby="trash-prices" className="space-y-2">
+              <h2 id="trash-prices" className="text-base font-semibold">
+                가격 자료
+              </h2>
+              <ul className="space-y-2">
+                {prices.map(({ p, itemName }) => (
+                  <li key={p.id} className="card" data-testid={`trashed-price-${p.id}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PriceTypeBadge type={p.priceType} />
+                      <span className="font-semibold">{formatMoney(p.amountMinor, p.currency)}</span>
+                      <span className="text-sm text-stone-700">
+                        {p.sourceName} · 확인 {p.checkedDate}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-stone-600">
+                      물건:{" "}
+                      <Link href={`/items/${p.itemId}#prices`} className="underline">
+                        {itemName}
+                      </Link>{" "}
+                      · 삭제한 날 {utcToSeoulYmd(p.deletedAt) ?? "기록 없음"}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <form action={restorePriceAction}>
+                        <input type="hidden" name="priceId" value={p.id} />
+                        <button type="submit" className="btn">되살리기</button>
+                      </form>
+                      <form action={purgePriceAction}>
+                        <input type="hidden" name="priceId" value={p.id} />
+                        <ConfirmSubmit message="이 가격 자료를 완전히 지웁니다. 이 자료를 기준으로 한 계산에는 '기준 자료 삭제됨' 경고가 남습니다. 되돌릴 수 없습니다. 계속할까요?">
+                          완전히 지우기
+                        </ConfirmSubmit>
+                      </form>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </>
       )}
     </div>

@@ -7,6 +7,7 @@ import { openDb, type Db } from "@/lib/db/client";
 import {
   adjacentItems,
   countTrashedItems,
+  countTrashedPrices,
   createItem,
   deletePrices,
   duplicateItem,
@@ -28,6 +29,9 @@ import {
   listPrices,
   listSaleReviews,
   listTrashedItems,
+  listTrashedPrices,
+  purgePrice,
+  restorePrice,
   listTriageCandidates,
   purgeItem,
   recheckPrices,
@@ -35,6 +39,7 @@ import {
   setItemStatus,
   setPricesIncluded,
   trashItem,
+  updatePrice,
   upsertSaleResult,
   upsertScenario,
 } from "@/lib/db/repo";
@@ -192,6 +197,7 @@ describe("가격 자료 한꺼번에 다루기", () => {
     expect(setPricesIncluded(db, a.id, [a1], true)).toBe(1);
     expect(deletePrices(db, a.id, [a2, b1, 99999])).toBe(1);
     expect(listPrices(db, a.id).map((p) => p.id)).toEqual([a1, a3]);
+    expect(deletePrices(db, a.id, [a2])).toBe(0); // 이미 휴지통에 있는 자료는 다시 세지 않는다
     expect(listPrices(db, b.id)).toHaveLength(1);
     expect(setPricesIncluded(db, a.id, [], false)).toBe(0);
     // 오늘 다시 확인함: 그 물건의 자료만, 오늘 이미 확인한 것은 건너뛰고, 이전 확인일은 이력에 남는다
@@ -299,4 +305,86 @@ describe("물건 검색", () => {
     trashItem(db, false, a);
     expect(find("서랍")).toEqual([]);
   });
+});
+
+describe("가격 자료 휴지통", () => {
+  const priceInput = (ext: string, amount = "12000") => {
+    const p = validatePriceInput({ priceType: "ASKING", amount, sourceName: "장터", checkedDate: TODAY, externalId: ext }, { route: "MANUAL", today: TODAY });
+    if (!p.ok) throw new Error("price");
+    return p.value;
+  };
+
+  it("지운 자료는 비교·점검·내보내기에서 빠지고, 되살리면 이력과 함께 돌아온다", () => {
+    const id = createItem(db, false, input("가"));
+    const item = getItem(db, false, id)!;
+    const r1 = insertPrice(db, item, priceInput("t-1"), "MANUAL");
+    const r2 = insertPrice(db, item, priceInput("t-2"), "MANUAL");
+    if (!r1.ok || !r2.ok) throw new Error("insert");
+    recheckPrices(db, id, [r1.id], "2026-11-20");
+    upsertScenario(db, id, "DIRECT", { ...scenario, basisPriceRecordId: r1.id, basisPriceType: "ASKING" });
+
+    expect(deletePrices(db, id, [r1.id])).toBe(1);
+    expect(listPrices(db, id).map((p) => p.id)).toEqual([r2.id]);
+    expect(exportRows(db, false).map((p) => p.externalId)).toEqual(["t-2"]);
+    expect(listCheckupSources(db, false)[0]!.prices.map((p) => p.id)).toEqual([r2.id]);
+    expect(listFullExportSources(db, false)[0]!.prices.map((p) => p.id)).toEqual([r2.id]);
+    expect(listTriageCandidates(db, false)[0]!.basisRecords).toEqual([]); // 기준 자료가 사라진 것으로 본다
+    expect(listItems(db, false)[0]!.priceCount).toBe(1);
+    expect(countTrashedPrices(db, false)).toBe(1);
+    expect(countTrashedPrices(db, false, id)).toBe(1);
+    expect(countTrashedPrices(db, true)).toBe(0); // 데모 모드에는 보이지 않는다
+    expect(listTrashedPrices(db, false).map((r) => [r.p.id, r.itemName])).toEqual([[r1.id, "가"]]);
+    // 휴지통의 자료는 고치거나 다시 확인할 수 없다
+    expect(recheckPrices(db, id, [r1.id], "2026-11-21")).toBe(0);
+    setPricesIncluded(db, id, [r1.id], false);
+
+    expect(restorePrice(db, true, r1.id)).toBeNull(); // 다른 모드에서는 되살릴 수 없다
+    expect(restorePrice(db, false, r1.id)).toBe(id);
+    const back = listPrices(db, id).find((p) => p.id === r1.id)!;
+    expect(back.includedInComparison).toBe(true);
+    expect(back.checkedDate).toBe("2026-11-20");
+    expect(listPriceHistory(db, id).get(r1.id)!.map((h) => h.checkedDate)).toEqual([TODAY]);
+    expect(listTriageCandidates(db, false)[0]!.basisRecords.map((p) => p.id)).toEqual([r1.id]);
+    expect(restorePrice(db, false, r1.id)).toBeNull(); // 이미 살아 있음
+  });
+
+  it("휴지통에 있는 매물과 같은 매물은 다시 넣을 수 없다(되살릴 때 중복이 생기지 않게)", () => {
+    const id = createItem(db, false, input("가"));
+    const item = getItem(db, false, id)!;
+    const r1 = insertPrice(db, item, priceInput("dup-1"), "MANUAL");
+    const r2 = insertPrice(db, item, priceInput("dup-2"), "MANUAL");
+    if (!r1.ok || !r2.ok) throw new Error("insert");
+    deletePrices(db, id, [r1.id]);
+    expect(insertPrice(db, item, priceInput("dup-1", "9000"), "MANUAL")).toEqual({ ok: false, reason: "DUPLICATE", inTrash: true });
+    expect(insertPrice(db, item, priceInput("dup-2"), "MANUAL")).toEqual({ ok: false, reason: "DUPLICATE", inTrash: false });
+    // 살아 있는 자료를 휴지통의 매물과 같게 고칠 수도 없다
+    expect(updatePrice(db, item, r2.id, priceInput("dup-1"))).toEqual({ ok: false, reason: "DUPLICATE", inTrash: true });
+    // 완전히 지우면 다시 넣을 수 있다
+    purgePrice(db, false, r1.id);
+    expect(insertPrice(db, item, priceInput("dup-1", "9000"), "MANUAL").ok).toBe(true);
+  });
+
+  it("물건이 휴지통에 있으면 그 물건의 가격 자료는 따로 보이거나 되살아나지 않고, 휴지통 비우기는 둘 다 지운다", () => {
+    const a = createItem(db, false, input("가"));
+    const b = createItem(db, false, { ...input("나"), identifier: "B-1" });
+    const pa = insertPrice(db, getItem(db, false, a)!, priceInput("e-a"), "MANUAL");
+    const pb = insertPrice(db, getItem(db, false, b)!, priceInput("e-b"), "MANUAL");
+    if (!pa.ok || !pb.ok) throw new Error("insert");
+    deletePrices(db, a, [pa.id]);
+    deletePrices(db, b, [pb.id]);
+    trashItem(db, false, b);
+    expect(listTrashedPrices(db, false).map((r) => r.p.id)).toEqual([pa.id]);
+    expect(countTrashedPrices(db, false)).toBe(1);
+    expect(restorePrice(db, false, pb.id)).toBeNull();
+    expect(purgePrice(db, false, pa.id)).toBeUndefined();
+    deletePrices(db, a, []);
+    const pa2 = insertPrice(db, getItem(db, false, a)!, priceInput("e-a2"), "MANUAL");
+    if (!pa2.ok) throw new Error("insert");
+    deletePrices(db, a, [pa2.id]);
+    expect(emptyTrash(db, false)).toBe(1);
+    expect(countTrashedPrices(db, false)).toBe(0);
+    expect(listPricesAll(a)).toEqual([]);
+  });
+
+  const listPricesAll = (itemId: number) => db.all(sql`select id from price_records where item_id = ${itemId}`);
 });

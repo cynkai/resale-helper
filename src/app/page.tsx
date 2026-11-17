@@ -3,7 +3,7 @@ import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listCheckupSources, listItems, countTrashedItems, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
+import { listCheckupSources, listItems, countTrashedItems, countTrashedPrices, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
 import { checkupItem, needsAttention } from "@/lib/domain/checkup";
 import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
 import {
@@ -43,6 +43,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const today = todayYmd();
   const attention = listCheckupSources(db, demo).filter((s) => needsAttention(checkupItem(s, today))).length;
   const trashCount = countTrashedItems(db, demo);
+  const trashPriceCount = countTrashedPrices(db, demo);
   const stepHref = (code?: NextStepCode) => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -75,9 +76,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           ) : null}
           <Link href="/triage" className="btn">어디로 넘길까 (배분)</Link>
           <Link href="/items/import" className="btn">CSV로 한꺼번에 등록</Link>
-          {trashCount > 0 ? (
+          {trashCount + trashPriceCount > 0 ? (
             <Link href="/trash" className="btn" data-testid="trash-link">
-              휴지통 {trashCount}개
+              휴지통{" "}
+              {[trashCount > 0 ? `물건 ${trashCount}개` : null, trashPriceCount > 0 ? `가격 자료 ${trashPriceCount}건` : null].filter(Boolean).join(" · ")}
             </Link>
           ) : null}
         </div>
