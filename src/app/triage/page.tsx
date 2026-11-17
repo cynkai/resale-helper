@@ -20,7 +20,7 @@ import {
   warningText,
   type TriageVerdict,
 } from "@/lib/domain/triage";
-import { CATEGORY_LABEL, DISCLAIMER, ITEM_STATUS_LABEL, SALE_METHOD_LABEL, type SaleMethod } from "@/lib/domain/types";
+import { CATEGORIES, CATEGORY_LABEL, DISCLAIMER, ITEM_STATUS_LABEL, SALE_METHOD_LABEL, type Category, type SaleMethod } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
 
@@ -42,7 +42,13 @@ function signed(n: number): string {
   return `${n > 0 ? "+" : ""}${formatMoney(n)}`;
 }
 
-export default async function TriagePage() {
+const VERDICTS: TriageVerdict[] = ["DIRECT", "BUYBACK", "UNDECIDED"];
+
+export default async function TriagePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  // 보기 거르기: 판단·카테고리. 건수 요약과 CSV는 거르기 전 전체 기준이다.
+  const verdictFilter = VERDICTS.includes(sp.verdict as TriageVerdict) ? (sp.verdict as TriageVerdict) : undefined;
+  const categoryFilter = CATEGORIES.includes(sp.category as Category) ? (sp.category as Category) : undefined;
   const demo = await isDemoMode();
   const db = getDb();
   const timeValue = getTimeValuePerHour(db, demo);
@@ -69,6 +75,19 @@ export default async function TriagePage() {
     })
     .sort((a, b) => compareTriage(a.result, b.result) || a.item.id - b.item.id);
   const counts = countVerdicts(rows.map((r) => r.result));
+  const shown = rows.filter((r) => (!verdictFilter || r.result.verdict === verdictFilter) && (!categoryFilter || r.item.category === categoryFilter));
+  const categoriesPresent = CATEGORIES.filter((c) => rows.some((r) => r.item.category === c));
+  const filterHref = (over: { verdict?: TriageVerdict | null; category?: Category | null }) => {
+    const p = new URLSearchParams();
+    const v = over.verdict === undefined ? verdictFilter : over.verdict;
+    const c = over.category === undefined ? categoryFilter : over.category;
+    if (v) p.set("verdict", v);
+    if (c) p.set("category", c);
+    const qs = p.toString();
+    return qs ? `/triage?${qs}` : "/triage";
+  };
+  const pill = (active: boolean) =>
+    `rounded-full border px-3 py-1 ${active ? "border-teal-800 bg-teal-50 font-medium" : "border-stone-300 bg-white hover:bg-stone-100"}`;
 
   return (
     <div className="space-y-4">
@@ -110,6 +129,42 @@ export default async function TriagePage() {
             )}
           </section>
 
+          <nav aria-label="배분 표 거르기" className="space-y-2 text-sm" data-testid="triage-filter">
+            <div className="flex flex-wrap gap-2">
+              <Link href={filterHref({ verdict: null })} aria-current={verdictFilter ? undefined : "true"} className={pill(!verdictFilter)}>
+                모든 판단
+              </Link>
+              {VERDICTS.filter((v) => counts[v] > 0).map((v) => (
+                <Link key={v} href={filterHref({ verdict: v })} aria-current={verdictFilter === v ? "true" : undefined} className={pill(verdictFilter === v)}>
+                  {VERDICT_LABEL[v]} {counts[v]}
+                </Link>
+              ))}
+            </div>
+            {categoriesPresent.length > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                <Link href={filterHref({ category: null })} aria-current={categoryFilter ? undefined : "true"} className={pill(!categoryFilter)}>
+                  모든 카테고리
+                </Link>
+                {categoriesPresent.map((c) => (
+                  <Link key={c} href={filterHref({ category: c })} aria-current={categoryFilter === c ? "true" : undefined} className={pill(categoryFilter === c)}>
+                    {CATEGORY_LABEL[c]}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+            {verdictFilter || categoryFilter ? (
+              <p className="text-stone-700" data-testid="triage-shown">
+                {rows.length}개 중 {shown.length}개를 보고 있습니다.{" "}
+                <Link href="/triage" className="underline">
+                  모두 보기
+                </Link>
+              </p>
+            ) : null}
+          </nav>
+
+          {shown.length === 0 ? (
+            <p className="card text-sm text-stone-700">이 조건에 맞는 물건이 없습니다.</p>
+          ) : (
           <div className="card overflow-x-auto p-0">
             <table className="w-full min-w-[840px] border-collapse text-sm">
               <caption className="sr-only">물건별 배분 판단</caption>
@@ -127,7 +182,7 @@ export default async function TriagePage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ item, result, scenarioOf, lines, alternatives }) => {
+                {shown.map(({ item, result, scenarioOf, lines, alternatives }) => {
                   const buyback = scenarioOf("BUYBACK");
                   const direct = scenarioOf("DIRECT");
                   const bg = result.verdict === "UNDECIDED" ? "bg-amber-50/40" : "";
@@ -237,6 +292,7 @@ export default async function TriagePage() {
               </tbody>
             </table>
           </div>
+          )}
         </>
       )}
 
