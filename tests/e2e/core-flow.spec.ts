@@ -1241,3 +1241,34 @@ test("연달아 입력: 가격 자료를 저장하고 하나 더 넣을 때 유�
   await page.goto(`/items/${ids[0]}/prices/new?saved=1&type=VERIFIED_SALE&source=x`);
   await expect(page.locator("#priceType")).toHaveValue("ASKING");
 });
+
+test("판매 결과 돌아보기: 판매한 달로 걸러 보고, CSV도 그 달만 받는다", async ({ page }) => {
+  // 서로 다른 달에 판 물건 두 개
+  for (const [name, soldDate] of [["달별 테스트 가", "2026-01-15"], ["달별 테스트 나", "2026-02-03"]] as const) {
+    await page.goto("/items/new");
+    await page.locator("#category").selectOption("CONSOLE");
+    await page.locator("#name").fill(name);
+    await page.locator("#condition").selectOption("GOOD");
+    await page.getByRole("button", { name: "저장" }).click();
+    await expect(page).toHaveURL(/\/items\/\d+$/);
+    await page.locator("#result-channel").fill("가 장터");
+    await page.locator("#result-soldDate").fill(soldDate);
+    await page.locator("#result-amount").fill("10000");
+    await page.getByRole("button", { name: "판매 결과 저장" }).click();
+    await expect(page.getByTestId("result-summary")).toBeVisible();
+  }
+  await page.goto("/results");
+  const filter = page.getByTestId("month-filter");
+  await expect(filter).toContainText("2026-01");
+  await expect(filter).toContainText("2026-02");
+  await filter.getByRole("link", { name: /^2026-01 / }).click();
+  await expect(page).toHaveURL(/month=2026-01/);
+  await expect(page.locator("main")).toContainText("달별 테스트 가");
+  await expect(page.locator("main")).not.toContainText("달별 테스트 나");
+  const csv = await (await page.request.get("/api/export/results?month=2026-01")).text();
+  expect(csv).toContain("달별 테스트 가");
+  expect(csv).not.toContain("달별 테스트 나");
+  // 형식이 틀린 달은 무시하고 전체를 보여 준다
+  await page.goto("/results?month=2026-13");
+  await expect(page.locator("main")).toContainText("달별 테스트 나");
+});

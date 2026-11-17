@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db/client";
 import { listPostedPricesByItem, listSaleReviews } from "@/lib/db/repo";
 import { summarizePosted } from "@/lib/domain/posted-price";
+import { isMonthKey, soldMonth } from "@/lib/domain/review";
 import { buildResultsCsv } from "@/lib/domain/report-csv";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import { SALE_METHOD_LABEL } from "@/lib/domain/types";
@@ -8,11 +9,15 @@ import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
 
 // 판매 결과 돌아보기의 물건별 기록을 CSV로 내보낸다. 현재 모드의 자료만. 합계 행은 없다.
-export async function GET() {
+export async function GET(req: Request) {
   const demo = await isDemoMode();
+  const raw = new URL(req.url).searchParams.get("month") ?? undefined;
+  const month = isMonthKey(raw) ? raw : null;
   const db = getDb();
   const posted = listPostedPricesByItem(db, demo);
-  const rows = listSaleReviews(db, demo).map((r) => ({
+  const rows = listSaleReviews(db, demo)
+    .filter((r) => month === null || soldMonth(r.result.soldDate) === month)
+    .map((r) => ({
     name: r.item.name,
     category: r.item.category,
     soldDate: r.result.soldDate,
@@ -31,7 +36,7 @@ export async function GET() {
   return new Response(buildResultsCsv(rows), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${demo ? "DEMO-" : ""}results-${todayYmd()}.csv"`,
+      "Content-Disposition": `attachment; filename="${demo ? "DEMO-" : ""}results-${month ?? "all"}-${todayYmd()}.csv"`,
       "Cache-Control": "no-store",
     },
   });
