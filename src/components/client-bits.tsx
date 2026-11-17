@@ -7,6 +7,8 @@ import {
   importItemsCsvAction,
   saveExtensionIdAction,
   createSnapshotAction,
+  checkDbHealthAction,
+  type DbHealthState,
   saveCostPresetAction,
   saveOfferAction,
   savePostedPriceAction,
@@ -273,6 +275,42 @@ export function SnapshotButton() {
         {state.message}
       </span>
     </form>
+  );
+}
+
+/** 설정 화면의 DB 점검 버튼과 결과. */
+export function DbHealthButton() {
+  const [state, action, pending] = useActionState<DbHealthState, FormData>(checkDbHealthAction, {});
+  const r = state.report;
+  return (
+    <div className="space-y-3">
+      <form action={action}>
+        <button type="submit" className="btn" disabled={pending}>
+          {pending ? "점검하는 중…" : "지금 점검하기"}
+        </button>
+      </form>
+      <div role="status" data-testid="db-health">
+        {r ? (
+          <>
+            <p className={r.ok ? "font-medium text-teal-900" : "font-medium text-red-800"}>
+              {r.ok ? "모든 점검을 통과했습니다." : "문제가 있는 항목이 있습니다. 고치기 전에 백업 사본을 먼저 만들어 두세요."}{" "}
+              <span className="font-normal text-stone-600">({state.checkedAt})</span>
+            </p>
+            <ul className="mt-2 space-y-1">
+              {r.checks.map((c) => (
+                <li key={c.key} data-testid={`db-health-${c.key}`} className="flex flex-wrap gap-x-2">
+                  <span aria-hidden className={c.ok ? "text-teal-800" : "text-red-800"}>
+                    {c.ok ? "✓" : "✗"}
+                  </span>
+                  <span>{c.label}:</span>
+                  <span className={c.ok ? "text-stone-700" : "font-medium text-red-800"}>{c.ok ? c.detail : `문제 있음 — ${c.detail}`}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

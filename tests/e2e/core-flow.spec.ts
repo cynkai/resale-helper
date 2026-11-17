@@ -1401,3 +1401,13 @@ test("인쇄: 데모 띠는 안내 문장만 남고, 머리말과 화면 조작 
   await page.getByRole("button", { name: "실제 사용으로 돌아가기" }).click();
   await expect(page.getByText("데모 모드", { exact: true })).toHaveCount(0);
 });
+
+test("DB 점검: 버튼을 누르면 모든 항목을 보여 주고, 정상 DB는 통과한다", async ({ page }) => {
+  await page.goto("/settings#db-health");
+  await page.getByRole("button", { name: "지금 점검하기" }).click();
+  const box = page.getByTestId("db-health");
+  await expect(box).toContainText("모든 점검을 통과했습니다.");
+  await expect(page.getByTestId("db-health-integrity")).toContainText("이상 없음");
+  await expect(page.getByTestId("db-health-demo_isolation")).toContainText("이상 없음");
+  await expect(box.locator("li")).toHaveCount(7);
+});
