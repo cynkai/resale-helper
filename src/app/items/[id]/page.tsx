@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   chooseMethodAction,
   deleteItemAction,
+  duplicateItemAction,
   deleteOfferAction,
   deletePostedPriceAction,
   deleteScenarioAction,
@@ -389,6 +390,12 @@ export default async function ItemPage({
           <Link href={`/items/${item.id}/edit`} className="btn">
             물건 수정
           </Link>
+          <form action={duplicateItemAction}>
+            <input type="hidden" name="itemId" value={item.id} />
+            <button type="submit" className="btn" title="물건 정보만 베껴 새 물건으로 등록합니다. 가격 자료와 계산은 베끼지 않습니다.">
+              같은 물건 하나 더 등록
+            </button>
+          </form>
           <form action={deleteItemAction}>
             <input type="hidden" name="itemId" value={item.id} />
             <ConfirmSubmit message="이 물건과 연결된 가격 자료·계산·판매 결과가 모두 삭제됩니다. 삭제할까요?">물건 삭제</ConfirmSubmit>

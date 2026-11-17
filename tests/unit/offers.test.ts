@@ -10,6 +10,7 @@ import {
   deleteItem,
   deleteOffer,
   deletePostedPrice,
+  duplicateItem,
   insertOffer,
   insertPostedPrice,
   listPostedPrices,
@@ -274,5 +275,30 @@ describe("기록 한눈에 보기", () => {
     expect(buildTimeline({ ...base, prices: [] }).map((e) => e.kind)).toEqual(["REGISTERED"]);
     const fx = buildTimeline({ ...base, prices: [{ id: 1, priceType: "ASKING", amountMinor: 1250, currency: "USD", sourceName: "해외", checkedDate: "2026-11-02" }] });
     expect(fx[0]!.text).toBe("[판매 중 희망가] 해외 USD 12.50 확인");
+  });
+});
+
+describe("같은 물건 하나 더 등록", () => {
+  it("물건 정보만 베끼고 상태는 보유 중으로 둔다. 가격 자료·제안·올린 가격은 베끼지 않는다", () => {
+    const id = createItem(db, false, { ...item("게임기"), identifier: "ABC-1", defects: "스틱 쏠림", components: "본체" });
+    insertOffer(db, id, { receivedDate: TODAY, amount: 15000, channel: "", memo: null });
+    insertPostedPrice(db, id, { postedDate: TODAY, amount: 20000, channel: "", memo: null });
+    const copy = duplicateItem(db, false, id)!;
+    expect(copy).not.toBe(id);
+    const rows = listItems(db, false);
+    expect(rows).toHaveLength(2);
+    const dup = rows.find((r) => r.item.id === copy)!;
+    expect(dup.item).toMatchObject({ name: "게임기", identifier: "ABC-1", defects: "스틱 쏠림", components: "본체", status: "OWNED", chosenMethod: null });
+    expect(dup.priceCount).toBe(0);
+    expect(dup.openOfferCount).toBe(0);
+    expect(rows.find((r) => r.item.id === id)!.openOfferCount).toBe(1);
+    expect(listOffers(db, copy)).toHaveLength(0);
+    expect(listPostedPrices(db, copy)).toHaveLength(0);
+  });
+
+  it("다른 모드의 물건은 베낄 수 없다", () => {
+    const id = createItem(db, false, item("게임기"));
+    expect(duplicateItem(db, true, id)).toBeNull();
+    expect(listItems(db, true)).toHaveLength(0);
   });
 });

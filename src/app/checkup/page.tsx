@@ -32,6 +32,13 @@ function findingLine(f: CheckupFinding) {
           {f.oldestDays}일 전).
         </>
       );
+    case "OPEN_OFFERS":
+      return (
+        <>
+          <strong>답하지 않은 제안 {f.count}건</strong> — 가장 오래된 것: {f.oldestReceivedDate}
+          {f.oldestDays === 0 ? " (오늘)" : ` (${f.oldestDays}일 전)`}. 물건 화면의 ‘받은 제안’에서 받기로 함·거절함으로 표시할 수 있습니다.
+        </>
+      );
     case "BASIS_ISSUE":
       return (
         <>
@@ -63,7 +70,7 @@ export default async function CheckupPage() {
         <div className="card py-10 text-center" data-testid="checkup-empty">
           <p className="font-medium">다시 확인할 자료가 없습니다.</p>
           <p className="mt-1 text-sm text-stone-600">
-            유효기간이 있는 매입 견적, 확인한 지 {OLD_DATA_DAYS}일이 넘은 자료, 기준 자료가 바뀐 계산이 생기면 여기에 나옵니다.
+            유효기간이 있는 매입 견적, 확인한 지 {OLD_DATA_DAYS}일이 넘은 자료, 기준 자료가 바뀐 계산, 답하지 않은 제안이 생기면 여기에 나옵니다.
           </p>
         </div>
       ) : (
@@ -71,7 +78,7 @@ export default async function CheckupPage() {
           <section aria-label="요약" className="card text-sm" data-testid="checkup-counts">
             <p>
               손볼 물건 <strong>{attention}개</strong> — 만료된 견적 {counts.QUOTE_EXPIRED}건, 오래된 자료 {counts.OLD_DATA}건, 다시 확인할 계산{" "}
-              {counts.BASIS_ISSUE}건 · 유효기간이 남은 견적 {counts.QUOTE_VALID}건
+              {counts.BASIS_ISSUE}건, 답하지 않은 제안 {counts.OPEN_OFFERS}건 · 유효기간이 남은 견적 {counts.QUOTE_VALID}건
             </p>
           </section>
           <ul className="space-y-2">

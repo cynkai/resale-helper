@@ -84,6 +84,14 @@ export async function deleteItemAction(fd: FormData): Promise<void> {
   redirect("/");
 }
 
+export async function duplicateItemAction(fd: FormData): Promise<void> {
+  const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
+  const id = repo.duplicateItem(db, isDemo, item.id);
+  if (id === null) throw new Error("물건을 찾을 수 없습니다.");
+  revalidatePath("/");
+  redirect(`/items/${id}/edit?copied=1`);
+}
+
 // ---- 가격 자료 ----
 
 export async function savePriceAction(_prev: FormState, fd: FormData): Promise<FormState> {
