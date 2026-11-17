@@ -11,7 +11,7 @@ export function GET(req: Request) {
   if ("response" in a) return a.response;
   logImport({ endpoint: "items", outcome: "OK", status: 200, route: a.access.route, origin: req.headers.get("origin") });
   const q = (new URL(req.url).searchParams.get("q") ?? "").slice(0, 100);
-  const items = listItems(getDb(), false, { q })
+  const items = listItems(getDb(), false, { q, basicSearch: true })
     .slice(0, MAX_ITEMS)
     .map(({ item }) => ({
       id: item.id,

@@ -273,3 +273,22 @@ describe("같은 식별자로 전에 판 기록", () => {
     expect(listPrices(db, now)).toHaveLength(0);
   });
 });
+
+describe("물건 검색", () => {
+  it("이름·식별자·저자·출판사·구성품·하자·메모에서 찾고, %·_는 글자로만 본다", () => {
+    const a = createItem(db, false, { ...input("게임기"), identifier: "G-1", components: "본체, 충전 독", memo: "책상 서랍" });
+    const b = createItem(db, false, { ...input("책"), category: "BOOK", identifier: null, publisher: "가나출판", defects: "표지 얼룩" });
+    const find = (q: string) => listItems(db, false, { q }).map((r) => r.item.id).sort();
+    expect(find("충전 독")).toEqual([a]);
+    expect(find("서랍")).toEqual([a]);
+    expect(find("가나출판")).toEqual([b]);
+    expect(find("얼룩")).toEqual([b]);
+    expect(find("%")).toEqual([a, b].sort()); // %는 지워져 빈 검색어처럼 모두 찾는다
+    expect(find("없는말")).toEqual([]);
+    // 가져오기 API용 검색은 메모·하자·구성품을 찾지 않는다
+    expect(listItems(db, false, { q: "서랍", basicSearch: true })).toHaveLength(0);
+    expect(listItems(db, false, { q: "G-1", basicSearch: true }).map((r) => r.item.id)).toEqual([a]);
+    trashItem(db, false, a);
+    expect(find("서랍")).toEqual([]);
+  });
+});

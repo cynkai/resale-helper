@@ -83,7 +83,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         {step ? <input type="hidden" name="step" value={step} /> : null}
         <div>
           <label htmlFor="q" className="sr-only">검색</label>
-          <input id="q" name="q" defaultValue={q} className="input" placeholder="이름·ISBN·모델명·저자 검색" />
+          <input id="q" name="q" defaultValue={q} className="input" placeholder="이름·ISBN·모델명·저자·구성품·메모 검색" />
         </div>
         <div>
           <label htmlFor="category" className="sr-only">카테고리</label>

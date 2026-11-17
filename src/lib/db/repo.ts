@@ -43,15 +43,29 @@ export const ITEM_SORT_LABEL: Record<ItemSort, string> = {
   name: "이름순",
 };
 
-export type ItemFilter = { q?: string; category?: Category; status?: ItemStatus; sort?: ItemSort };
+export type ItemFilter = {
+  q?: string;
+  category?: Category;
+  status?: ItemStatus;
+  sort?: ItemSort;
+  /** true면 이름·식별자·저자만 찾는다(가져오기 API용: 메모·하자 같은 내용을 검색으로 알아낼 수 없게). */
+  basicSearch?: boolean;
+};
 
 export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
   const conds = [live(isDemo)];
   if (f.category) conds.push(eq(items.category, f.category));
   if (f.status) conds.push(eq(items.status, f.status));
   if (f.q && f.q.trim() !== "") {
+    // 이름·식별자·저자에 더해 출판사·구성품·하자·메모도 찾는다. 검색어의 %·_는 와일드카드로 쓰지 않는다.
     const pat = `%${f.q.trim().replace(/[%_]/g, "")}%`;
-    conds.push(or(like(items.name, pat), like(items.identifier, pat), like(items.author, pat))!);
+    const basic = [like(items.name, pat), like(items.identifier, pat), like(items.author, pat)];
+    conds.push(
+      or(
+        ...basic,
+        ...(f.basicSearch ? [] : [like(items.publisher, pat), like(items.components, pat), like(items.defects, pat), like(items.memo, pat)]),
+      )!,
+    );
   }
   return db
     .select({
