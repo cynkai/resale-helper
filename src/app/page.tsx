@@ -59,6 +59,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             </Link>
           ) : null}
           <Link href="/triage" className="btn">어디로 넘길까 (배분)</Link>
+          <Link href="/items/import" className="btn">CSV로 한꺼번에 등록</Link>
         </div>
       </div>
 

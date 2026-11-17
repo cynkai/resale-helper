@@ -800,3 +800,40 @@ test("판매글 템플릿: 내가 쓴 틀을 물건 정보로 채우고, 값이 
   await page.getByRole("button", { name: "실제 사용으로 돌아가기" }).click();
   await expect(page.getByText("데모 모드")).toHaveCount(0);
 });
+
+test("물건 CSV: 여러 물건을 한 번에 등록하고, 오류·중복 행은 건너뛰며, 가격은 만들지 않는다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "CSV로 한꺼번에 등록" }).click();
+  await expect(page.getByRole("heading", { name: "물건 한꺼번에 등록 (CSV)" })).toBeVisible();
+
+  const csv = [
+    "category,name,identifier,condition,defects",
+    "CONSOLE,CSV 등록 게임기,CSV-100,GOOD,스틱 쏠림",
+    "BOOK,CSV 등록 도서,9780306406157,LIKE_NEW,",
+    "BOOK,ISBN 틀린 도서,123,GOOD,",
+    "CONSOLE,CSV 등록 게임기,CSV-100,FAIR,",
+  ].join("\n");
+  await page.locator("#csv-file").setInputFiles({ name: "items.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
+  await page.getByRole("button", { name: "가져오기" }).click();
+  await expect(page.locator("main")).toContainText("물건 2개를 등록했고, 2행은 건너뛰었습니다.");
+  await expect(page.locator("main")).toContainText("4행");
+  await expect(page.locator("main")).toContainText("5행");
+
+  // 같은 파일을 다시 올려도 두 번 등록되지 않는다
+  await page.locator("#csv-file").setInputFiles({ name: "items.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
+  await page.getByRole("button", { name: "가져오기" }).click();
+  await expect(page.locator("main")).toContainText("물건 0개를 등록했고, 4행은 건너뛰었습니다.");
+
+  await page.goto("/?q=CSV 등록");
+  await expect(page.getByRole("link", { name: /CSV 등록 게임기/ })).toHaveCount(1);
+  await page.getByRole("link", { name: /CSV 등록 게임기/ }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  await expect(page.getByRole("heading", { name: "CSV 등록 게임기" })).toBeVisible();
+  await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
+
+  const res = await page.request.get("/api/export/items");
+  expect(res.headers()["content-disposition"]).toMatch(/items-\d{4}-\d{2}-\d{2}\.csv/);
+  const text = await res.text();
+  expect(text).toContain("CSV 등록 도서,9780306406157,LIKE_NEW");
+  expect(text.split("\r\n")[0]).not.toMatch(/price|amount/);
+});

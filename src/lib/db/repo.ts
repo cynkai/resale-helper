@@ -75,6 +75,20 @@ export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInpu
     .run();
 }
 
+/** 물건 여러 개를 한 번에 등록한다(전부 성공하거나 전부 실패). */
+export function createItems(db: Db, isDemo: boolean, values: ValidItemInput[]): number {
+  if (values.length === 0) return 0;
+  db.transaction((tx) => {
+    for (const v of values) tx.insert(items).values({ ...v, isDemo }).run();
+  });
+  return values.length;
+}
+
+/** 현재 모드의 물건 전체(등록 순서). CSV 내보내기·중복 확인용. */
+export function listAllItems(db: Db, isDemo: boolean): Item[] {
+  return db.select().from(items).where(eq(items.isDemo, isDemo)).orderBy(asc(items.id)).all();
+}
+
 export function deleteItem(db: Db, isDemo: boolean, id: number): void {
   db.delete(items)
     .where(and(eq(items.id, id), eq(items.isDemo, isDemo)))

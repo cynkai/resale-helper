@@ -12,6 +12,7 @@ import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
+import { planItemsCsvImport } from "@/lib/domain/items-csv";
 import { validateTemplateInput } from "@/lib/domain/listing-template";
 import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
 import { COST_KEYS, resolveActualCostTotal } from "@/lib/domain/review";
@@ -154,6 +155,27 @@ export async function importCsvAction(_prev: CsvImportState, fd: FormData): Prom
       plan.errors.length === 0
         ? `${imported}건을 가져왔습니다.`
         : `${imported}건을 가져왔고, ${plan.errors.length}건은 오류로 건너뛰었습니다.`,
+  };
+}
+
+/** 물건 목록 CSV 가져오기. 실제 사용 모드에서만 받는다(데모 자료와 섞이지 않게). */
+export async function importItemsCsvAction(_prev: CsvImportState, fd: FormData): Promise<CsvImportState> {
+  if (await isDemoMode()) return { headerError: "데모 모드에서는 물건을 가져올 수 없습니다. 실제 사용으로 돌아간 뒤 다시 해 주세요." };
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { headerError: "CSV 파일을 선택해 주세요." };
+  if (file.size > MAX_CSV_BYTES) return { headerError: "파일이 너무 큽니다(최대 1MB)." };
+  const db = getDb();
+  const plan = planItemsCsvImport(await file.text(), repo.listAllItems(db, false));
+  if (plan.headerError) return { headerError: plan.headerError };
+  const imported = repo.createItems(db, false, plan.valid.map((v) => v.value));
+  revalidatePath("/");
+  return {
+    imported,
+    rowErrors: plan.errors,
+    message:
+      plan.errors.length === 0
+        ? `물건 ${imported}개를 등록했습니다.`
+        : `물건 ${imported}개를 등록했고, ${plan.errors.length}행은 건너뛰었습니다.`,
   };
 }
 
