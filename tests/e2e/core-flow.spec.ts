@@ -1333,3 +1333,23 @@ test("한 장 요약: 물건 정보·매입 견적·내 계산만 담고 메모�
   await expect(summary).not.toContainText("55,555");
   await expect(page.getByRole("button", { name: "인쇄하기" })).toBeVisible();
 });
+
+test("어두운 화면: 운영체제가 어두운 모드면 바탕이 어둡고, 인쇄는 밝게 둔다", async ({ page }) => {
+  const lightness = () =>
+    page.evaluate(() => {
+      // 계산된 배경색(lab·oklch·rgb)에서 밝기를 0~1로 대략 구한다.
+      const c = getComputedStyle(document.body).backgroundColor;
+      const n = (c.match(/-?[\d.]+/g) ?? []).map(Number);
+      if (c.startsWith("lab(")) return n[0]! / 100;
+      if (c.startsWith("oklch(")) return n[0]! > 1 ? n[0]! / 100 : n[0]!;
+      return (n[0]! + n[1]! + n[2]!) / (3 * 255);
+    });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  expect(await lightness()).toBeLessThan(0.3);
+  await page.emulateMedia({ colorScheme: "dark", media: "print" });
+  expect(await lightness()).toBeGreaterThan(0.9);
+  await page.emulateMedia({ colorScheme: "light", media: "screen" });
+  await page.reload();
+  expect(await lightness()).toBeGreaterThan(0.9);
+});
