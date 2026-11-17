@@ -1456,3 +1456,28 @@ test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지
   await page.getByTestId(`trashed-${ids[1]}`).getByRole("button", { name: "되살리기" }).click();
   await expect(page.getByTestId(`trashed-${ids[1]}`)).toHaveCount(0);
 });
+
+test("물건 배분 거르기: 판단별로 보면 그 판단의 물건만 나오고, 건수 요약은 전체 기준이다", async ({ page }) => {
+  // 계산이 없는 물건은 판단 보류다(이 테스트만 따로 돌려도 표가 비지 않게)
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("BOOK");
+  await page.locator("#name").fill("배분 거르기 책");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  await page.goto("/triage");
+  const total = await page.locator("tbody tr[data-testid^='triage-']").count();
+  const summary = (await page.getByTestId("triage-counts").locator("p").first().textContent())!;
+  await page.getByTestId("triage-filter").getByRole("link", { name: /^판단 보류 \d+$/ }).click();
+  await expect(page).toHaveURL(/verdict=UNDECIDED/);
+  await expect(page.getByTestId("triage-counts").locator("p").first()).toHaveText(summary);
+  const rows = page.locator("tbody tr[data-testid^='triage-']");
+  const n = await rows.count();
+  expect(n).toBeGreaterThan(0);
+  expect(n).toBeLessThanOrEqual(total);
+  for (let i = 0; i < n; i++) await expect(rows.nth(i)).toContainText("판단 보류");
+  await expect(page.getByTestId("triage-shown")).toContainText(`중 ${n}개를 보고 있습니다`);
+  // 알 수 없는 값은 무시하고 전체를 보여 준다
+  await page.goto("/triage?verdict=BOGUS&category=NOPE");
+  await expect(page.getByTestId("triage-shown")).toHaveCount(0);
+});
