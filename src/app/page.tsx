@@ -2,7 +2,7 @@ import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listCheckupSources, listItems, countTrashedItems } from "@/lib/db/repo";
+import { listCheckupSources, listItems, countTrashedItems, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
 import { checkupItem, needsAttention } from "@/lib/domain/checkup";
 import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
 import {
@@ -26,14 +26,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const demo = await isDemoMode();
   const step = NEXT_STEP_CODES.includes(sp.step as NextStepCode) ? (sp.step as NextStepCode) : undefined;
   const db = getDb();
-  const all = listItems(db, demo, { q, category, status }).map((r) => ({
+  const sort = ITEM_SORTS.includes(sp.sort as ItemSort) ? (sp.sort as ItemSort) : "updated";
+  const all = listItems(db, demo, { q, category, status, sort }).map((r) => ({
     ...r,
     step: nextStep({ status: r.item.status, priceCount: r.priceCount, scenarioCount: r.scenarioCount, chosenMethod: r.item.chosenMethod, hasResult: r.resultCount > 0 }),
   }));
   // 할 일별 건수는 할 일 필터를 걸기 전(다른 조건만 적용한) 목록으로 센다.
   const stepCounts = countNextSteps(all.map((r) => r.step));
   const rows = step ? all.filter((r) => r.step === step) : all;
-  const filtered = Boolean(q || category || status || step);
+  const filtered = Boolean(q || category || status || step || sort !== "updated");
   // 자료 점검에서 "확인 필요"로 나오는 물건 수(검색 조건과 무관, 현재 모드 전체).
   const today = todayYmd();
   const attention = listCheckupSources(db, demo).filter((s) => needsAttention(checkupItem(s, today))).length;
@@ -43,6 +44,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
     if (q) p.set("q", q);
     if (category) p.set("category", category);
     if (status) p.set("status", status);
+    if (sort !== "updated") p.set("sort", sort);
     if (code) p.set("step", code);
     const qs = p.toString();
     return qs ? `/?${qs}` : "/";
@@ -77,7 +79,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </div>
 
-      <form method="get" className="card grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]" role="search">
+      <form method="get" className="card grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto]" role="search">
         {step ? <input type="hidden" name="step" value={step} /> : null}
         <div>
           <label htmlFor="q" className="sr-only">검색</label>
@@ -98,6 +100,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <option value="">모든 상태</option>
             {ITEM_STATUSES.map((c) => (
               <option key={c} value={c}>{ITEM_STATUS_LABEL[c]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="sort" className="sr-only">정렬</label>
+          <select id="sort" name="sort" defaultValue={sort} className="input">
+            {ITEM_SORTS.map((c) => (
+              <option key={c} value={c}>{ITEM_SORT_LABEL[c]}</option>
             ))}
           </select>
         </div>

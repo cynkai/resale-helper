@@ -33,7 +33,15 @@ const live = (isDemo: boolean) => and(eq(items.isDemo, isDemo), isNull(items.del
 
 // ---- 물건 ----
 
-export type ItemFilter = { q?: string; category?: Category; status?: ItemStatus };
+export const ITEM_SORTS = ["updated", "registered", "name"] as const;
+export type ItemSort = (typeof ITEM_SORTS)[number];
+export const ITEM_SORT_LABEL: Record<ItemSort, string> = {
+  updated: "최근에 고친 순",
+  registered: "최근에 등록한 순",
+  name: "이름순",
+};
+
+export type ItemFilter = { q?: string; category?: Category; status?: ItemStatus; sort?: ItemSort };
 
 export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
   const conds = [live(isDemo)];
@@ -54,7 +62,13 @@ export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
     })
     .from(items)
     .where(and(...conds))
-    .orderBy(desc(items.updatedAt), desc(items.id))
+    .orderBy(
+      ...(f.sort === "name"
+        ? [asc(items.name), asc(items.id)]
+        : f.sort === "registered"
+          ? [desc(items.id)]
+          : [desc(items.updatedAt), desc(items.id)]),
+    )
     .all();
 }
 
