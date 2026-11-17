@@ -612,6 +612,25 @@ test("판매처별 계산: 여러 개면 기준을 직접 정해야 차이를 �
   await expect(page.getByTestId("choice-outdated")).toBeVisible();
   await expect(page.getByTestId("net-DIRECT")).toHaveText("12,000원");
 
+  // 배분 화면: 계산이 다시 하나가 되면 판매처별 따져 보기는 없다
+  const id = page.url().match(/items\/(\d+)/)![1];
   await page.goto("/triage");
   await expect(page.locator("main")).toContainText("판매처 비교 게임기");
+  await expect(page.getByTestId(`alts-${id}`)).toHaveCount(0);
+
+  // 판매처를 하나 더 넣으면 기준이 아닌 계산을 따로 따져 보여 준다(건수 요약과는 별개)
+  await page.goto(`/items/${id}`);
+  const addAgain = page.getByTestId("add-scenario-DIRECT");
+  await addAgain.locator("summary").click();
+  await addAgain.locator("#direct-new-channel").fill("다 장터");
+  await addAgain.locator("#direct-new-saleAmount").fill("4000");
+  for (const f of ["feeAmount", "shipping", "packing", "transport"]) await addAgain.locator(`#direct-new-${f}`).fill("0");
+  await addAgain.getByRole("button", { name: "새 계산 저장" }).click();
+  await expect(page.getByTestId("scenario-table")).toContainText("다 장터");
+  await page.goto("/triage");
+  const alts = page.getByTestId(`alts-${id}`);
+  await alts.locator("summary").click();
+  await expect(alts).toContainText("개인에게 직접 판매 · 다 장터");
+  await expect(alts).toContainText("업체에 넘기기");
+  await expect(alts).toContainText("순위가 아니고");
 });

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { breakEvenDirectSale, directThresholdWithTime } from "@/lib/domain/break-even";
 import { getTimeValuePerHour, listTriageCandidates } from "@/lib/db/repo";
-import { primaryScenario } from "@/lib/domain/scenario";
+import { primaryScenario, scenarioLabel } from "@/lib/domain/scenario";
 import { formatMoney } from "@/lib/domain/money";
 import type { NetResult } from "@/lib/domain/net";
 import {
@@ -13,12 +13,13 @@ import {
   compareTriage,
   countVerdicts,
   reasonText,
+  triageAlternatives,
   triageItem,
   VERDICT_LABEL,
   warningText,
   type TriageVerdict,
 } from "@/lib/domain/triage";
-import { CATEGORY_LABEL, DISCLAIMER, ITEM_STATUS_LABEL, type SaleMethod } from "@/lib/domain/types";
+import { CATEGORY_LABEL, DISCLAIMER, ITEM_STATUS_LABEL, SALE_METHOD_LABEL, type SaleMethod } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
 
@@ -54,6 +55,7 @@ export default async function TriagePage() {
       const withTime = direct && buybackOk ? directThresholdWithTime(direct, buybackNet, result.extraMinutes, timeValue) : null;
       return {
         ...c,
+        alternatives: triageAlternatives(c, timeValue, today),
         scenarioOf: (m: SaleMethod) => primaryScenario(c.scenarios, m),
         result,
         lines: {
@@ -116,7 +118,7 @@ export default async function TriagePage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ item, result, scenarioOf, lines }) => {
+                {rows.map(({ item, result, scenarioOf, lines, alternatives }) => {
                   const buyback = scenarioOf("BUYBACK");
                   const direct = scenarioOf("DIRECT");
                   const bg = result.verdict === "UNDECIDED" ? "bg-amber-50/40" : "";
@@ -188,6 +190,30 @@ export default async function TriagePage() {
                             기준선(입력한 비용으로 한 산수, 예측 아님): 직접 판매금액이 {formatMoney(lines.even)} 이상이면 업체와 실수령액이 같거나 많음
                             {lines.withTime !== null ? ` · ${formatMoney(lines.withTime)} 이상이면 내 시간당 가치까지 넘김` : ""}
                           </p>
+                        ) : null}
+                        {alternatives.length > 0 ? (
+                          <details className="mt-1" data-testid={`alts-${item.id}`}>
+                            <summary className="cursor-pointer text-stone-700">판매처별로 따져 보기 ({alternatives.length}개)</summary>
+                            <p className="mt-1 text-stone-600">
+                              기준이 아닌 계산을 기준 자리에 넣어 같은 규칙으로 따져 본 것입니다. 입력한 순서이며 순위가 아니고, 위 건수 요약에는 넣지 않습니다.
+                            </p>
+                            <ul className="mt-1 space-y-1">
+                              {alternatives.map(({ scenario: sc, result: r }) => (
+                                <li key={sc.id} data-testid={`alt-${sc.id}`}>
+                                  <span className="font-medium">{scenarioLabel(SALE_METHOD_LABEL[sc.method], sc.channel)}</span>
+                                  {" → "}
+                                  <Badge tone={VERDICT_TONE[r.verdict]}>{VERDICT_LABEL[r.verdict]}</Badge>
+                                  {r.extra !== null ? ` · 차액 ${signed(r.extra)}` : ""}
+                                  {r.extraMinutes !== null ? ` · 추가 ${r.extraMinutes > 0 ? "+" : ""}${r.extraMinutes}분` : ""}
+                                  {r.extraPerHour !== null ? ` · ${formatMoney(r.extraPerHour)}/시간` : ""}
+                                  <span className={r.verdict === "UNDECIDED" ? " text-amber-950" : " text-stone-700"}>
+                                    {" — "}
+                                    {r.reasons.map(reasonText).join(" ")}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
                         ) : null}
                         {result.verdict === "UNDECIDED" && !result.reasons.some((r) => r.code === "NO_TIME_VALUE") ? (
                           <Link href={`/items/${item.id}#net`} className="mt-1 inline-block underline">
