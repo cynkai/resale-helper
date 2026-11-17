@@ -7,12 +7,14 @@ import {
   items,
   listingTemplates,
   offers,
+  postedPrices,
   priceHistory,
   priceRecords,
   saleResults,
   userSettings,
   type CostScenario,
   type Item,
+  type PostedPrice,
   type PriceHistoryRow,
   type PriceRecord,
 } from "./schema";
@@ -20,6 +22,7 @@ import { isSameListing } from "../domain/compare";
 import type { ExportRow } from "../domain/csv";
 import type { ValidItemInput } from "../domain/item-input";
 import type { OfferStatus, ValidOfferInput } from "../domain/offer";
+import type { ValidPostedPriceInput } from "../domain/posted-price";
 import type { ValidPriceInput } from "../domain/price-input";
 import type { Category, InputRoute, ItemStatus, PriceType, SaleMethod } from "../domain/types";
 
@@ -425,6 +428,39 @@ export function deleteOffer(db: Db, itemId: number, id: number): void {
   db.delete(offers).where(and(eq(offers.id, id), eq(offers.itemId, itemId))).run();
 }
 
+// ---- 내 판매글에 올린 가격 ----
+
+/** 올린 날짜순(같은 날은 적은 순서). */
+export function listPostedPrices(db: Db, itemId: number) {
+  return db.select().from(postedPrices).where(eq(postedPrices.itemId, itemId)).orderBy(asc(postedPrices.postedDate), asc(postedPrices.id)).all();
+}
+
+export function insertPostedPrice(db: Db, itemId: number, v: ValidPostedPriceInput): number {
+  return db.insert(postedPrices).values({ ...v, itemId }).returning({ id: postedPrices.id }).get().id;
+}
+
+export function deletePostedPrice(db: Db, itemId: number, id: number): void {
+  db.delete(postedPrices).where(and(eq(postedPrices.id, id), eq(postedPrices.itemId, itemId))).run();
+}
+
+/** 현재 모드의 물건별 올린 가격 기록(날짜순). 결과 돌아보기용. */
+export function listPostedPricesByItem(db: Db, isDemo: boolean): Map<number, PostedPrice[]> {
+  const rows = db
+    .select({ p: postedPrices })
+    .from(postedPrices)
+    .innerJoin(items, eq(items.id, postedPrices.itemId))
+    .where(eq(items.isDemo, isDemo))
+    .orderBy(asc(postedPrices.postedDate), asc(postedPrices.id))
+    .all();
+  const map = new Map<number, PostedPrice[]>();
+  for (const { p } of rows) {
+    const list = map.get(p.itemId);
+    if (list) list.push(p);
+    else map.set(p.itemId, [p]);
+  }
+  return map;
+}
+
 // ---- 판매글 템플릿 ----
 
 export function listTemplates(db: Db, isDemo: boolean) {
@@ -587,6 +623,7 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
     .all();
   const scs = db.select().from(costScenarios).where(inArray(costScenarios.itemId, ids)).orderBy(asc(costScenarios.id)).all();
   const results = db.select().from(saleResults).where(inArray(saleResults.itemId, ids)).all();
+  const posted = listPostedPricesByItem(db, isDemo);
   const offerRows = db.select().from(offers).where(inArray(offers.itemId, ids)).orderBy(asc(offers.receivedDate), asc(offers.id)).all();
   const histRows =
     prices.length > 0
@@ -610,5 +647,6 @@ export function listFullExportSources(db: Db, isDemo: boolean) {
     scenarios: scs.filter((s) => s.itemId === item.id),
     saleResult: results.find((r) => r.itemId === item.id),
     offers: offerRows.filter((o) => o.itemId === item.id),
+    postedPrices: posted.get(item.id) ?? [],
   }));
 }

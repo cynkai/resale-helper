@@ -14,6 +14,7 @@ import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
 import { planItemsCsvImport } from "@/lib/domain/items-csv";
 import { validateTemplateInput } from "@/lib/domain/listing-template";
+import { validatePostedPriceInput } from "@/lib/domain/posted-price";
 import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
 import { COST_KEYS, resolveActualCostTotal } from "@/lib/domain/review";
 import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
@@ -412,6 +413,30 @@ export async function deleteTemplateAction(fd: FormData): Promise<void> {
   if (id === null) return;
   repo.deleteTemplate(getDb(), await isDemoMode(), id);
   revalidatePath("/templates");
+}
+
+// ---- 내 판매글에 올린 가격 ----
+
+export async function savePostedPriceAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const r = validatePostedPriceInput(
+    { postedDate: s(fd, "postedDate"), amount: s(fd, "amount"), channel: s(fd, "channel"), memo: s(fd, "memo") },
+    todayYmd(),
+  );
+  if (!r.ok) return { errors: r.errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
+  repo.insertPostedPrice(db, item.id, r.value);
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/results");
+  return { ok: true, message: "기록했습니다." };
+}
+
+export async function deletePostedPriceAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const id = intId(s(fd, "postedPriceId"));
+  if (id === null) return;
+  repo.deletePostedPrice(db, item.id, id);
+  revalidatePath(`/items/${item.id}`);
+  revalidatePath("/results");
 }
 
 // ---- 받은 제안 ----

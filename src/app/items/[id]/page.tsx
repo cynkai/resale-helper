@@ -4,6 +4,7 @@ import {
   chooseMethodAction,
   deleteItemAction,
   deleteOfferAction,
+  deletePostedPriceAction,
   deleteScenarioAction,
   setOfferStatusAction,
   setPrimaryScenarioAction,
@@ -12,14 +13,15 @@ import {
   deleteSaleResultAction,
   togglePriceAction,
 } from "@/app/actions";
-import { ConfirmSubmit, CopyButton, CsvImportForm, OfferForm, SaleResultForm } from "@/components/client-bits";
+import { ConfirmSubmit, CopyButton, CsvImportForm, OfferForm, PostedPriceForm, SaleResultForm } from "@/components/client-bits";
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
 import { convertToKrw, fxRateToPlain } from "@/lib/domain/fx";
 import { ScenarioForm, type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { getItem, getSaleResult, listChannelNames, listOffers, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
+import { getItem, getSaleResult, listChannelNames, listOffers, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { renderTemplate } from "@/lib/domain/listing-template";
+import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
 import { countOfferStatuses, evaluateOffer, OFFER_STATUS_LABEL, OFFER_STATUSES, pickOfferScenario } from "@/lib/domain/offer";
 import type { CostScenario, PriceRecord } from "@/lib/db/schema";
@@ -229,6 +231,9 @@ export default async function ItemPage({
       ? costItemDiffs(chosenSc && !choiceOutdated ? plannedCostItems(chosenSc) : null, resultActual)
       : null;
   const templates = listTemplates(db, demo);
+  const posted = listPostedPrices(db, item.id);
+  const postedSummary = summarizePosted(posted);
+  const postedDelta = postedDeltas(posted);
   const offers = listOffers(db, item.id);
   const offerCounts = countOfferStatuses(offers.map((o) => o.status));
   // 제안을 받았을 때 비교할 업체 실수령액: 업체 기준 계산이 완전하고 기준 자료 문제가 없을 때만.
@@ -841,6 +846,52 @@ BUYBACK_QUOTE,6000,KRW,○○서점,,${today},GOOD,매장 방문 견적`}
           </div>
           <div className="flex flex-wrap gap-2">
             <CopyButton text={draft.compact} label="한 줄 본문 복사" />
+          </div>
+          <div className="border-t border-stone-200 pt-3" data-testid="posted-prices">
+            <p className="text-sm font-medium">내 판매글에 올린 가격</p>
+            <p className="mt-1 text-xs text-stone-600">
+              판매글을 올리거나 가격을 바꿀 때마다 적어 두면 가격을 어떻게 바꿔 왔는지 볼 수 있습니다. 가격 자료와는 따로 두며, 얼마에 올릴지는 앱이
+              정하지 않습니다.
+            </p>
+            {posted.length > 0 ? (
+              <>
+                {postedSummary ? (
+                  <p className="mt-2 text-sm" data-testid="posted-summary">
+                    처음 {formatMoney(postedSummary.first)} → 지금 {formatMoney(postedSummary.latest)} · 내린 횟수 {postedSummary.lowered}번, 올린 횟수{" "}
+                    {postedSummary.raised}번
+                    {breakEven?.ok
+                      ? ` · 지금 가격은 손익분기 개인 판매금액(${formatMoney(breakEven.saleAmount)})${
+                          postedSummary.latest >= breakEven.saleAmount ? " 이상" : "보다 낮음"
+                        }`
+                      : ""}
+                  </p>
+                ) : null}
+                <ul className="mt-2 divide-y divide-stone-200 text-sm">
+                  {posted.map((pp) => {
+                    const d = postedDelta.get(pp.id) ?? null;
+                    return (
+                      <li key={pp.id} className="flex flex-wrap items-center gap-2 py-1.5" data-testid={`posted-${pp.id}`}>
+                        <span className="text-stone-600">{pp.postedDate}</span>
+                        <strong>{formatMoney(pp.amount)}</strong>
+                        {d !== null ? <span className="text-stone-700">({d === 0 ? "직전과 같음" : `직전보다 ${signed(d)}`})</span> : null}
+                        {pp.channel ? <span className="text-stone-600">· {pp.channel}</span> : null}
+                        {pp.memo ? <span className="text-stone-600">· {pp.memo}</span> : null}
+                        <form action={deletePostedPriceAction} className="ml-auto">
+                          <input type="hidden" name="itemId" value={item.id} />
+                          <input type="hidden" name="postedPriceId" value={pp.id} />
+                          <ConfirmSubmit message="이 기록을 지울까요?" className="btn-danger px-2 py-0.5 text-xs">
+                            지우기
+                          </ConfirmSubmit>
+                        </form>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            ) : null}
+            <div className="mt-3">
+              <PostedPriceForm itemId={item.id} today={today} channelNames={channelNames} />
+            </div>
           </div>
           <div className="border-t border-stone-200 pt-3" data-testid="my-templates">
             <p className="text-sm font-medium">내 템플릿</p>
