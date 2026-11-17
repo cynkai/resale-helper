@@ -673,3 +673,53 @@ test("외화 자료: 직접 입력한 환율로 환산 참고만 보여 주고, 
   await expect(fx).toContainText("1 USD = 1385.5원, 기준일 2026-01-05");
   await expect(page.locator("main")).toContainText("외화 자료(원화 비교에서 제외)");
 });
+
+test("받은 제안: 제안 금액을 내 계산의 비용에 넣어 따져 보고, 받기로 한 제안은 판매 결과 칸에 미리 채운다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("제안 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  // 계산이 없을 때: 기록은 되지만 따져 보지 않는다
+  await page.locator("#offer-amount").fill("0");
+  await page.getByRole("button", { name: "제안 기록" }).click();
+  await expect(page.locator("#offer-amount-error")).toContainText("0보다 커야");
+  await page.locator("#offer-amount").fill("18000");
+  await page.getByRole("button", { name: "제안 기록" }).click();
+  const offer = page.locator('[data-testid^="offer-"]').filter({ hasText: "18,000원" });
+  await expect(offer).toContainText("개인 판매 금액·비용을 2단계에서 저장하면");
+  await expect(page.locator("#offer-amount")).toHaveValue("");
+
+  const buyback = page.getByTestId("scenario-BUYBACK");
+  await buyback.locator("#buyback-saleAmount").fill("15000");
+  for (const f of ["feeAmount", "shipping", "packing", "transport"]) await buyback.locator(`#buyback-${f}`).fill("0");
+  await buyback.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-BUYBACK")).toHaveText("15,000원");
+  const direct = page.getByTestId("scenario-DIRECT");
+  await direct.locator("#direct-saleAmount").fill("20000");
+  await direct.getByText("비율(%)").click();
+  await direct.locator("#direct-feeRate").fill("10");
+  await direct.locator("#direct-shipping").fill("3000");
+  for (const f of ["packing", "transport"]) await direct.locator(`#direct-${f}`).fill("0");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("net-DIRECT")).toHaveText("15,000원");
+
+  // 18,000 − 수수료 1,800 − 배송비 3,000 = 13,200 → 업체(15,000)보다 1,800 적음
+  await expect(offer).toContainText("예상 판매금액 20,000원보다 -2,000원");
+  await expect(offer).toContainText("이 금액에 팔면 예상 실수령액 13,200원");
+  await expect(offer).toContainText("업체 판매 실수령액보다 -1,800원");
+  await expect(page.getByTestId("offer-counts")).toContainText("답하지 않음 1건");
+
+  await offer.getByRole("button", { name: "받기로 함으로 표시" }).click();
+  await expect(offer).toContainText("받기로 함");
+  await expect(page.locator("#result-amount")).toHaveValue("18000");
+
+  // 제안은 가격 자료가 아니다
+  await expect(page.getByText("가격 자료 없음")).toBeVisible();
+
+  page.once("dialog", (d) => void d.accept());
+  await offer.getByRole("button", { name: "지우기" }).click();
+  await expect(page.locator('[data-testid^="offer-"]').filter({ hasText: "18,000원" })).toHaveCount(0);
+});

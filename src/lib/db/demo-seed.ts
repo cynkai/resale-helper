@@ -1,7 +1,7 @@
 // 데모 시드. 모든 값은 가상이며 is_demo=true로만 저장된다. 실제 시세와 무관하다.
 
 import type { Db } from "./client";
-import { clearDemo, createItem, getItem, insertPrice, listPrices, listScenarios, setPrimaryScenario, upsertScenario } from "./repo";
+import { clearDemo, createItem, getItem, insertOffer, insertPrice, listPrices, listScenarios, setPrimaryScenario, upsertScenario } from "./repo";
 import { priceHistory } from "./schema";
 import { isbn13CheckDigit } from "../domain/isbn";
 import type { ValidPriceInput } from "../domain/price-input";
@@ -177,4 +177,6 @@ export function seedDemo(db: Db, today: string): void {
   // 직접 팔아도 업체보다 덜 남는 예시
   upsertScenario(db, earphoneId, "BUYBACK", scenario(20000, { shipping: 0, packing: 0, transport: 0 }, 15));
   upsertScenario(db, earphoneId, "DIRECT", scenario(22000, { shipping: 3000, packing: 500, transport: 0 }, 60));
+  // 받은 제안 예시(가상): 판매 중인 물건에 들어온 제안 하나.
+  insertOffer(db, earphoneId, { receivedDate: daysAgo(today, 2), amount: 21000, channel: "", memo: "데모용 가상 제안" });
 }

@@ -3,7 +3,7 @@
 // - "모름"은 null로 싣는다(0으로 바꾸지 않는다).
 // - 설정(가져오기 토큰 해시 등)은 싣지 않는다.
 
-import type { CostScenario, Item, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
+import type { CostScenario, Item, Offer, PriceHistoryRow, PriceRecord, SaleResult } from "../db/schema";
 import { convertToKrw, fxRateToPlain } from "./fx";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
@@ -18,6 +18,8 @@ export type FullExportSource = {
   history?: Map<number, PriceHistoryRow[]>;
   scenarios: CostScenario[];
   saleResult: SaleResult | undefined;
+  /** 받은 제안(받은 날짜순). 없으면 빈 목록으로 본다. */
+  offers?: Offer[];
 };
 
 export function buildFullExport(input: { demo: boolean; exportedDate: string; sources: FullExportSource[] }) {
@@ -36,7 +38,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
       ...(input.demo ? ["데모 모드의 가상 자료입니다. 실제 시세가 아닙니다."] : []),
     ],
     itemCount: input.sources.length,
-    items: input.sources.map(({ item, prices, history, scenarios, saleResult }) => {
+    items: input.sources.map(({ item, prices, history, scenarios, saleResult, offers }) => {
       const chosen = chosenScenario(item, scenarios);
       return {
         id: item.id,
@@ -119,6 +121,8 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
           item.chosenMethod === null
             ? null
             : { method: item.chosenMethod, channel: item.chosenChannel ?? "", saleAmount: item.chosenSaleAmount, netAmount: item.chosenNetAmount, chosenAt: item.chosenAt },
+        // 받은 제안은 사용자가 적은 기록이며 가격 자료가 아니다.
+        offers: (offers ?? []).map((o) => ({ receivedDate: o.receivedDate, amount: o.amount, channel: o.channel, status: o.status, memo: o.memo })),
         saleResult: saleResult
           ? {
               channel: saleResult.channel,

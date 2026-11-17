@@ -12,6 +12,7 @@ import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
 import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
+import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
 import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
 import { validateTimeValue } from "@/lib/domain/settings-input";
 import { SALE_METHODS, type PriceType, type SaleMethod } from "@/lib/domain/types";
@@ -338,6 +339,37 @@ export async function saveSaleResultAction(_prev: FormState, fd: FormData): Prom
 export async function deleteSaleResultAction(fd: FormData): Promise<void> {
   const { item, db } = await requireItem(s(fd, "itemId"));
   repo.deleteSaleResult(db, item.id);
+  revalidatePath(`/items/${item.id}`);
+}
+
+// ---- 받은 제안 ----
+
+export async function saveOfferAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const r = validateOfferInput(
+    { receivedDate: s(fd, "receivedDate"), amount: s(fd, "amount"), channel: s(fd, "channel"), memo: s(fd, "memo") },
+    todayYmd(),
+  );
+  if (!r.ok) return { errors: r.errors, values: values(fd), message: "입력 내용을 확인해 주세요." };
+  repo.insertOffer(db, item.id, r.value);
+  revalidatePath(`/items/${item.id}`);
+  return { ok: true, message: "제안을 기록했습니다." };
+}
+
+export async function setOfferStatusAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const id = intId(s(fd, "offerId"));
+  const status = s(fd, "status") as OfferStatus;
+  if (id === null || !OFFER_STATUSES.includes(status)) return;
+  repo.setOfferStatus(db, item.id, id, status);
+  revalidatePath(`/items/${item.id}`);
+}
+
+export async function deleteOfferAction(fd: FormData): Promise<void> {
+  const { item, db } = await requireItem(s(fd, "itemId"));
+  const id = intId(s(fd, "offerId"));
+  if (id === null) return;
+  repo.deleteOffer(db, item.id, id);
   revalidatePath(`/items/${item.id}`);
 }
 
