@@ -1190,3 +1190,39 @@ test("물건 상태 빠른 변경: 판매 중으로 표시하고 되돌리며, �
   await expect(page.getByTestId("set-status-OWNED")).toHaveCount(0);
   await expect(page.getByTestId("set-status-LISTED")).toHaveCount(0);
 });
+
+test("연달아 입력: 가격 자료를 저장하고 하나 더 넣을 때 유형·출처만 이어 주고, 이전·다음 물건으로 이동한다", async ({ page }) => {
+  const ids: string[] = [];
+  for (const name of ["연달아 테스트 가", "연달아 테스트 나"]) {
+    await page.goto("/items/new");
+    await page.locator("#category").selectOption("CONSOLE");
+    await page.locator("#name").fill(name);
+    await page.locator("#condition").selectOption("GOOD");
+    await page.getByRole("button", { name: "저장" }).click();
+    await expect(page).toHaveURL(/\/items\/\d+$/);
+    ids.push(page.url().split("/").pop()!);
+  }
+  // 나중에 등록한 물건에서 이전 물건으로
+  await expect(page.getByTestId("item-nav").getByText("다음 물건 ›")).not.toHaveAttribute("href", /.+/);
+  await page.getByTestId("item-nav").getByRole("link", { name: "‹ 이전 물건" }).click();
+  await expect(page).toHaveURL(new RegExp(`/items/${ids[0]}$`));
+  await expect(page.getByRole("heading", { name: "연달아 테스트 가" })).toBeVisible();
+
+  await page.getByRole("link", { name: "가격 자료 추가" }).click();
+  await page.locator("#priceType").selectOption("SOLD_LISTING");
+  await page.locator("#amount").fill("15000");
+  await page.locator("#sourceName").fill("가 장터");
+  await page.getByRole("button", { name: "저장하고 하나 더 추가" }).click();
+  await expect(page.getByTestId("saved-again")).toBeVisible();
+  await expect(page.locator("#priceType")).toHaveValue("SOLD_LISTING");
+  await expect(page.locator("#sourceName")).toHaveValue("가 장터");
+  await expect(page.locator("#amount")).toHaveValue(""); // 금액은 이어 주지 않는다
+  await page.locator("#amount").fill("14000");
+  await page.getByRole("button", { name: "가격 자료 저장", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/items/${ids[0]}(#prices)?$`));
+  await expect(page.getByTestId("group-SOLD_LISTING")).toContainText("포함 2건");
+
+  // 주소로 검증된 체결가를 끼워 넣어도 기본 유형으로 돌아간다
+  await page.goto(`/items/${ids[0]}/prices/new?saved=1&type=VERIFIED_SALE&source=x`);
+  await expect(page.locator("#priceType")).toHaveValue("ASKING");
+});

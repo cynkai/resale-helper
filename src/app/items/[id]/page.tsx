@@ -6,7 +6,7 @@ import { deleteItemAction, duplicateItemAction, setItemStatusAction } from "@/ap
 import { ConfirmSubmit } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { getItem } from "@/lib/db/repo";
+import { adjacentItems, getItem } from "@/lib/db/repo";
 import { CATEGORY_LABEL, ITEM_STATUS_LABEL } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
@@ -34,9 +34,31 @@ export default async function ItemPage({
   const item = /^\d+$/.test(id) ? getItem(db, demo, Number(id)) : undefined;
   if (!item) notFound();
   const v = loadItemView(db, demo, item, sp, todayYmd());
+  const { prev, next } = adjacentItems(db, demo, item.id);
 
   return (
     <div className="space-y-4">
+      <nav aria-label="다른 물건으로" className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="item-nav">
+        <Link href="/" className="underline">
+          ← 내 물건
+        </Link>
+        <span className="flex flex-wrap gap-3">
+          {prev ? (
+            <Link href={`/items/${prev.id}`} className="underline" title={prev.name}>
+              ‹ 이전 물건
+            </Link>
+          ) : (
+            <span className="text-stone-500">‹ 이전 물건</span>
+          )}
+          {next ? (
+            <Link href={`/items/${next.id}`} className="underline" title={next.name}>
+              다음 물건 ›
+            </Link>
+          ) : (
+            <span className="text-stone-500">다음 물건 ›</span>
+          )}
+        </span>
+      </nav>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">{item.name}</h1>

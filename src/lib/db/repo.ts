@@ -115,6 +115,14 @@ export function setItemStatus(db: Db, isDemo: boolean, id: number, status: "OWNE
   );
 }
 
+/** 등록 순서로 바로 앞·뒤 물건(같은 모드, 휴지통 제외). 여러 물건을 차례로 손볼 때 쓴다. */
+export function adjacentItems(db: Db, isDemo: boolean, id: number): { prev: { id: number; name: string } | null; next: { id: number; name: string } | null } {
+  const pick = { id: items.id, name: items.name };
+  const prev = db.select(pick).from(items).where(and(live(isDemo), sql`${items.id} < ${id}`)).orderBy(desc(items.id)).limit(1).get();
+  const next = db.select(pick).from(items).where(and(live(isDemo), sql`${items.id} > ${id}`)).orderBy(asc(items.id)).limit(1).get();
+  return { prev: prev ?? null, next: next ?? null };
+}
+
 // ---- 휴지통 ----
 
 /** 물건을 휴지통으로 옮긴다. 딸린 자료는 그대로 두므로 되살리면 모두 돌아온다. */
