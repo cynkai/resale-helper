@@ -1111,6 +1111,13 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await expect(group).not.toContainText("라 장터");
   await expect(group).toContainText("가 장터");
 
+  // 가격 자료 추가 화면은 전에 쓴 출처 이름을 제안한다(고르지 않아도 된다)
+  const itemPath = new URL(page.url()).pathname;
+  await page.goto(`${itemPath}/prices/new`);
+  await expect(page.locator("#sourceName")).toHaveAttribute("list", "sourceName-suggestions");
+  await expect(page.locator('#sourceName-suggestions option[value="가 장터"]')).toHaveCount(1);
+  await page.goto(itemPath);
+
   // 지운 자료는 휴지통으로 가고, 되살리면 비교에 다시 들어온다
   const itemUrl = page.url().replace(/#.*$/, "");
   await expect(page.getByTestId("trashed-prices-note")).toContainText("2건이 휴지통에");

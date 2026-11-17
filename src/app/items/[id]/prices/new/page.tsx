@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PriceForm } from "@/components/PriceForm";
 import { getDb } from "@/lib/db/client";
-import { getItem } from "@/lib/db/repo";
+import { getItem, listSourceNames } from "@/lib/db/repo";
 import { CURRENCIES } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
@@ -27,8 +27,11 @@ export default async function NewPricePage({
   const carriedType = MANUAL_TYPES.includes(sp.type ?? "") ? sp.type! : "ASKING";
   const carriedCurrency = (CURRENCIES as readonly string[]).includes(sp.currency ?? "") ? sp.currency! : "KRW";
   const carriedSource = (sp.source ?? "").slice(0, 100);
-  const item = /^\d+$/.test(id) ? getItem(getDb(), await isDemoMode(), Number(id)) : undefined;
+  const db = getDb();
+  const demo = await isDemoMode();
+  const item = /^\d+$/.test(id) ? getItem(db, demo, Number(id)) : undefined;
   if (!item) notFound();
+  const sourceNames = listSourceNames(db, demo);
   return (
     <div className="space-y-4">
       <p className="text-sm">
@@ -46,6 +49,7 @@ export default async function NewPricePage({
       <div className="card">
         <PriceForm
           itemId={item.id}
+          sourceNames={sourceNames}
           initial={{
             priceType: carriedType,
             currency: carriedCurrency,

@@ -21,10 +21,13 @@ export function PriceForm({
   itemId,
   priceId,
   initial,
+  sourceNames = [],
 }: {
   itemId: number;
   priceId?: number;
   initial: Record<string, string>;
+  /** 전에 쓴 출처 이름(제안만, 고르지 않아도 된다). */
+  sourceNames?: string[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(savePriceAction, {});
   const v = state.values ?? initial;
@@ -110,7 +113,18 @@ export function PriceForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="출처 이름" name="sourceName" error={e.sourceName} required hint="플랫폼명 또는 업체명">
-          {input("sourceName", { placeholder: isQuote ? "예: ○○ 중고서점" : "예: ○○마켓" })}
+          {input("sourceName", {
+            placeholder: isQuote ? "예: ○○ 중고서점" : "예: ○○마켓",
+            list: sourceNames.length > 0 ? "sourceName-suggestions" : undefined,
+            autoComplete: "off",
+          })}
+          {sourceNames.length > 0 ? (
+            <datalist id="sourceName-suggestions">
+              {sourceNames.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          ) : null}
         </Field>
         <Field label="확인일" name="checkedDate" error={e.checkedDate} required hint="이 가격을 직접 확인한 날짜">
           {input("checkedDate", { type: "date" })}
