@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import {
   generateImportTokenAction,
   importCsvAction,
+  importItemsCsvAction,
   saveExtensionIdAction,
   saveOfferAction,
   saveTemplateAction,
@@ -64,11 +65,12 @@ export function ConfirmSubmit({
   );
 }
 
-export function CsvImportForm({ itemId }: { itemId: number }) {
-  const [state, action, pending] = useActionState<CsvImportState, FormData>(importCsvAction, {});
+/** itemId가 있으면 그 물건의 가격 자료 CSV, 없으면 물건 목록 CSV를 가져온다. */
+export function CsvImportForm({ itemId }: { itemId?: number }) {
+  const [state, action, pending] = useActionState<CsvImportState, FormData>(itemId === undefined ? importItemsCsvAction : importCsvAction, {});
   return (
     <form action={action} className="space-y-2">
-      <input type="hidden" name="itemId" value={itemId} />
+      {itemId !== undefined ? <input type="hidden" name="itemId" value={itemId} /> : null}
       <label htmlFor="csv-file" className="block text-sm font-medium">
         CSV 파일
       </label>
