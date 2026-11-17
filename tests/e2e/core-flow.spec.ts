@@ -1108,5 +1108,7 @@ test("백업 사본: 버튼으로 만들고, 내려받고, 지운다. 이상한 
 
   page.once("dialog", (d) => void d.accept());
   await row.getByRole("button", { name: "사본 지우기" }).click();
-  await expect(page.getByTestId("snapshot-list").locator("li").filter({ hasText: name })).toHaveCount(0);
+  await expect(page.getByText(name)).toHaveCount(0);
+  // 사본을 지운 뒤 내려받기 주소도 더는 열리지 않는다
+  expect((await page.request.get(`/api/backup/snapshots/${name}`)).status()).toBe(404);
 });

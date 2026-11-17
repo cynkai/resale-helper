@@ -18,6 +18,9 @@ export function validateBackup(file: string): BackupCheck {
   fs.closeSync(fd);
   if (head.toString("latin1") !== SQLITE_HEADER) return { ok: false, error: "SQLite 데이터베이스 파일이 아닙니다." };
 
+  // WAL 방식 DB는 읽기 전용으로 열어도 -shm/-wal 보조 파일이 생긴다. 확인하려고 연 것 때문에 생긴 파일은 치운다.
+  const sidecars = ["-wal", "-shm"].map((x) => `${file}${x}`);
+  const existedBefore = sidecars.map((f) => fs.existsSync(f));
   let db: Database.Database | null = null;
   try {
     db = new Database(file, { readonly: true, fileMustExist: true });
@@ -34,6 +37,9 @@ export function validateBackup(file: string): BackupCheck {
     return { ok: false, error: `파일을 열 수 없습니다(${e instanceof Error ? e.message : String(e)}).` };
   } finally {
     db?.close();
+    sidecars.forEach((f, i) => {
+      if (!existedBefore[i]) fs.rmSync(f, { force: true });
+    });
   }
 }
 

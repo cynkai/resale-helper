@@ -43,6 +43,8 @@ describe("백업 사본", () => {
     expect(snapshotDir(dbPath)).toBe(path.join(tmpDir, "backups", "resale"));
     expect(snapshotDir(path.join(tmpDir, "e2e.db"))).toBe(path.join(tmpDir, "backups", "e2e"));
     expect(validateBackup(path.join(snapshotDir(dbPath), "resale-20261117-120405.db"))).toMatchObject({ ok: true, items: 1 });
+    // 확인하려고 열었다가 생긴 보조 파일(-wal, -shm)을 남기지 않는다
+    expect(fs.readdirSync(snapshotDir(dbPath))).toEqual(["resale-20261117-120405.db"]);
     // 같은 초에 다시 만들면 덮어쓰지 않는다
     expect(createSnapshot(sqlite, dbPath, new Date("2026-11-17T03:04:05Z"))).toMatchObject({ ok: false });
     createSnapshot(sqlite, dbPath, new Date("2026-11-17T03:05:00Z"));
@@ -64,8 +66,11 @@ describe("백업 사본", () => {
     fs.writeFileSync(path.join(snapshotDir(dbPath), "메모.txt"), "x");
     expect(listSnapshots(dbPath)).toHaveLength(1);
     expect(snapshotPath(dbPath, "resale-20261117-999999.db")).toBeNull(); // 없는 파일
+    // 다른 프로그램이 남긴 보조 파일이 있어도 사본과 함께 지운다
+    fs.writeFileSync(path.join(snapshotDir(dbPath), "resale-20261117-120405.db-wal"), "");
     expect(deleteSnapshot(dbPath, "resale-20261117-120405.db")).toBe(true);
     expect(listSnapshots(dbPath)).toHaveLength(0);
+    expect(fs.readdirSync(snapshotDir(dbPath))).toEqual(["메모.txt"]);
     expect(fs.existsSync(path.join(snapshotDir(dbPath), "메모.txt"))).toBe(true);
   });
 
@@ -82,6 +87,22 @@ describe("백업 사본", () => {
     const b = openDb(dbPath);
     expect(listItems(b.db, false).map((x) => x.item.name)).toEqual(["지울 게임기"]);
     b.close();
+  });
+
+  it("백업 파일을 확인만 해도 보조 파일을 남기지 않고, 원래 있던 보조 파일은 건드리지 않는다", () => {
+    const { sqlite, close } = openDb(dbPath);
+    const snap = createSnapshot(sqlite, dbPath, new Date("2026-11-17T03:04:05Z"));
+    close();
+    if (!snap.ok) throw new Error(snap.error);
+    const file = path.join(snapshotDir(dbPath), snap.snapshot.name);
+    expect(validateBackup(file).ok).toBe(true);
+    expect(fs.readdirSync(snapshotDir(dbPath))).toEqual([snap.snapshot.name]);
+    // 살아 있는 DB(앱이 쓰는 중)의 -wal/-shm은 확인 뒤에도 그대로여야 한다
+    const live = openDb(dbPath);
+    const before = fs.readdirSync(tmpDir).filter((n) => n.startsWith("resale.db")).sort();
+    expect(validateBackup(dbPath).ok).toBe(true);
+    expect(fs.readdirSync(tmpDir).filter((n) => n.startsWith("resale.db")).sort()).toEqual(before);
+    live.close();
   });
 
   it("사본이 없으면 빈 목록", () => {
