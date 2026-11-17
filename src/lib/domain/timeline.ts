@@ -35,6 +35,14 @@ export function utcToSeoulYmd(utc: string | null): string | null {
   return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10); // Asia/Seoul은 UTC+9 고정(서머타임 없음)
 }
 
+/** DB의 UTC 시각을 한국 시각 "YYYY-MM-DD HH:MM"으로. 형식이 다르면 원문 그대로. */
+export function utcToSeoulDateTime(utc: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(utc);
+  if (!m) return utc;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+  return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 16).replace("T", " ");
+}
+
 export type TimelineInput = {
   item: {
     createdAt: string;

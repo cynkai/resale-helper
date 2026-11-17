@@ -1,17 +1,21 @@
 import path from "node:path";
-import { deleteSnapshotAction, revokeImportTokenAction } from "@/app/actions";
+import { clearImportEventsAction, deleteSnapshotAction, revokeImportTokenAction } from "@/app/actions";
 import { ConfirmSubmit, ExtensionIdForm, ImportTokenForm, SnapshotButton } from "@/components/client-bits";
 import { Badge, Section } from "@/components/ui";
 import { getDb, resolveDbPath } from "@/lib/db/client";
 import { listSnapshots, snapshotDir } from "@/lib/db/snapshots";
 import { getImportSettings } from "@/lib/db/repo";
+import { countSuspiciousImportEvents, IMPORT_OUTCOME_LABEL, listImportEvents, MAX_IMPORT_EVENTS } from "@/lib/import/events";
 import { MAX_IMPORT_BODY_BYTES, MAX_IMPORT_RECORDS } from "@/lib/import/records";
+import { utcToSeoulDateTime } from "@/lib/domain/timeline";
 import { isDemoMode } from "@/lib/mode";
 
 export default async function SettingsPage() {
   const demo = await isDemoMode();
   const s = getImportSettings(getDb());
   const hasToken = s.tokenHash !== null;
+  const events = listImportEvents(getDb(), 50);
+  const suspicious = countSuspiciousImportEvents(getDb());
   const dbPath = resolveDbPath();
   const snapshots = listSnapshots(dbPath);
   const snapshotFolder = path.relative(process.cwd(), snapshotDir(dbPath)) || snapshotDir(dbPath);
@@ -64,6 +68,62 @@ export default async function SettingsPage() {
             일반 웹사이트에서 보낸 요청은 토큰이 맞아도 거부합니다. 브라우저에서 오는 요청은 여기에 등록한 확장 한 개만 허용합니다.
           </p>
           <ExtensionIdForm initial={s.extensionId} />
+        </div>
+      </Section>
+
+      <Section
+        id="import-log"
+        title="가져오기 API 사용 기록"
+        aside={suspicious > 0 ? <Badge tone="red">거부된 수상한 요청 {suspicious}회</Badge> : undefined}
+      >
+        <div className="space-y-3 text-sm">
+          <p>
+            가져오기 API로 온 요청을 통과·거부 모두 남깁니다. 내가 쓰지 않은 시각에 요청이 있거나 모르는 Origin이 보이면 토큰을 폐기하고 새로 만들어
+            주세요. 토큰과 요청 내용(가격·출처)은 기록하지 않고, 최근 {MAX_IMPORT_EVENTS}줄만 남깁니다.
+          </p>
+          {events.length === 0 ? (
+            <p className="text-stone-600" data-testid="import-log-empty">아직 기록이 없습니다.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-sm" data-testid="import-log">
+                  <thead className="text-xs text-stone-600">
+                    <tr>
+                      <th scope="col" className="py-1 pr-3 font-medium">시각(한국)</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">무엇을</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">결과</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">어디서</th>
+                      <th scope="col" className="py-1 pr-3 font-medium">내용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.map((ev) => (
+                      <tr key={ev.id} className="border-t border-stone-200 align-top">
+                        <td className="whitespace-nowrap py-1 pr-3">{utcToSeoulDateTime(ev.at)}</td>
+                        <td className="whitespace-nowrap py-1 pr-3">{ev.endpoint === "prices" ? "가격 자료 넣기" : "물건 목록 읽기"}</td>
+                        <td className={`py-1 pr-3 ${ev.outcome === "OK" ? "" : "text-red-900"}`}>
+                          {IMPORT_OUTCOME_LABEL[ev.outcome]} ({ev.status}){ev.count > 1 ? ` × ${ev.count}회` : ""}
+                        </td>
+                        <td className="break-all py-1 pr-3">
+                          {ev.origin ?? "로컬 도구(Origin 없음)"}
+                          {ev.route ? ` · ${ev.route === "CLIP" ? "등록한 확장" : "외부 도구"}` : ""}
+                        </td>
+                        <td className="py-1 pr-3">
+                          {ev.itemId !== null ? `물건 ${ev.itemId}번` : ""}
+                          {ev.imported !== null ? ` · 저장 ${ev.imported}건, 거절 ${ev.rejected ?? 0}건` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <form action={clearImportEventsAction}>
+                <ConfirmSubmit message="가져오기 API 사용 기록을 모두 지울까요?" className="btn-danger px-2 py-1 text-xs">
+                  기록 비우기
+                </ConfirmSubmit>
+              </form>
+            </>
+          )}
         </div>
       </Section>
 

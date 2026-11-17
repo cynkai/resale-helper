@@ -526,6 +526,21 @@ test("가져오기 API: 토큰이 없으면 꺼져 있고, 토큰·Origin 검사
   await page.getByRole("button", { name: "토큰 폐기" }).click();
   await expect(page.getByTestId("token-status")).toHaveText("토큰 없음");
   expect((await post({ Authorization: `Bearer ${token}` })).status()).toBe(403);
+
+  // 사용 기록: 통과한 요청과 거부한 요청이 모두 남고, 토큰은 어디에도 보이지 않는다
+  await page.goto("/settings");
+  const log = page.getByTestId("import-log");
+  await expect(log).toContainText("거부: 허용되지 않은 Origin");
+  await expect(log).toContainText("거부: 토큰 틀림");
+  await expect(log).toContainText("거부: 토큰 없음(API 꺼짐)");
+  await expect(log).toContainText(`chrome-extension://${ext}`);
+  await expect(log).toContainText("등록한 확장");
+  await expect(log).toContainText(`물건 ${itemId}번`);
+  await expect(page.locator("#import-log")).toContainText("거부된 수상한 요청");
+  expect(await page.locator("main").innerText()).not.toContain(token);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "기록 비우기" }).click();
+  await expect(page.getByTestId("import-log-empty")).toBeVisible();
 });
 
 test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준다", async ({ page }) => {
