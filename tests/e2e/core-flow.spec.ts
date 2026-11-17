@@ -1440,8 +1440,12 @@ test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지
   await page.getByTestId("bulk-items").getByRole("button", { name: "판매 중으로 표시" }).click();
   await expect(page.getByTestId("bulk-items-notice")).toHaveCount(0);
 
-  await page.getByRole("checkbox", { name: "한꺼번에 물건 가 선택" }).check();
-  await page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" }).check();
+  // 모두 선택 → 선택 해제 → 다시 모두 선택(검색 결과인 두 물건만 화면에 있다)
+  await page.getByTestId("bulk-items").getByRole("button", { name: "모두 선택" }).click();
+  await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 가 선택" })).toBeChecked();
+  await page.getByTestId("bulk-items").getByRole("button", { name: "선택 해제" }).click();
+  await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" })).not.toBeChecked();
+  await page.getByTestId("bulk-items").getByRole("button", { name: "모두 선택" }).click();
   await page.getByTestId("bulk-items").getByRole("button", { name: "판매 중으로 표시" }).click();
   await expect(page.getByTestId("bulk-items-notice")).toContainText("물건 2개를 판매 중으로 표시했습니다");
   await expect(page).toHaveURL(/q=/);

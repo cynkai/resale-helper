@@ -582,3 +582,21 @@ export function ExtensionIdForm({ initial }: { initial: string | null }) {
     </form>
   );
 }
+
+/**
+ * 한꺼번에 다루기 폼의 "모두 선택 / 선택 해제". 화면에 보이는 선택 칸(form 속성이 formId인 것)만 바꾼다.
+ * 자바스크립트가 없으면 보이지 않아도 된다(칸을 하나씩 고를 수 있다).
+ */
+export function SelectAllToggle({ formId, name }: { formId: string; name: string }) {
+  const boxes = () => Array.from(document.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][form="${formId}"][name="${name}"]`));
+  return (
+    <span className="inline-flex gap-1">
+      <button type="button" className="btn px-2 py-1 text-xs" onClick={() => boxes().forEach((b) => (b.checked = true))}>
+        모두 선택
+      </button>
+      <button type="button" className="btn px-2 py-1 text-xs" onClick={() => boxes().forEach((b) => (b.checked = false))}>
+        선택 해제
+      </button>
+    </span>
+  );
+}

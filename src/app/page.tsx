@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
 import { bulkItemsAction } from "@/app/actions";
-import { ConfirmSubmit } from "@/components/client-bits";
+import { ConfirmSubmit, SelectAllToggle } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
 import { listCheckupSources, listItems, countTrashedItems, countTrashedPrices, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
@@ -186,6 +186,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <form id="bulk-items" action={bulkItemsAction} className="flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-items">
           <input type="hidden" name="back" value={listQuery} />
           <span className="text-stone-700">‘선택’으로 고른 물건을 한꺼번에:</span>
+          <SelectAllToggle formId="bulk-items" name="itemIds" />
           <button type="submit" name="op" value="LISTED" className="btn px-2 py-1 text-xs">
             판매 중으로 표시
           </button>
