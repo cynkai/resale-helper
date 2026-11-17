@@ -61,7 +61,7 @@
 - Browse API 문서 페이지(<https://developer.ebay.com/develop/api/buy/browse_api>)는 확인 시점에 접근이 거부되어(HTTP 403) **내용을 확인하지 못했다.** 인증 방식·운영 접근 조건·반환 범위는 미확인.
 - Buy API 필터 문서(<https://www.developer.ebay.com/api-docs/buy/static/ref-buy-browse-filters.html>)에는 Marketplace Insights API가 "restricted and not open to new users"라고 적혀 있다. 판매완료 필터(`lastSoldDate`)는 그 API에만 있다.
 - Product Research(Terapeak)는 Seller Hub의 판매자용 조사 화면이고, 도움말 페이지에 API 안내는 없다.
-- 첫 버전은 원화 비교만 하므로 해외 자료는 범위 밖이다. 사용자가 직접 본 값을 외화로 입력하면 원래 통화로만 표시되고 비교에서 제외된다.
+- 첫 버전은 원화 비교만 하므로 해외 자료는 범위 밖이다. 사용자가 직접 본 값을 외화로 입력하면 원래 통화로 표시되고 비교에서 제외된다. 환율과 기준일을 직접 입력하면 환산 참고값만 함께 보여 준다.
 
 ## "직접 담기" 확장이 크롤링이 아닌 이유
 

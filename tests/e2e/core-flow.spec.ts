@@ -634,3 +634,31 @@ test("판매처별 계산: 여러 개면 기준을 직접 정해야 차이를 �
   await expect(alts).toContainText("업체에 넘기기");
   await expect(alts).toContainText("순위가 아니고");
 });
+
+test("외화 자료: 직접 입력한 환율로 환산 참고만 보여 주고, 원화 비교에는 넣지 않는다", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("외화 참고 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  await page.getByRole("link", { name: "가격 자료 추가" }).click();
+  await page.locator("#priceType").selectOption("ASKING");
+  await page.locator("#amount").fill("12.50");
+  await page.locator("#currency").selectOption("USD");
+  await page.locator("#sourceName").fill("해외 장터");
+  await page.getByText("외화 자료의 원화 환산 참고 (선택)").click();
+  // 환율만 넣고 기준일을 빼면 저장하지 않는다
+  await page.locator("#fxRate").fill("1385.5");
+  await page.getByRole("button", { name: "가격 자료 저장" }).click();
+  await expect(page.locator("#fxDate-error")).toContainText("기준일도 입력");
+  await page.locator("#fxDate").fill("2026-01-05");
+  await page.getByRole("button", { name: "가격 자료 저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+(#prices)?$/);
+
+  const fx = page.locator('[data-testid^="fx-"]');
+  await expect(fx).toContainText("환산 참고 약 17,319원");
+  await expect(fx).toContainText("1 USD = 1385.5원, 기준일 2026-01-05");
+  await expect(page.locator("main")).toContainText("외화 자료(원화 비교에서 제외)");
+});

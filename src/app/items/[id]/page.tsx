@@ -12,6 +12,7 @@ import {
 } from "@/app/actions";
 import { ConfirmSubmit, CopyButton, CsvImportForm, SaleResultForm } from "@/components/client-bits";
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
+import { convertToKrw, fxRateToPlain } from "@/lib/domain/fx";
 import { ScenarioForm, type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { Badge, PriceTypeBadge, Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -237,6 +238,13 @@ export default async function ItemPage({
       <tr key={p.id} className={c.eligible ? "" : "bg-stone-50 text-stone-600"}>
         <td className="whitespace-nowrap px-2 py-2 align-top font-medium">
           {formatMoney(p.amountMinor, p.currency)}
+          {p.currency !== "KRW" && p.fxRateE4 !== null && p.fxDate !== null ? (
+            <div className="mt-0.5 whitespace-normal text-xs font-normal text-stone-600" data-testid={`fx-${p.id}`}>
+              환산 참고 약 {formatMoney(convertToKrw(p.amountMinor, p.currency, p.fxRateE4))}
+              <br />
+              (내가 입력한 환율: 1 {p.currency} = {fxRateToPlain(p.fxRateE4)}원, 기준일 {p.fxDate})
+            </div>
+          ) : null}
           <div className="mt-1 flex flex-wrap gap-1 font-normal">
             {p.isDemo ? <Badge tone="amber">가상</Badge> : null}
             {p.bundleType === "BUNDLE" ? <Badge>{BUNDLE_LABEL.BUNDLE}</Badge> : null}

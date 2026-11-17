@@ -183,7 +183,7 @@ pnpm test:e2e
 
 - 가격 자동 조회·자동 수집(어떤 출처도 연동되어 있지 않고, 수집기를 제공하지 않음), `VERIFIED_SALE` 자료 생성
 - 게임기·전자기기 자동 식별, 구성품에 따른 가격 보정
-- 외화 환산(외화 자료는 원래 통화로만 표시하고 비교에서 제외)
+- 환율 자동 조회, 외화 자료를 원화 비교에 넣기(외화 자료는 비교에서 제외. 직접 입력한 환율이 있으면 환산 참고값만 보여 줌)
 - 사진 업로드, 바코드 카메라 인식, 계정, 판매처 자동 게시, 공개 배포
 
 출처별 검토 결과: [docs/data-sources.md](docs/data-sources.md)
@@ -264,7 +264,7 @@ BUYBACK_QUOTE,6000,KRW,예시서점,,,2026-11-05,GOOD,SINGLE,UNKNOWN,2026-11-12,
 ```
 
 - 필수 열: `price_type`, `amount`, `source_name`, `checked_date`
-- 선택 열: `currency`(기본 KRW), `source_url`, `external_id`, `trade_date`, `product_identifier`, `condition`, `components`, `components_match`(구성이 내 물건과 같은지: YES/NO/UNKNOWN, NO면 비교에서 제외), `bundle_type`(SINGLE/BUNDLE), `shipping_included`(YES/NO/UNKNOWN), `verification_method`, `quote_valid_until`, `deduction_terms`, `memo`
+- 선택 열: `currency`(기본 KRW), `fx_rate`·`fx_date`(외화 자료의 환산 참고용 환율과 기준일. 함께 넣어야 하며 원화 자료에는 넣을 수 없음), `source_url`, `external_id`, `trade_date`, `product_identifier`, `condition`, `components`, `components_match`(구성이 내 물건과 같은지: YES/NO/UNKNOWN, NO면 비교에서 제외), `bundle_type`(SINGLE/BUNDLE), `shipping_included`(YES/NO/UNKNOWN), `verification_method`, `quote_valid_until`, `deduction_terms`, `memo`
 - `price_type`: `ASKING`, `SOLD_LISTING`, `BUYBACK_QUOTE`, `USER_REPORTED`. **`VERIFIED_SALE`은 가져올 수 없습니다.**
 - `condition`: `UNOPENED`, `LIKE_NEW`, `GOOD`, `FAIR`, `POOR`, `BROKEN`
 - 날짜는 `YYYY-MM-DD`, 금액은 숫자만(원화는 정수).

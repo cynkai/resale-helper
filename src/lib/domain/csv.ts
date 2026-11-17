@@ -1,6 +1,7 @@
 // 가격 자료 CSV 가져오기/내보내기. 외부 라이브러리 없이 RFC 4180 방식으로 처리한다.
 
 import { isSameListing } from "./compare";
+import { fxRateToPlain } from "./fx";
 import { minorToPlain } from "./money";
 import {
   validatePriceInput,
@@ -15,6 +16,8 @@ export const CSV_COLUMNS: { header: string; field: PriceField }[] = [
   { header: "price_type", field: "priceType" },
   { header: "amount", field: "amount" },
   { header: "currency", field: "currency" },
+  { header: "fx_rate", field: "fxRate" },
+  { header: "fx_date", field: "fxDate" },
   { header: "source_name", field: "sourceName" },
   { header: "source_url", field: "sourceUrl" },
   { header: "external_id", field: "externalId" },
@@ -156,6 +159,8 @@ export type ExportRow = {
   priceType: PriceType;
   amountMinor: number;
   currency: Currency;
+  fxRateE4: number | null;
+  fxDate: string | null;
   sourceName: string;
   sourceUrl: string | null;
   externalId: string | null;
@@ -184,6 +189,8 @@ export function buildCsv(rows: ExportRow[]): string {
       r.priceType,
       minorToPlain(r.amountMinor, r.currency),
       r.currency,
+      r.fxRateE4 === null ? "" : fxRateToPlain(r.fxRateE4),
+      r.fxDate ?? "",
       r.sourceName,
       r.sourceUrl ?? "",
       r.externalId ?? "",

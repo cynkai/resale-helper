@@ -92,6 +92,22 @@ export function PriceForm({
         </Field>
       </div>
 
+      <details className="rounded-md border border-stone-200 p-3 text-sm" open={Boolean(v.fxRate || v.fxDate || e.fxRate || e.fxDate)}>
+        <summary className="cursor-pointer text-stone-700">외화 자료의 원화 환산 참고 (선택)</summary>
+        <p className="mt-2 text-xs text-stone-600">
+          통화가 원화가 아닐 때만 씁니다. 환율은 직접 확인해 입력해 주세요(앱은 환율을 조회하지 않습니다). 환산값은 참고로만 보여 주고, 외화 자료는
+          여전히 원화 비교·계산에서 빠집니다.
+        </p>
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <Field label="환율 (외화 1단위당 원)" name="fxRate" error={e.fxRate}>
+            {input("fxRate", { inputMode: "decimal", placeholder: "예: 1385.5" })}
+          </Field>
+          <Field label="환율 기준일" name="fxDate" error={e.fxDate} hint="그 환율을 확인한 날짜">
+            {input("fxDate", { type: "date" })}
+          </Field>
+        </div>
+      </details>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="출처 이름" name="sourceName" error={e.sourceName} required hint="플랫폼명 또는 업체명">
           {input("sourceName", { placeholder: isQuote ? "예: ○○ 중고서점" : "예: ○○마켓" })}
