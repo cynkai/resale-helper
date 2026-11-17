@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db/client";
-import { listFullExportSources } from "@/lib/db/repo";
+import { listFullExportSources, listTemplates } from "@/lib/db/repo";
 import { buildFullExport } from "@/lib/domain/full-export";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
@@ -9,7 +9,7 @@ import { todayYmd } from "@/lib/today";
 export async function GET() {
   const demo = await isDemoMode();
   const today = todayYmd();
-  const body = buildFullExport({ demo, exportedDate: today, sources: listFullExportSources(getDb(), demo) });
+  const body = buildFullExport({ demo, exportedDate: today, sources: listFullExportSources(getDb(), demo), templates: listTemplates(getDb(), demo) });
   return new Response(JSON.stringify(body, null, 2) + "\n", {
     headers: {
       "Content-Type": "application/json; charset=utf-8",

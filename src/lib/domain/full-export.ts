@@ -22,7 +22,13 @@ export type FullExportSource = {
   offers?: Offer[];
 };
 
-export function buildFullExport(input: { demo: boolean; exportedDate: string; sources: FullExportSource[] }) {
+export function buildFullExport(input: {
+  demo: boolean;
+  exportedDate: string;
+  sources: FullExportSource[];
+  /** 내가 만든 판매글 템플릿(현재 모드). */
+  templates?: { name: string; body: string }[];
+}) {
   return {
     format: "resale-helper-export",
     version: FULL_EXPORT_VERSION,
@@ -37,6 +43,7 @@ export function buildFullExport(input: { demo: boolean; exportedDate: string; so
       "판매 결과는 사용자가 기록한 값이며 외부에서 검증된 체결가가 아닙니다.",
       ...(input.demo ? ["데모 모드의 가상 자료입니다. 실제 시세가 아닙니다."] : []),
     ],
+    listingTemplates: (input.templates ?? []).map((t) => ({ name: t.name, body: t.body })),
     itemCount: input.sources.length,
     items: input.sources.map(({ item, prices, history, scenarios, saleResult, offers }) => {
       const chosen = chosenScenario(item, scenarios);

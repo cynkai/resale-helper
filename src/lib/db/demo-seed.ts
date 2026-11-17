@@ -1,7 +1,7 @@
 // 데모 시드. 모든 값은 가상이며 is_demo=true로만 저장된다. 실제 시세와 무관하다.
 
 import type { Db } from "./client";
-import { clearDemo, createItem, getItem, insertOffer, insertPrice, listPrices, listScenarios, setPrimaryScenario, upsertScenario } from "./repo";
+import { clearDemo, createItem, getItem, insertOffer, insertPrice, listPrices, listScenarios, saveTemplate, setPrimaryScenario, upsertScenario } from "./repo";
 import { priceHistory } from "./schema";
 import { isbn13CheckDigit } from "../domain/isbn";
 import type { ValidPriceInput } from "../domain/price-input";
@@ -177,6 +177,11 @@ export function seedDemo(db: Db, today: string): void {
   // 직접 팔아도 업체보다 덜 남는 예시
   upsertScenario(db, earphoneId, "BUYBACK", scenario(20000, { shipping: 0, packing: 0, transport: 0 }, 15));
   upsertScenario(db, earphoneId, "DIRECT", scenario(22000, { shipping: 3000, packing: 500, transport: 0 }, 60));
+  // 판매글 템플릿 예시. 값이 없는 자리표시가 든 줄은 빠진다는 것을 보여 주려고 {부록} 줄을 넣었다.
+  saveTemplate(db, true, null, {
+    name: "(데모) 짧은 채팅용",
+    body: "{이름} 팝니다.\n상태: {상태}\n하자: {하자}\n구성품: {구성품}\n부록: {부록}\n희망 가격 {가격}",
+  });
   // 받은 제안 예시(가상): 판매 중인 물건에 들어온 제안 하나.
   insertOffer(db, earphoneId, { receivedDate: daysAgo(today, 2), amount: 21000, channel: "", memo: "데모용 가상 제안" });
 }

@@ -6,6 +6,7 @@ import {
   importCsvAction,
   saveExtensionIdAction,
   saveOfferAction,
+  saveTemplateAction,
   saveSaleResultAction,
   saveTimeValueAction,
   type CsvImportState,
@@ -163,6 +164,55 @@ export function SaleResultForm({ itemId, initial }: { itemId: number; initial: R
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? "저장 중…" : "판매 결과 저장"}
+        </button>
+        <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
+          {state.message}
+        </span>
+      </div>
+    </form>
+  );
+}
+
+/** 판매글 템플릿 만들기·고치기. */
+export function TemplateForm({ templateId, initial }: { templateId?: number; initial: Record<string, string> }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveTemplateAction, {});
+  const v = state.values ?? initial;
+  const e = state.errors ?? {};
+  const p = templateId === undefined ? "tpl-new" : `tpl-${templateId}`;
+  const [seq, setSeq] = useState(0);
+  const [seen, setSeen] = useState<FormState>(state);
+  if (seen !== state) {
+    setSeen(state);
+    if (state.ok && templateId === undefined) setSeq(seq + 1);
+  }
+  return (
+    <form action={action} className="space-y-3" noValidate key={`${seq}-${JSON.stringify(state.values ?? {})}`}>
+      {templateId !== undefined ? <input type="hidden" name="templateId" value={templateId} /> : null}
+      <Field label="템플릿 이름" name={`${p}-name`} error={e.name} required hint="예: 짧은 채팅용, 택배 거래용">
+        <input
+          id={`${p}-name`}
+          name="name"
+          className="input"
+          maxLength={50}
+          defaultValue={v.name ?? ""}
+          aria-invalid={e.name ? true : undefined}
+          aria-describedby={e.name ? `${p}-name-error` : undefined}
+        />
+      </Field>
+      <Field label="본문" name={`${p}-body`} error={e.body} required>
+        <textarea
+          id={`${p}-body`}
+          name="body"
+          className="input min-h-36 font-sans"
+          maxLength={2000}
+          defaultValue={v.body ?? ""}
+          aria-invalid={e.body ? true : undefined}
+          aria-describedby={e.body ? `${p}-body-error` : undefined}
+        />
+      </Field>
+      <div className="flex items-center gap-3">
+        <button type="submit" className={templateId === undefined ? "btn-primary" : "btn"} disabled={pending}>
+          {pending ? "저장 중…" : templateId === undefined ? "템플릿 만들기" : "템플릿 저장"}
         </button>
         <span role="status" className={state.ok ? "text-sm text-teal-900" : "text-sm text-red-800"}>
           {state.message}

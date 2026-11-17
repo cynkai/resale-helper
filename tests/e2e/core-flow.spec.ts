@@ -768,3 +768,35 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await expect(cells.nth(0)).toHaveText("1"); // 어림보다 더 듦
   await expect(page.getByTestId("cost-item-packing").locator("td").nth(1)).toHaveText("1"); // 같음
 });
+
+test("판매글 템플릿: 내가 쓴 틀을 물건 정보로 채우고, 값이 없는 줄은 빼고 알려 준다", async ({ page }) => {
+  await page.goto("/templates");
+  await expect(page.getByTestId("template-tokens")).toContainText("{가격}");
+  await page.locator("#tpl-new-name").fill("채팅용");
+  await page.locator("#tpl-new-body").fill("{이름} 팝니다.\n시세는 {시세}");
+  await page.getByRole("button", { name: "템플릿 만들기" }).click();
+  await expect(page.locator("#tpl-new-body-error")).toContainText("알 수 없는 자리표시: {시세}");
+  await page.locator("#tpl-new-body").fill("{이름} 팝니다.\n상태: {상태}\n구성품: {구성품}\n희망 가격 {가격}\n직거래만 합니다.");
+  await page.getByRole("button", { name: "템플릿 만들기" }).click();
+  await expect(page.getByRole("heading", { name: "내 템플릿 1개" })).toBeVisible();
+
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("템플릿 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+
+  const rendered = page.locator('[data-testid^="rendered-template-"]').filter({ hasText: "채팅용" });
+  await expect(rendered.locator("pre")).toHaveText("템플릿 테스트 게임기 팝니다.\n상태: 사용감 적음\n직거래만 합니다.");
+  await expect(rendered).toContainText("값을 입력하지 않아 뺀 줄 2개: {구성품}, {가격}");
+
+  // 데모 모드에는 실제 모드의 템플릿이 보이지 않는다
+  await page.getByRole("button", { name: /가상 데이터로 둘러보기/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "데모 모드" })).toContainText("가상 데이터");
+  await page.goto("/templates");
+  await expect(page.getByRole("heading", { name: "내 템플릿 1개" })).toBeVisible();
+  await expect(page.locator('[data-testid^="template-"] input[name="name"]')).toHaveValue("(데모) 짧은 채팅용");
+  await page.getByRole("button", { name: "실제 사용으로 돌아가기" }).click();
+  await expect(page.getByText("데모 모드")).toHaveCount(0);
+});
