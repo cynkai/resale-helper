@@ -256,6 +256,14 @@ export function PricesSection({ v }: { v: ItemView }) {
             </button>
             <ConfirmSubmit
               name="op"
+              value="RECHECK"
+              message="고른 자료를 출처에서 다시 확인했더니 가격이 그대로였나요? 확인일을 오늘로 바꾸고 이전 확인일은 '이전 값'에 남깁니다. 가격이 바뀐 자료는 고르지 말고 '수정'을 눌러 주세요."
+              className="btn px-2 py-1 text-xs"
+            >
+              오늘 다시 확인함
+            </ConfirmSubmit>
+            <ConfirmSubmit
+              name="op"
               value="DELETE"
               message="고른 가격 자료를 지웁니다. 되돌릴 수 없습니다. 계속할까요?"
               className="btn-danger px-2 py-1 text-xs"

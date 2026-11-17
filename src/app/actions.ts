@@ -182,11 +182,11 @@ export async function togglePriceAction(fd: FormData): Promise<void> {
   revalidatePath(`/items/${item.id}`);
 }
 
-const BULK_PRICE_OPS = ["EXCLUDE", "INCLUDE", "DELETE"] as const;
+const BULK_PRICE_OPS = ["EXCLUDE", "INCLUDE", "DELETE", "RECHECK"] as const;
 /** 한 번에 고를 수 있는 자료 수(입력 실수·남용 방지). */
 const MAX_BULK_PRICES = 1000;
 
-/** 고른 가격 자료를 한꺼번에 비교에서 빼기·다시 포함·삭제. 유형이나 금액은 바꾸지 않는다. */
+/** 고른 가격 자료를 한꺼번에 비교에서 빼기·다시 포함·오늘 다시 확인함·삭제. 유형이나 금액은 바꾸지 않는다. */
 export async function bulkPriceAction(fd: FormData): Promise<void> {
   const { item, db } = await requireItem(s(fd, "itemId"));
   const op = s(fd, "op") as (typeof BULK_PRICE_OPS)[number];
@@ -194,6 +194,7 @@ export async function bulkPriceAction(fd: FormData): Promise<void> {
   const ids = [...new Set(fd.getAll("priceIds").map((v) => (typeof v === "string" ? intId(v) : null)))].filter((v): v is number => v !== null);
   if (ids.length === 0 || ids.length > MAX_BULK_PRICES) return;
   if (op === "DELETE") repo.deletePrices(db, item.id, ids);
+  else if (op === "RECHECK") repo.recheckPrices(db, item.id, ids, todayYmd());
   else repo.setPricesIncluded(db, item.id, ids, op === "INCLUDE");
   revalidatePath(`/items/${item.id}`);
 }
