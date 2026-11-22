@@ -74,7 +74,7 @@ describe("백업 사본", () => {
     expect(fs.existsSync(path.join(snapshotDir(dbPath), "메모.txt"))).toBe(true);
   });
 
-  it("사본으로 되돌리면 그때의 자료(휴지통 포함)가 돌아온다", () => {
+  it("사본으로 되돌리면 그때의 자료(휴지통 포함)가 돌아온다", async () => {
     const a = openDb(dbPath);
     const id = createItem(a.db, false, input("지울 게임기"));
     const snap = createSnapshot(a.sqlite, dbPath, new Date("2026-11-17T03:04:05Z"));
@@ -82,7 +82,7 @@ describe("백업 사본", () => {
     trashItem(a.db, false, id);
     expect(listItems(a.db, false)).toHaveLength(0);
     a.close();
-    const r = restoreBackup(path.join(snapshotDir(dbPath), snap.snapshot.name), dbPath);
+    const r = await restoreBackup(path.join(snapshotDir(dbPath), snap.snapshot.name), dbPath);
     expect(r).toMatchObject({ ok: true, items: 1 });
     const b = openDb(dbPath);
     expect(listItems(b.db, false).map((x) => x.item.name)).toEqual(["지울 게임기"]);

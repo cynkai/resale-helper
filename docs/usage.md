@@ -254,8 +254,16 @@ pnpm db:restore ~/Downloads/resale-backup-2026-11-11.db
 
 - 이 앱의 DB가 맞는지(SQLite 형식, 필요한 테이블, 무결성 검사) 먼저 확인하고, 아니면 아무것도 바꾸지 않습니다.
 - 바꾸기 전 현재 DB를 `data/resale.before-restore-<시각>.db`로 남깁니다.
-- 앱이 켜져 있으면 열린 연결이 옛 파일을 계속 쓰므로 복구가 제대로 반영되지 않습니다.
+- SQLite가 검증한 시점의 자료를 한 번에 복구합니다. 백업 옆에 `-wal` 파일이 있으면 함께 보관하세요. 가장 최근에 저장한 자료가 그 파일에 있을 수 있습니다.
+- 실행 중인 앱에서 자료가 바뀌는 일을 막으려면 복구를 마친 뒤 앱을 다시 켜세요.
 - 백업 파일에는 휴지통에 있는 물건도 들어 있습니다.
+
+현재 DB가 손상되어 복구 전 사본을 만들 수 없으면 빈 경로로 복구할 수 있습니다. 아래 명령은 새 파일에 복구한 뒤 그 파일로 앱을 엽니다.
+
+```bash
+DATABASE_PATH=./data/recovered/resale.db pnpm db:restore ~/Downloads/resale-backup-2026-11-11.db
+DATABASE_PATH=./data/recovered/resale.db pnpm dev
+```
 
 물건과 가격 자료를 삭제하면 바로 지워지지 않고 **휴지통**(`/trash`)으로 가므로, 실수로 지운 것은 백업 없이도 되살릴 수 있습니다. 휴지통의 "완전히 지우기"와 "휴지통 비우기"는 되돌릴 수 없습니다.
 
