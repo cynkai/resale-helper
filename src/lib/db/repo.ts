@@ -19,6 +19,10 @@ import {
   type PriceHistoryRow,
   type PriceRecord,
 } from "./schema";
+import { computeNet } from "../domain/net";
+import { plannedCostItems } from "../domain/review";
+import { basisIssues } from "../domain/scenario";
+import { todayYmd } from "../today";
 import { isSameListing } from "../domain/compare";
 import type { CsvPrice, ExportRow } from "../domain/csv";
 import type { ValidCostPreset } from "../domain/cost-preset";
@@ -579,19 +583,30 @@ export function setChosenMethod(
   db: Db,
   isDemo: boolean,
   itemId: number,
-  choice: { method: SaleMethod; channel?: string; saleAmount: number; netAmount: number | null } | null,
+  scenarioId: number | null,
+  today = todayYmd(),
 ): void {
-  db.update(items)
-    .set({
-      chosenMethod: choice?.method ?? null,
-      chosenChannel: choice ? (choice.channel ?? "") : null,
-      chosenSaleAmount: choice?.saleAmount ?? null,
-      chosenNetAmount: choice?.netAmount ?? null,
-      chosenAt: choice ? sql`(datetime('now'))` : null,
-      updatedAt: now,
-    })
-    .where(and(eq(items.id, itemId), live(isDemo)))
-    .run();
+  db.transaction((tx) => {
+    const sc = scenarioId === null ? undefined : tx.select().from(costScenarios)
+      .where(and(eq(costScenarios.id, scenarioId), eq(costScenarios.itemId, itemId))).get();
+    if (scenarioId !== null && !sc) throw new Error("먼저 이 방식의 금액과 비용을 저장해 주세요.");
+    if (sc) {
+      const basis = sc.basisPriceRecordId === null ? undefined : getPrice(tx, itemId, sc.basisPriceRecordId);
+      if (basisIssues(sc, basis, today).length > 0) throw new Error("기준 가격 자료를 확인하고 계산을 다시 저장해 주세요.");
+    }
+    tx.update(items)
+      .set({
+        chosenMethod: sc?.method ?? null,
+        chosenChannel: sc?.channel ?? null,
+        chosenSaleAmount: sc?.saleAmount ?? null,
+        chosenNetAmount: sc ? computeNet(sc).net : null,
+        chosenEstimate: sc ? { channel: sc.channel, expectedMinutes: sc.expectedMinutes, costs: plannedCostItems(sc) } : null,
+        chosenAt: sc ? sql`(datetime('now'))` : null,
+        updatedAt: now,
+      })
+      .where(and(eq(items.id, itemId), live(isDemo)))
+      .run();
+  }, { behavior: "immediate" });
 }
 
 // ---- 실제 판매 결과 ----
@@ -634,23 +649,20 @@ export function upsertSaleResult(db: Db, isDemo: boolean, itemId: number, input:
   });
 }
 
-/** 현재 모드의 판매 완료 기록 전체(판매일 최신순). 고른 계산(있으면)과 그 예상 소요시간도 함께 가져온다. */
+/** 현재 모드의 판매 완료 기록과 선택 당시 예상 소요시간. */
 export function listSaleReviews(db: Db, isDemo: boolean) {
   return db
-    .select({ item: items, result: saleResults, expectedMinutes: costScenarios.expectedMinutes, scenario: costScenarios })
+    .select({ item: items, result: saleResults })
     .from(saleResults)
     .innerJoin(items, eq(items.id, saleResults.itemId))
-    .leftJoin(
-      costScenarios,
-      and(
-        eq(costScenarios.itemId, items.id),
-        eq(costScenarios.method, items.chosenMethod),
-        eq(costScenarios.channel, sql`coalesce(${items.chosenChannel}, '')`),
-      ),
-    )
     .where(live(isDemo))
     .orderBy(desc(saleResults.soldDate), desc(saleResults.id))
-    .all();
+    .all()
+    .map((row) => ({
+      ...row,
+      expectedMinutes: row.item.chosenEstimate?.expectedMinutes ?? null,
+      plannedChannel: row.item.chosenEstimate?.channel ?? row.item.chosenChannel,
+    }));
 }
 
 /**

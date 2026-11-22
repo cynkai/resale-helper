@@ -9,7 +9,7 @@ import {
   getItem,
   insertPrice,
   listFullExportSources,
-  setChosenMethod,
+  listScenarios, setChosenMethod,
   setImportTokenHash,
   updatePrice,
   upsertSaleResult,
@@ -92,7 +92,7 @@ describe("전체 내보내기", () => {
       expectedMinutes: 30,
       memo: null,
     });
-    setChosenMethod(db, false, id, { method: "BUYBACK", saleAmount: 60000, netAmount: 58000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "BUYBACK")!.id);
     upsertSaleResult(db, false, id, { channel: "가상매입점", soldDate: TODAY, amount: 59000, costTotal: null, minutesSpent: 40, memo: null });
 
     const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { restoreBackup, validateBackup } from "@/lib/db/backup";
 import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
-import { createItem, listItems, listSaleReviews, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
+import { createItem, listItems, listSaleReviews, listScenarios, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { channelKey, countOutcomes, countTimeOutcomes, timeOutcome, groupOutcomes, reviewRow } from "@/lib/domain/review";
 
@@ -112,7 +112,7 @@ describe("판매 결과 조회", () => {
       expectedMinutes: 60,
       memo: null,
     });
-    setChosenMethod(db, false, id, { method: "DIRECT", saleAmount: 19000, netAmount: 19000 });
+    setChosenMethod(db, false, id, listScenarios(db, id)[0]!.id);
     upsertSaleResult(db, false, id, { channel: "직거래", soldDate: "2026-11-10", amount: 18000, costTotal: 0, minutesSpent: 40, memo: null });
     seedDemo(db, "2026-11-11");
     const demoId = listItems(db, true)[0]!.item.id;

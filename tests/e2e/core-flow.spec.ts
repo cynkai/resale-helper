@@ -758,6 +758,7 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await direct.locator("#direct-saleAmount").fill("20000");
   await direct.locator("#direct-feeAmount").fill("0");
   await direct.locator("#direct-shipping").fill("3000");
+  await direct.locator("#direct-expectedMinutes").fill("30");
   await direct.locator("#direct-packing").fill("500");
   await direct.locator("#direct-transport").fill("0");
   await direct.getByRole("button", { name: "금액·비용 저장" }).click();
@@ -766,6 +767,7 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await expect(page.getByTestId("chosen")).toContainText("16,500원");
 
   await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-minutesSpent").fill("45");
   await page.locator("#result-amount").fill("19000");
   await page.getByText("실제 비용을 항목별로 적기 (선택)").click();
   await page.locator("#result-feeActual").fill("0");
@@ -780,11 +782,18 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await page.getByRole("button", { name: "판매 결과 저장" }).click();
 
   await expect(page.getByTestId("result-summary")).toContainText("실제 비용 4,500원");
+  // 합계는 그대로 두고 시간과 비용 배분만 바꿔도 결과 비교는 선택 당시 값을 쓴다.
+  await direct.locator("#direct-shipping").fill("500");
+  await direct.locator("#direct-packing").fill("3000");
+  await direct.locator("#direct-expectedMinutes").fill("60");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("choice-outdated")).toBeVisible();
   const items = page.getByTestId("result-cost-items");
   await expect(items).toContainText("판매자 부담 배송비: 3,000원 → 4,000원 (+1,000원)");
   await expect(items).toContainText("포장비: 500원 → 500원 (같음)");
 
   await page.goto("/results");
+  await expect(page.getByRole("row").filter({ hasText: "비용 항목 게임기" })).toContainText("30분 → 45분");
   await expect(page.getByTestId("cost-item-shipping")).toContainText("판매자 부담 배송비");
   const cells = page.getByTestId("cost-item-shipping").locator("td");
   await expect(cells.nth(0)).toHaveText("1"); // 어림보다 더 듦

@@ -13,7 +13,6 @@ import { isQuoteExpired } from "@/lib/domain/compare";
 import { MAX_CSV_BYTES, planCsvImport, type CsvRowError } from "@/lib/domain/csv";
 import { ITEM_FIELDS, validateItemInput, type ItemInputRaw } from "@/lib/domain/item-input";
 import { parseAmount, parsePercentToBp } from "@/lib/domain/money";
-import { computeNet } from "@/lib/domain/net";
 import { isValidYmd, PRICE_FIELDS, validatePriceInput, type PriceInputRaw } from "@/lib/domain/price-input";
 import { validateCostPreset } from "@/lib/domain/cost-preset";
 import { planItemsCsvImport } from "@/lib/domain/items-csv";
@@ -21,7 +20,7 @@ import { validateTemplateInput } from "@/lib/domain/listing-template";
 import { validatePostedPriceInput } from "@/lib/domain/posted-price";
 import { OFFER_STATUSES, validateOfferInput, type OfferStatus } from "@/lib/domain/offer";
 import { COST_KEYS, resolveActualCostTotal } from "@/lib/domain/review";
-import { basisIssues, CHANNEL_MAX } from "@/lib/domain/scenario";
+import { CHANNEL_MAX, usableBasisType } from "@/lib/domain/scenario";
 import { validateTimeValue } from "@/lib/domain/settings-input";
 import { SALE_METHODS, type PriceType, type SaleMethod } from "@/lib/domain/types";
 import { generateImportToken, isValidExtensionId } from "@/lib/import/access";
@@ -339,6 +338,7 @@ export async function saveScenarioAction(_prev: FormState, fd: FormData): Promis
   if (basisRaw !== "") {
     const rec = intId(basisRaw) !== null ? repo.getPrice(db, item.id, intId(basisRaw)!) : undefined;
     if (!rec) errors.basisPriceRecordId = "선택한 가격 자료를 찾을 수 없습니다.";
+    else if (!usableBasisType(method, rec.priceType)) errors.basisPriceRecordId = "판매 방식에 맞는 가격 유형을 다시 선택해 주세요.";
     else if (rec.currency !== "KRW") errors.basisPriceRecordId = "원화 자료만 기준 금액으로 쓸 수 있습니다.";
     else if (isQuoteExpired(rec, today)) {
       errors.basisPriceRecordId =
@@ -400,25 +400,9 @@ export async function saveScenarioAction(_prev: FormState, fd: FormData): Promis
 export async function chooseMethodAction(fd: FormData): Promise<void> {
   const { item, isDemo, db } = await requireItem(s(fd, "itemId"));
   const idRaw = s(fd, "scenarioId");
-  if (idRaw === "") {
-    repo.setChosenMethod(db, isDemo, item.id, null);
-  } else {
-    const sc = repo.listScenarios(db, item.id).find((x) => x.id === intId(idRaw));
-    if (!sc) throw new Error("먼저 이 방식의 금액과 비용을 저장해 주세요.");
-    // 기준 자료가 바뀌었거나 만료된 계산으로는 선택을 저장하지 않는다(화면에서도 버튼을 막는다).
-    const basis = sc.basisPriceRecordId !== null ? repo.getPrice(db, item.id, sc.basisPriceRecordId) : undefined;
-    if (basisIssues(sc, basis, todayYmd()).length > 0) {
-      throw new Error("기준 가격 자료가 바뀌었거나 만료되었습니다. 금액·비용을 다시 저장한 뒤 선택해 주세요.");
-    }
-    const net = computeNet(sc);
-    // 선택 시점의 금액을 스냅샷으로 남긴다. 비용이 불완전하면 실수령액은 null로 둔다.
-    repo.setChosenMethod(db, isDemo, item.id, {
-      method: sc.method,
-      channel: sc.channel,
-      saleAmount: sc.saleAmount,
-      netAmount: net.net,
-    });
-  }
+  const scenarioId = intId(idRaw);
+  if (idRaw !== "" && scenarioId === null) throw new Error("고른 계산을 찾을 수 없습니다.");
+  repo.setChosenMethod(db, isDemo, item.id, scenarioId);
   revalidatePath(`/items/${item.id}`);
   revalidatePath("/");
 }

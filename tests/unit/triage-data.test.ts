@@ -82,7 +82,7 @@ describe("시간당 가치 입력 검증", () => {
     expect(validateTimeValue("12000원")).toEqual({ ok: true, value: 12000 });
   });
   it("음수·소수·문자·지나치게 큰 값은 거부한다", () => {
-    for (const bad of ["-1", "1.5", "abc", "1e4"]) {
+    for (const bad of ["-1", "1.5", "abc", "1e4", ",", "1,25", "원"]) {
       expect(validateTimeValue(bad), bad).toEqual({ ok: false, error: "0 이상의 정수(원)로 입력해 주세요." });
     }
     expect(validateTimeValue("100000001")).toEqual({ ok: false, error: "금액이 너무 큽니다." });

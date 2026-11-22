@@ -207,7 +207,7 @@ describe("외화 자료의 환산 참고", () => {
   it("환율 파싱과 환산은 정수 연산이며 원 미만은 반올림한다", () => {
     expect(parseFxRate("1,385.5")).toEqual({ ok: true, rateE4: 13_855_000 });
     expect(parseFxRate("9.1234")).toEqual({ ok: true, rateE4: 91_234 });
-    for (const bad of ["", "0", "-1", "1e3", "1.23456", "abc"]) expect(parseFxRate(bad).ok).toBe(false);
+    for (const bad of ["", "0", "-1", "1e3", "1.23456", "abc", "13,85.5"]) expect(parseFxRate(bad).ok).toBe(false);
     expect(fxRateToPlain(13_855_000)).toBe("1385.5");
     expect(fxRateToPlain(14_000_000)).toBe("1400");
     expect(convertToKrw(1250, "USD", 13_855_000)).toBe(17319); // 12.50 × 1385.5 = 17318.75
@@ -472,7 +472,7 @@ describe("영속성", () => {
       expectedMinutes: 60,
       memo: null,
     });
-    setChosenMethod(db, false, id, { method: "DIRECT", saleAmount: 20000, netAmount: null });
+    setChosenMethod(db, false, id, listScenarios(db, id)[0]!.id);
     upsertSaleResult(db, false, id, {
       channel: "직거래",
       soldDate: "2026-11-10",

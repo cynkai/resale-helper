@@ -182,7 +182,7 @@ describe("선택한 판매처", () => {
     const id = createItem(db, false, item("책"));
     upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 30 }), "가");
     upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 90 }), "나");
-    setChosenMethod(db, false, id, { method: "DIRECT", channel: "나", saleAmount: 10000, netAmount: 10000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT" && s.channel === "나")!.id);
     expect(getItem(db, false, id)).toMatchObject({ chosenMethod: "DIRECT", chosenChannel: "나" });
     upsertSaleResult(db, false, id, { channel: "나", soldDate: TODAY, amount: 9000, costTotal: 0, minutesSpent: 100, memo: null });
     const rows = listSaleReviews(db, false);
@@ -192,13 +192,32 @@ describe("선택한 판매처", () => {
     expect(getItem(db, false, id)).toMatchObject({ chosenMethod: null, chosenChannel: null });
   });
 
+  it("고른 뒤 시간과 비용 배분을 바꾸거나 계산을 지워도 선택 당시 어림을 유지한다", () => {
+    const id = createItem(db, false, item("책"));
+    upsertScenario(db, id, "DIRECT", scenario({ shipping: 3000, expectedMinutes: 0 }));
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT")!.id);
+    const original = listScenarios(db, id)[0]!;
+    upsertSaleResult(db, false, id, { channel: "장터", soldDate: TODAY, amount: 10000, costTotal: 3000, minutesSpent: 20, memo: null });
+    updateScenario(db, id, original.id, "새 판매처", scenario({ shipping: 0, packing: 3000, expectedMinutes: 90 }));
+
+    const selected = getItem(db, false, id)!;
+    expect(isChoiceOutdated(selected, listScenarios(db, id)[0])).toBe(true);
+    deleteScenario(db, id, original.id);
+    const review = listSaleReviews(db, false)[0]!;
+    expect(review.plannedChannel).toBe("");
+    expect(review.expectedMinutes).toBe(0);
+    expect(review.item.chosenEstimate?.costs).toEqual({ fee: 0, shipping: 3000, packing: 0, transport: 0 });
+    const exported = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
+    expect(exported.items[0]?.saleResult?.review.minutesDiff).toBe(20);
+  });
+
   it("고른 계산의 이름만 바꾸면 선택이 그 계산을 계속 가리킨다(다른 계산의 이름 변경은 영향 없음)", () => {
     const id = createItem(db, false, item("책"));
     upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 30 }), "가");
     upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 90 }), "나");
     upsertScenario(db, id, "BUYBACK", scenario(), "가");
     const [a, b, c] = listScenarios(db, id);
-    setChosenMethod(db, false, id, { method: "DIRECT", channel: "가", saleAmount: 10000, netAmount: 10000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT" && s.channel === "가")!.id);
     updateScenario(db, id, b!.id, "나 장터", scenario({ expectedMinutes: 90 }));
     updateScenario(db, id, c!.id, "가 서점", scenario()); // 방식이 다른 계산
     expect(getItem(db, false, id)!.chosenChannel).toBe("가");
@@ -211,7 +230,7 @@ describe("선택한 판매처", () => {
   it("옛 선택(chosen_channel이 null)의 이름 없는 계산에 이름을 붙여도 선택이 따라간다", () => {
     const id = createItem(db, false, item("책"));
     upsertScenario(db, id, "DIRECT", scenario());
-    setChosenMethod(db, false, id, { method: "DIRECT", saleAmount: 10000, netAmount: 10000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT")!.id);
     db.run(sql`update items set chosen_channel = null where id = ${id}`);
     updateScenario(db, id, listScenarios(db, id)[0]!.id, "가", scenario());
     expect(getItem(db, false, id)!.chosenChannel).toBe("가");
@@ -230,7 +249,7 @@ describe("선택한 판매처", () => {
     const id = createItem(db, false, item("책"));
     upsertScenario(db, id, "DIRECT", scenario(), "가");
     upsertScenario(db, id, "DIRECT", scenario(), "나");
-    setChosenMethod(db, false, id, { method: "DIRECT", channel: "가", saleAmount: 10000, netAmount: 10000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT" && s.channel === "가")!.id);
     const it0 = getItem(db, false, id)!;
     expect(isChoiceOutdated(it0, chosenScenario(it0, listScenarios(db, id)))).toBe(false);
     deleteScenario(db, id, listScenarios(db, id)[0]!.id);
@@ -274,7 +293,7 @@ describe("분류와 내보내기", () => {
     const rest = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
     expect(rest.map((a) => a.scenario.channel)).toEqual(["나"]);
     // 고른 방법과 다르다는 경고는 물건 단위 판단에만 붙는다
-    setChosenMethod(db, false, id, { method: "BUYBACK", saleAmount: 5000, netAmount: 5000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "BUYBACK")!.id);
     const withChoice = triageAlternatives(listTriageCandidates(db, false)[0]!, 1000, TODAY);
     expect(withChoice[0]!.result.warnings.some((w) => w.code === "CHOSEN_DIFFERS")).toBe(false);
   });
@@ -304,7 +323,7 @@ describe("분류와 내보내기", () => {
     upsertScenario(db, id, "DIRECT", scenario(), "가");
     upsertScenario(db, id, "DIRECT", scenario({ expectedMinutes: 45 }), "나");
     setPrimaryScenario(db, id, listScenarios(db, id)[1]!.id);
-    setChosenMethod(db, false, id, { method: "DIRECT", channel: "나", saleAmount: 10000, netAmount: 10000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT" && s.channel === "나")!.id);
     upsertSaleResult(db, false, id, { channel: "나", soldDate: TODAY, amount: 10000, costTotal: 0, minutesSpent: 50, memo: null });
     const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
     const it0 = out.items[0]!;
@@ -357,14 +376,14 @@ describe("실제 비용 항목별", () => {
   it("항목별 비용이 저장되고, 돌아보기에 고른 계산이 함께 온다. 항목 없이 다시 저장하면 지워진다", () => {
     const id = createItem(db, false, item("책"));
     upsertScenario(db, id, "DIRECT", scenario({ shipping: 3000 }), "가");
-    setChosenMethod(db, false, id, { method: "DIRECT", channel: "가", saleAmount: 10000, netAmount: 7000 });
+    setChosenMethod(db, false, id, listScenarios(db, id).find((s) => s.method === "DIRECT" && s.channel === "가")!.id);
     upsertSaleResult(db, false, id, {
       channel: "가", soldDate: TODAY, amount: 10000, costTotal: 3500,
       feeActual: 0, shippingActual: 3500, packingActual: 0, transportActual: 0, minutesSpent: null, memo: null,
     });
     const row = listSaleReviews(db, false)[0]!;
     expect(row.result).toMatchObject({ feeActual: 0, shippingActual: 3500, costTotal: 3500 });
-    expect(row.scenario).toMatchObject({ channel: "가", shipping: 3000 });
+    expect(row.item.chosenEstimate?.costs.shipping).toBe(3000);
     const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
     expect(out.items[0]!.saleResult!.costItems).toEqual({ fee: 0, shipping: 3500, packing: 0, transport: 0 });
     upsertSaleResult(db, false, id, { channel: "가", soldDate: TODAY, amount: 10000, costTotal: null, minutesSpent: null, memo: null });

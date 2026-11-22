@@ -226,6 +226,8 @@ const COST_SHORT: Record<CostKey, string> = {
 };
 
 const ISSUE_SHORT: Record<BasisIssue, string> = {
+  BASIS_TYPE_CHANGED: "기준 자료의 가격 유형 바뀜",
+  BASIS_WRONG_METHOD: "판매 방식과 기준 자료의 가격 유형 불일치",
   BASIS_DELETED: "기준 자료 삭제됨",
   BASIS_AMOUNT_CHANGED: "기준 자료 금액 바뀜",
   BASIS_NOT_KRW: "기준 자료가 원화 아님",
