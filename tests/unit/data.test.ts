@@ -21,6 +21,7 @@ import {
   listScenarios,
   recheckPrice,
   setChosenMethod,
+  setPricesIncluded,
   updatePrice,
   upsertSaleResult,
   upsertScenario,
@@ -186,7 +187,7 @@ describe("구성 일치 여부 입력", () => {
     insertPrice(db, item, price({ externalId: "C1", componentsMatch: "NO" }), "MANUAL");
     const csv = buildCsv(exportRows(db, false, item.id));
     expect(csv.split("\n")[0]).toContain("components_match");
-    const plan = planCsvImport(csv, TODAY, []);
+    const plan = planCsvImport(csv, TODAY, [], item);
     expect(plan.headerError).toBeNull();
     expect(plan.valid[0]!.value.componentsMatch).toBe("NO");
   });
@@ -242,7 +243,7 @@ describe("외화 자료의 환산 참고", () => {
 
     const csv = buildCsv(exportRows(db, false, item.id));
     expect(csv.split("\n")[0]).toContain("currency,fx_rate,fx_date");
-    const plan = planCsvImport(csv, TODAY, []);
+    const plan = planCsvImport(csv, TODAY, [], item);
     expect(plan.valid[0]!.value).toMatchObject({ fxRateE4: 13_855_000, fxDate: "2026-11-01" });
 
     const out = buildFullExport({ demo: false, exportedDate: TODAY, sources: listFullExportSources(db, false) });
@@ -336,6 +337,53 @@ describe("데모와 실제 자료 격리", () => {
 });
 
 describe("CSV", () => {
+  const target = { id: 1, name: bookInput.name, isDemo: false };
+  it("전체 내보내기에서 이름이 같아도 선택한 물건의 행만 가져온다", () => {
+    const selected = getItem(db, false, createItem(db, false, { ...bookInput, name: "=같은 이름" }))!;
+    const other = getItem(db, false, createItem(db, false, { ...bookInput, name: selected.name }))!;
+    insertPrice(db, selected, price({ externalId: "selected" }), "MANUAL");
+    insertPrice(db, other, price({ externalId: "other" }), "MANUAL");
+    const plan = planCsvImport(buildCsv(exportRows(db, false)), TODAY, [], selected);
+    expect(plan.valid.map((v) => v.value.externalId)).toEqual(["selected"]);
+    expect(plan.errors.map((e) => e.line)).toEqual([3]);
+  });
+
+  it("예전 CSV의 물건 이름과 모드를 확인하고 맞지 않는 행은 건너뛴다", () => {
+    const selected = { id: 7, name: "원하는 책", isDemo: false };
+    const csv = [
+      "price_type,amount,source_name,checked_date,item_name,is_demo",
+      "ASKING,1000,장터,2026-11-01,다른 책,false",
+      "ASKING,2000,장터,2026-11-01,원하는 책,true",
+      "ASKING,3000,장터,2026-11-01,원하는 책,false",
+    ].join("\n");
+    const plan = planCsvImport(csv, TODAY, [], selected);
+    expect(plan.valid.map((v) => v.value.amountMinor)).toEqual([3000]);
+    expect(plan.errors.map((e) => e.line)).toEqual([2, 3]);
+  });
+
+  it.each(['"닫히지 않음\nASKING,2000,장터,2026-11-01,다른 행', '"메모"추가', '잘못"인용'])("잘못된 따옴표가 있으면 파일의 어느 행도 저장 대상으로 삼지 않는다", (memo) => {
+    const csv = `price_type,amount,source_name,checked_date,memo\nASKING,1000,장터,2026-11-01,정상\nASKING,2000,장터,2026-11-01,${memo}`;
+    const plan = planCsvImport(csv, TODAY, [], target);
+    expect(plan.headerError).toContain("3");
+    expect(plan.valid).toHaveLength(0);
+  });
+
+  it("열 수가 다른 가격 행을 건너뛰고 실제 줄 번호로 알린다", () => {
+    const csv = 'price_type,amount,source_name,checked_date,memo\n\nASKING,1000,장터,2026-11-01,"두\n줄"\nASKING,2000,장터,2026-11-01,잘린,메모';
+    const plan = planCsvImport(csv, TODAY, [], target);
+    expect(plan.valid.map(({ line }) => line)).toEqual([3]);
+    expect(plan.errors.map(({ line }) => line)).toEqual([5]);
+  });
+
+  it("가격 CSV를 다시 올려도 수식 기호로 시작하는 매물 ID는 중복으로 감지한다", () => {
+    const item = getItem(db, false, createItem(db, false, bookInput))!;
+    const record = price({ externalId: "-매물번호", memo: "'@메모" });
+    insertPrice(db, item, record, "MANUAL");
+    const csv = buildCsv(exportRows(db, false, item.id));
+    expect(planCsvImport(csv, TODAY, [], item).valid[0]?.value).toMatchObject({ externalId: "-매물번호", memo: "'@메모" });
+    expect(planCsvImport(csv, TODAY, [record], item).valid).toHaveLength(0);
+  });
+
   it("따옴표·쉼표·줄바꿈이 있는 셀을 파싱한다", () => {
     expect(parseCsv('a,b\r\n"x,1","he said ""hi""\nnext"\n')).toEqual([
       ["a", "b"],
@@ -350,11 +398,11 @@ describe("CSV", () => {
     expect(escapeCsvCell("일반 메모")).toBe("일반 메모");
   });
   it("필수 열 누락·알 수 없는 열은 파일 단위 오류", () => {
-    expect(planCsvImport("amount,source_name\n1000,a\n", TODAY, []).headerError).toContain("price_type");
+    expect(planCsvImport("amount,source_name\n1000,a\n", TODAY, [], target).headerError).toContain("price_type");
     expect(
-      planCsvImport("price_type,amount,source_name,checked_date,weird\n", TODAY, []).headerError,
+      planCsvImport("price_type,amount,source_name,checked_date,weird\n", TODAY, [], target).headerError,
     ).toContain("weird");
-    expect(planCsvImport("", TODAY, []).headerError).not.toBeNull();
+    expect(planCsvImport("", TODAY, [], target).headerError).not.toBeNull();
   });
   it("행별로 검증해 올바른 행만 계획에 넣고 오류 행은 줄 번호와 사유를 남긴다", () => {
     const csv = [
@@ -367,14 +415,14 @@ describe("CSV", () => {
       "SOLD_LISTING,15000,KRW,장터,X6,2026-11-01,", // 금액은 같지만 다른 매물
       "BUYBACK_QUOTE,5000,KRW,매입점,,2026-11-01,", // 8행: 메모 필요
     ].join("\n");
-    const plan = planCsvImport(csv, TODAY, [{ sourceName: "장터", externalId: "OLD", normalizedUrl: null }]);
+    const plan = planCsvImport(csv, TODAY, [{ sourceName: "장터", externalId: "OLD", normalizedUrl: null }], target);
     expect(plan.headerError).toBeNull();
     expect(plan.valid.map((v) => v.line)).toEqual([2, 7]);
     expect(plan.errors.map((e) => e.line)).toEqual([3, 4, 5, 6, 8]);
     expect(plan.errors[0]!.messages[0]).toContain("price_type");
     expect(plan.errors[1]!.messages[0]).toContain("amount");
   });
-  it("내보낸 CSV를 다시 가져오면 같은 자료가 된다(내보내기 전용 열은 무시)", () => {
+  it("내보낸 가격 자료를 다시 가져오면 비교 포함 여부와 금액·메모를 보존한다", () => {
     const item = getItem(db, false, createItem(db, false, bookInput))!;
     insertPrice(
       db,
@@ -383,15 +431,21 @@ describe("CSV", () => {
       "MANUAL",
     );
     insertPrice(db, item, price({ currency: "USD", amount: "12.50", externalId: "E2" }), "MANUAL");
+    const records = listPrices(db, item.id);
+    setPricesIncluded(db, item.id, [records[0]!.id], false);
     const csv = buildCsv(exportRows(db, false, item.id));
     expect(csv.startsWith("﻿")).toBe(true);
     expect(csv).toContain("12.50");
 
-    const other = getItem(db, false, createItem(db, false, { ...bookInput, name: "다른 책" }))!;
-    const plan = planCsvImport(csv, TODAY, []);
+    for (const record of records) {
+      deletePrice(db, item.id, record.id);
+      purgePrice(db, false, record.id);
+    }
+    const plan = planCsvImport(csv, TODAY, [], item);
     expect(plan.errors).toEqual([]);
-    expect(importPrices(db, other, plan.valid.map((v) => v.value))).toBe(2);
-    const imported = listPrices(db, other.id);
+    expect(importPrices(db, item, plan.valid.map((v) => v.value))).toBe(2);
+    const imported = listPrices(db, item.id);
+    expect(imported.map((p) => p.includedInComparison)).toEqual([false, true]);
     expect(imported.map((p) => [p.amountMinor, p.currency, p.inputRoute])).toEqual([
       [10000, "KRW", "CSV"],
       [1250, "USD", "CSV"],

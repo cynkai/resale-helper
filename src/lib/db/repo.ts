@@ -20,7 +20,7 @@ import {
   type PriceRecord,
 } from "./schema";
 import { isSameListing } from "../domain/compare";
-import type { ExportRow } from "../domain/csv";
+import type { CsvPrice, ExportRow } from "../domain/csv";
 import type { ValidCostPreset } from "../domain/cost-preset";
 import type { ValidItemInput } from "../domain/item-input";
 import type { OfferStatus, ValidOfferInput } from "../domain/offer";
@@ -449,7 +449,7 @@ export function purgePrice(db: Db, isDemo: boolean, id: number): void {
   db.delete(priceRecords).where(and(eq(priceRecords.id, id), trashedPrice(isDemo))).run();
 }
 
-export function importPrices(db: Db, item: Item, values: ValidPriceInput[]): number {
+export function importPrices(db: Db, item: Item, values: readonly CsvPrice[]): number {
   return db.transaction((tx) => {
     for (const v of values) {
       tx.insert(priceRecords)

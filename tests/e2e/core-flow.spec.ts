@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { parseCsv } from "../../src/lib/domain/csv";
 
 // 핵심 흐름: 물건 등록 → 가격 자료 추가 → 비교·비용 입력 → 판매 방법 저장 → 판매글 복사 → 판매 결과 기록
 test.describe.configure({ mode: "serial" });
@@ -161,16 +162,20 @@ test("CSV: 오류 행은 행 번호와 함께 건너뛰고, 내보내기에는 �
   await page.goto(itemUrl);
   await page.getByText("CSV로 한꺼번에 가져오기").click();
   const csv = [
-    "price_type,amount,source_name,external_id,checked_date",
-    "SOLD_LISTING,16000,테스트마켓,S-1,2026-01-05",
-    "VERIFIED_SALE,16000,테스트마켓,S-2,2026-01-05",
-    "ASKING,1.5만,테스트마켓,S-3,2026-01-05",
+    "price_type,amount,source_name,external_id,checked_date,is_demo,item_name",
+    "SOLD_LISTING,16000,테스트마켓,S-1,2026-01-05,false,",
+    "VERIFIED_SALE,16000,테스트마켓,S-2,2026-01-05,false,",
+    "ASKING,1.5만,테스트마켓,S-3,2026-01-05,false,",
+    "ASKING,12000,테스트마켓,S-4,2026-01-05,false,다른 책",
+    "ASKING,13000,테스트마켓,S-5,2026-01-05,true,",
   ].join("\n");
   await page.locator("#csv-file").setInputFiles({ name: "prices.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await page.getByRole("button", { name: "가져오기" }).click();
-  await expect(page.getByText("1건을 가져왔고, 2건은 오류로 건너뛰었습니다.")).toBeVisible();
+  await expect(page.getByText("1건을 가져왔고, 4건은 오류로 건너뛰었습니다.")).toBeVisible();
   await expect(page.locator("#prices")).toContainText("3행");
   await expect(page.locator("#prices")).toContainText("4행");
+  await expect(page.locator("#prices")).toContainText("다른 책");
+  await expect(page.locator("#prices")).toContainText("데모 자료");
   await expect(page.getByTestId("group-SOLD_LISTING")).toContainText("CSV 가져오기");
 
   const res = await page.request.get(`/api/export/prices`);
@@ -178,7 +183,8 @@ test("CSV: 오류 행은 행 번호와 함께 건너뛰고, 내보내기에는 �
   const text = await res.text();
   expect(text).toContain("price_type,amount,currency");
   expect(text.trim().split("\r\n")).toHaveLength(6); // 머리글 + 5건
-  expect(text).not.toContain("true"); // is_demo=true 행 없음
+  const [columns = [], ...records] = parseCsv(text);
+  expect(records.map((row) => row[columns.indexOf("is_demo")])).toEqual(Array(5).fill("false"));
 });
 
 test("데모는 명시적으로 들어가야 하고, 가상 데이터 표시가 붙으며 실제 자료와 섞이지 않는다", async ({ page }) => {

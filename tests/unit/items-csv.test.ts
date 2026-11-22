@@ -14,6 +14,42 @@ import { buildItemsCsv, isSameItem, MAX_ITEM_CSV_ROWS, planItemsCsvImport } from
 const HEAD = "category,name,identifier,condition,edition,defects";
 
 describe("물건 CSV 읽기", () => {
+  it("실제 목록에는 명시적으로 데모라고 표시된 행을 가져오지 않는다", () => {
+    const csv = "category,name,condition,is_demo\nBOOK,가상 책,GOOD,true\nBOOK,내 책,GOOD,false";
+    const plan = planItemsCsvImport(csv, []);
+    expect(plan.valid.map((v) => v.value.name)).toEqual(["내 책"]);
+    expect(plan.errors.map((e) => e.line)).toEqual([2]);
+  });
+
+  it("빈 줄과 여러 줄 메모 뒤에도 파일의 실제 줄 번호로 잘못된 행을 안내한다", () => {
+    const csv = 'category,name,condition,memo\r\n\r\nBOOK,책,GOOD,"첫 줄\r\n둘째 줄"\r\nBOOK,누락,GOOD\r\nBOOK,초과,GOOD,메모,다른 칸\r\nBOOK,정상,GOOD,';
+    const plan = planItemsCsvImport(csv, []);
+    expect(plan.valid.map(({ line }) => line)).toEqual([3, 7]);
+    expect(plan.errors.map(({ line }) => line)).toEqual([5, 6]);
+  });
+
+  it.each(["category,name,condition, NAME ", "category,name,condition,"])("이름이 겹치거나 비어 있는 열을 거부한다", (headers) => {
+    const plan = planItemsCsvImport(headers + "\nBOOK,책,GOOD,다른 값", []);
+    expect(plan.headerError).toBeTruthy();
+    expect(plan.valid).toHaveLength(0);
+  });
+
+  it("CSV에서도 오늘보다 늦은 구입일을 거부한다", () => {
+    const csv = "category,name,condition,purchase_date\nBOOK,책,GOOD,2026-11-18\nBOOK,다른 책,GOOD,2026-11-17";
+    const plan = planItemsCsvImport(csv, [], "2026-11-17");
+    expect(plan.valid.map(({ line }) => line)).toEqual([3]);
+    expect(plan.errors.map(({ line }) => line)).toEqual([2]);
+  });
+
+  it("내보낸 이름의 수식 보호 문자를 복원하고 원래 있던 작은따옴표는 유지한다", () => {
+    const input = "category,name,condition,memo\nBOOK,=원래 이름,GOOD,'+원래 메모";
+    const original = planItemsCsvImport(input, []).valid.map(({ value }) => value);
+    const csv = buildItemsCsv(original.map((value) => ({ ...value, isDemo: false })));
+    expect(csv).toContain("'=원래 이름");
+    expect(planItemsCsvImport(csv, []).valid.map(({ value }) => value)).toEqual(original);
+    expect(planItemsCsvImport(csv, original).valid).toHaveLength(0);
+  });
+
   it("필수 열이 없거나 모르는 열이 있으면 아무것도 등록하지 않는다", () => {
     expect(planItemsCsvImport("", []).headerError).toContain("빈 파일");
     expect(planItemsCsvImport("category,name\nBOOK,책", []).headerError).toContain("condition");

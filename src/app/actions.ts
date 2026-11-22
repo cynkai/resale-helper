@@ -254,7 +254,7 @@ export async function importCsvAction(_prev: CsvImportState, fd: FormData): Prom
   if (file.size > MAX_CSV_BYTES) return { headerError: "파일이 너무 큽니다(최대 1MB)." };
   const text = await file.text();
   // 휴지통에 있는 자료와 같은 매물도 중복으로 건너뛴다.
-  const plan = planCsvImport(text, todayYmd(), repo.listPricesForDedup(db, item.id));
+  const plan = planCsvImport(text, todayYmd(), repo.listPricesForDedup(db, item.id), item);
   if (plan.headerError) return { headerError: plan.headerError };
   const imported = plan.valid.length > 0 ? repo.importPrices(db, item, plan.valid.map((v) => v.value)) : 0;
   revalidatePath(`/items/${item.id}`);
@@ -275,7 +275,7 @@ export async function importItemsCsvAction(_prev: CsvImportState, fd: FormData):
   if (!(file instanceof File) || file.size === 0) return { headerError: "CSV 파일을 선택해 주세요." };
   if (file.size > MAX_CSV_BYTES) return { headerError: "파일이 너무 큽니다(최대 1MB)." };
   const db = getDb();
-  const plan = planItemsCsvImport(await file.text(), repo.listAllItems(db, false));
+  const plan = planItemsCsvImport(await file.text(), repo.listAllItems(db, false), todayYmd());
   if (plan.headerError) return { headerError: plan.headerError };
   const imported = repo.createItems(db, false, plan.valid.map((v) => v.value));
   revalidatePath("/");
