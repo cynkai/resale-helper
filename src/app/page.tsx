@@ -5,9 +5,9 @@ import { bulkItemsAction } from "@/app/actions";
 import { ConfirmSubmit, SelectAllToggle } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listCheckupSources, listItems, countTrashedItems, countTrashedPrices, ITEM_SORT_LABEL, ITEM_SORTS, type ItemSort } from "@/lib/db/repo";
+import { listCheckupSources, listItems, countTrashedItems, countTrashedPrices, ITEM_SORT_LABEL, ITEM_SORTS } from "@/lib/db/repo";
 import { checkupItem, needsAttention } from "@/lib/domain/checkup";
-import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, type NextStepCode } from "@/lib/domain/next-step";
+import { countNextSteps, NEXT_STEP_CODES, NEXT_STEP_LABEL, nextStep, nextStepHref, type NextStepCode } from "@/lib/domain/next-step";
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -15,8 +15,6 @@ import {
   ITEM_STATUSES,
   ITEM_STATUS_LABEL,
   SALE_METHOD_LABEL,
-  type Category,
-  type ItemStatus,
 } from "@/lib/domain/types";
 import { isDemoMode } from "@/lib/mode";
 import { todayYmd } from "@/lib/today";
@@ -24,15 +22,15 @@ import { todayYmd } from "@/lib/today";
 // 루트 레이아웃과 같은 구간이라 제목 틀(template)이 적용되지 않는다.
 export const metadata: Metadata = { title: { absolute: "내 물건 · 얼마에 팔까" } };
 
-export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const sp = await searchParams;
-  const q = sp.q ?? "";
-  const category = CATEGORIES.includes(sp.category as Category) ? (sp.category as Category) : undefined;
-  const status = ITEM_STATUSES.includes(sp.status as ItemStatus) ? (sp.status as ItemStatus) : undefined;
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = Object.fromEntries(Object.entries(await searchParams).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value] as const));
+  const q = sp.q?.trim() ?? "";
+  const category = CATEGORIES.find((c) => c === sp.category);
+  const status = ITEM_STATUSES.find((s) => s === sp.status);
   const demo = await isDemoMode();
-  const step = NEXT_STEP_CODES.includes(sp.step as NextStepCode) ? (sp.step as NextStepCode) : undefined;
+  const step = NEXT_STEP_CODES.find((code) => code === sp.step);
   const db = getDb();
-  const sort = ITEM_SORTS.includes(sp.sort as ItemSort) ? (sp.sort as ItemSort) : "updated";
+  const sort = ITEM_SORTS.find((key) => key === sp.sort) ?? "updated";
   const all = listItems(db, demo, { q, category, status, sort }).map((r) => ({
     ...r,
     step: nextStep({ status: r.item.status, priceCount: r.priceCount, scenarioCount: r.scenarioCount, chosenMethod: r.item.chosenMethod, hasResult: r.resultCount > 0 }),
@@ -57,20 +55,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
     return p.toString();
   })();
   const BULK_DONE_LABEL: Record<string, string> = { LISTED: "판매 중으로 표시했습니다", OWNED: "보유 중으로 되돌렸습니다", TRASH: "휴지통으로 옮겼습니다" };
-  const bulkDone = sp.bulk && BULK_DONE_LABEL[sp.bulk] && /^\d+$/.test(sp.done ?? "") ? { op: sp.bulk, done: Number(sp.done), skipped: Number(sp.skipped ?? 0) } : null;
+  const bulkDone = sp.bulk && Object.hasOwn(BULK_DONE_LABEL, sp.bulk) && /^\d+$/.test(sp.done ?? "") ? { op: sp.bulk, done: Number(sp.done), skipped: Number(sp.skipped ?? 0) } : null;
   const stepHref = (code?: NextStepCode) => {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (category) p.set("category", category);
-    if (status) p.set("status", status);
-    if (sort !== "updated") p.set("sort", sort);
+    const p = new URLSearchParams(listQuery);
+    p.delete("step");
     if (code) p.set("step", code);
     const qs = p.toString();
     return qs ? `/?${qs}` : "/";
   };
 
   return (
-    <div className="space-y-4">
+    <div className="inventory space-y-4">
       {bulkDone ? (
         <p className="notice" role="status" data-testid="bulk-items-notice">
           물건 {bulkDone.done}개를 {BULK_DONE_LABEL[bulkDone.op]}.
@@ -93,10 +88,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </Link>
         </p>
       ) : null}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">내 물건{demo ? " (데모)" : ""}</h1>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-stone-600">{rows.length}개</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-2xl font-bold">내 물건{demo ? " (데모)" : ""}</h1>
+          <span className="text-sm text-stone-600">{rows.length}개</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {attention > 0 ? (
             <Link href="/checkup" className="btn" data-testid="checkup-link">
               다시 확인할 물건 {attention}개
@@ -113,9 +110,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </div>
 
-      <form method="get" className="card grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto]" role="search">
+      <form method="get" className="card grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]" role="search">
         {step ? <input type="hidden" name="step" value={step} /> : null}
-        <div>
+        <div className="col-span-2 lg:col-span-1">
           <label htmlFor="q" className="sr-only">검색</label>
           <input id="q" name="q" defaultValue={q} className="input" placeholder="이름·ISBN·모델명·저자·구성품·메모 검색" />
         </div>
@@ -145,7 +142,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             ))}
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="submit" className="btn">찾기</button>
           {filtered ? <Link href="/" className="btn">초기화</Link> : null}
         </div>
@@ -172,7 +169,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       {rows.length === 0 ? (
         <div className="card py-10 text-center">
           {filtered ? (
-            <p className="text-stone-700">조건에 맞는 물건이 없습니다.</p>
+            <>
+              <p className="font-medium">조건에 맞는 물건이 없습니다.</p>
+              <Link href="/" className="btn mt-3">전체 물건 보기</Link>
+            </>
           ) : (
             <>
               <p className="font-medium">아직 등록한 물건이 없습니다.</p>
@@ -185,7 +185,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <>
         <form id="bulk-items" action={bulkItemsAction} className="flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-items">
           <input type="hidden" name="back" value={listQuery} />
-          <span className="text-stone-700">‘선택’으로 고른 물건을 한꺼번에:</span>
+          <span className="text-stone-700">일괄 작업</span>
           <SelectAllToggle formId="bulk-items" name="itemIds" />
           <button type="submit" name="op" value="LISTED" className="btn px-2 py-1 text-xs">
             판매 중으로 표시
@@ -205,16 +205,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <ul className="space-y-2">
           {rows.map(({ item, priceCount, step, openOfferCount }) => {
             return (
-            <li key={item.id} className="relative">
-              <label className="absolute right-3 bottom-3 z-10 flex items-center gap-1 rounded bg-white px-1 text-xs text-stone-600">
-                <input type="checkbox" name="itemIds" value={item.id} form="bulk-items" aria-label={`${item.name} 선택`} />
-                선택
-              </label>
-              <Link href={`/items/${item.id}`} className="card block pb-9 hover:border-teal-700 sm:pb-4">
+            <li key={item.id} className="card min-w-0 p-0">
+              <Link href={`/items/${item.id}`} className="block rounded-t-lg p-4 hover:bg-stone-50">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold">{item.name}</p>
-                    <p className="mt-0.5 text-sm text-stone-600">
+                    <p className="wrap-anywhere font-semibold">{item.name}</p>
+                    <p className="mt-0.5 wrap-anywhere text-sm text-stone-600">
                       {[item.identifier, item.edition, CONDITION_LABEL[item.condition]].filter(Boolean).join(" · ")}
                     </p>
                   </div>
@@ -231,11 +227,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
                   {priceCount > 0 ? `가격 자료 ${priceCount}건` : "가격 자료 없음"}
                   {item.chosenMethod ? ` · 선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")}` : ""}
                 </p>
-                <p className="mt-1 text-sm" data-testid={`next-step-${item.id}`}>
-                  <span className="text-stone-600">{step === "DONE" ? "완료: " : "다음: "}</span>
-                  <span className={step === "DONE" ? "text-stone-700" : "font-medium text-teal-900"}>{NEXT_STEP_LABEL[step]}</span>
-                </p>
               </Link>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 border-t border-stone-200 px-4">
+                <Link href={nextStepHref(item.id, step)} className="inline-flex min-h-11 items-center gap-1 text-sm text-teal-900 underline-offset-4 hover:underline" data-testid={`next-step-${item.id}`}>
+                  <span className="text-stone-600">{step === "DONE" ? "완료: " : "다음: "}</span>
+                  <span className="font-medium">{NEXT_STEP_LABEL[step]}</span>
+                </Link>
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-stone-700">
+                  <input type="checkbox" name="itemIds" value={item.id} form="bulk-items" aria-label={`${item.name} 선택`} />
+                  선택
+                </label>
+              </div>
             </li>
             );
           })}

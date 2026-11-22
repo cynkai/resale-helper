@@ -96,7 +96,7 @@ export function CsvImportForm({ itemId }: { itemId?: number }) {
         CSV 파일
       </label>
       <div className="flex flex-wrap items-center gap-2">
-        <input id="csv-file" type="file" name="file" accept=".csv,text/csv" className="text-sm" required />
+        <input id="csv-file" type="file" name="file" accept=".csv,text/csv" className="max-w-full text-sm" required />
         <button type="submit" className="btn" disabled={pending}>
           {pending ? "가져오는 중…" : "가져오기"}
         </button>
@@ -594,7 +594,7 @@ export function SelectAllToggle({ formId, name }: { formId: string; name: string
       <button type="button" className="btn px-2 py-1 text-xs" onClick={() => boxes().forEach((b) => (b.checked = true))}>
         모두 선택
       </button>
-      <button type="button" className="btn px-2 py-1 text-xs" onClick={() => boxes().forEach((b) => (b.checked = false))}>
+      <button type="button" className="clear-selection btn px-2 py-1 text-xs" onClick={() => boxes().forEach((b) => (b.checked = false))}>
         선택 해제
       </button>
     </span>

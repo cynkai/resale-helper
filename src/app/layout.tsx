@@ -44,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/" className="text-lg font-bold text-teal-900">
               얼마에 팔까
             </Link>
-            <nav aria-label="주 메뉴" className="flex items-center gap-2">
+            <nav aria-label="주 메뉴" className="flex flex-wrap items-center gap-1.5">
               <Link href="/" className="btn">내 물건</Link>
               <Link href="/triage" className="btn">배분</Link>
               <Link href="/checkup" className="btn">점검</Link>

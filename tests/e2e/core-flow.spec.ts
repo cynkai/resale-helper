@@ -45,6 +45,27 @@ test("물건 등록: 잘못된 ISBN은 필드 옆에 오류를 보여주고, 올
   await expect(page.locator("#prices")).toContainText("가격 자료 없음");
 });
 
+test("서지정보 응답을 기다리며 직접 고친 제목을 보존한다", async ({ page }) => {
+  const lookupStarted = Promise.withResolvers<void>();
+  const reply = Promise.withResolvers<void>();
+  await page.route("**/api/books/lookup?*", async (route) => {
+    lookupStarted.resolve();
+    await reply.promise;
+    await route.fulfill({ json: {
+      status: "found", isbn13: "9780306406157", providerLabel: "테스트 서지정보",
+      data: { title: "조회된 제목", author: "조회된 저자", publisher: null, edition: null },
+    } });
+  });
+  await page.goto("/items/new");
+  await page.getByLabel("ISBN", { exact: true }).fill("0-306-40615-2");
+  await page.getByRole("button", { name: "서지정보 조회" }).click();
+  await lookupStarted.promise;
+  await page.locator("#name").fill("내가 확인한 제목");
+  reply.resolve();
+  await expect(page.locator("#author")).toHaveValue("조회된 저자");
+  await expect(page.locator("#name")).toHaveValue("내가 확인한 제목");
+});
+
 test("가격 자료: 유형별로 나뉘고, 중복·검증된 체결가 직접 입력을 막는다", async ({ page }) => {
   await page.goto(itemUrl);
 
@@ -559,6 +580,9 @@ test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준�
   const id = page.url().split("/").pop();
   await page.goto("/");
   await expect(page.getByTestId(`next-step-${id}`)).toHaveText("다음: 가격 자료 넣기");
+  await page.getByTestId(`next-step-${id}`).click();
+  await expect(page).toHaveURL(new RegExp(`/items/${id}/prices/new$`));
+  await page.goBack();
   // 할 일로 걸러 보기
   const filter = page.getByTestId("step-filter");
   await filter.getByRole("link", { name: /^가격 자료 넣기 \d+$/ }).click();
@@ -1250,6 +1274,9 @@ test("물건 상태 빠른 변경: 판매 중으로 표시하고 되돌리며, �
   await expect(page.getByTestId("result-summary")).toBeVisible();
   await expect(page.getByTestId("set-status-OWNED")).toHaveCount(0);
   await expect(page.getByTestId("set-status-LISTED")).toHaveCount(0);
+  await page.goto(`${page.url().split("#")[0]}/edit`);
+  await expect(page.locator("#status")).toBeDisabled();
+  await expect(page.locator("#status")).toHaveValue("SOLD");
 });
 
 test("연달아 입력: 가격 자료를 저장하고 하나 더 넣을 때 유형·출처만 이어 주고, 이전·다음 물건으로 이동한다", async ({ page }) => {
@@ -1458,7 +1485,10 @@ test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지
   await expect(page.getByTestId("bulk-items-notice")).toHaveCount(0);
 
   // 모두 선택 → 선택 해제 → 다시 모두 선택(검색 결과인 두 물건만 화면에 있다)
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("bulk-items").locator('[value="TRASH"]')).toBeHidden();
   await page.getByTestId("bulk-items").getByRole("button", { name: "모두 선택" }).click();
+  await expect(page.getByTestId("bulk-items").getByRole("button", { name: "휴지통으로" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 가 선택" })).toBeChecked();
   await page.getByTestId("bulk-items").getByRole("button", { name: "선택 해제" }).click();
   await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" })).not.toBeChecked();

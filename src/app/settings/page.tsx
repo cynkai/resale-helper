@@ -143,7 +143,7 @@ export default async function SettingsPage() {
       <Section id="snapshots" title="백업 사본">
         <div className="space-y-3 text-sm">
           <p>
-            지금 DB 전체(실제 자료와 데모 자료, 휴지통 포함)의 사본을 이 컴퓨터의 <code>{snapshotFolder}</code> 폴더에 만듭니다. 버튼을 누를 때만
+            지금 DB 전체(실제 자료와 데모 자료, 휴지통 포함)의 사본을 이 컴퓨터의 <code className="wrap-anywhere">{snapshotFolder}</code> 폴더에 만듭니다. 버튼을 누를 때만
             만들고, 자동으로 만들거나 지우지 않습니다. 휴지통을 비우거나 자료를 많이 지우기 전에 만들어 두면 되돌릴 수 있습니다.
           </p>
           <SnapshotButton />
@@ -154,7 +154,7 @@ export default async function SettingsPage() {
               {snapshots.map((sn) => (
                 <li key={sn.name} className="flex flex-wrap items-center gap-3 py-2">
                   <span>{sn.createdLabel}</span>
-                  <code className="text-xs">{sn.name}</code>
+                  <code className="wrap-anywhere text-xs">{sn.name}</code>
                   <span className="text-stone-600">{Math.max(1, Math.round(sn.bytes / 1024))}KB</span>
                   <a href={`/api/backup/snapshots/${sn.name}`} className="underline" download>
                     내려받기
@@ -178,7 +178,7 @@ export default async function SettingsPage() {
       <Section id="data-stats" title="내 자료 현황">
         <div className="space-y-2 text-sm">
           <p>
-            DB 파일 <code>{path.relative(process.cwd(), dbPath) || dbPath}</code> · 크기 {kb(stats.fileBytes)}(실행 중 생기는 보조 파일 포함). 건수만 보여 주며 금액은
+            DB 파일 <code className="wrap-anywhere">{path.relative(process.cwd(), dbPath) || dbPath}</code> · 크기 {kb(stats.fileBytes)}(실행 중 생기는 보조 파일 포함). 건수만 보여 주며 금액은
             합치지 않습니다.
           </p>
           <div className="overflow-x-auto">

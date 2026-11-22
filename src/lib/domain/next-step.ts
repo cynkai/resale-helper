@@ -23,6 +23,19 @@ export const NEXT_STEP_LABEL: Record<NextStepCode, string> = {
   DONE: "판매 결과까지 기록함",
 };
 
+const NEXT_STEP_TARGET: Record<NextStepCode, string> = {
+  ADD_PRICES: "/prices/new",
+  ENTER_COSTS: "#net",
+  CHOOSE_METHOD: "#choose",
+  POST_LISTING: "#listing",
+  RECORD_RESULT: "#result",
+  DONE: "#result",
+};
+
+export function nextStepHref(itemId: number, step: NextStepCode): string {
+  return `/items/${itemId}${NEXT_STEP_TARGET[step]}`;
+}
+
 export function nextStep(s: NextStepInput): NextStepCode {
   if (s.hasResult) return "DONE";
   // 판매 완료로 표시했는데 결과 기록이 없으면 기록이 먼저다.

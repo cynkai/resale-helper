@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ItemForm } from "@/components/ItemForm";
 import { getDb } from "@/lib/db/client";
-import { getItem } from "@/lib/db/repo";
+import { getItem, getSaleResult } from "@/lib/db/repo";
 import { isDemoMode } from "@/lib/mode";
 import { itemTitle } from "../meta";
 
@@ -33,7 +33,7 @@ export default async function EditItemPage({
         </p>
       ) : null}
       <div className="card">
-        <ItemForm initial={initial} itemId={item.id} />
+        <ItemForm initial={initial} itemId={item.id} hasSaleResult={Boolean(getSaleResult(getDb(), item.id))} />
       </div>
     </div>
   );

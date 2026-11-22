@@ -1,6 +1,6 @@
 // 데이터 접근 계층. 모든 조회·변경은 isDemo로 범위를 제한해 데모와 실제 자료가 섞이지 않게 한다.
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, isNull, notExists, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client";
 import {
   costPresets,
@@ -24,6 +24,7 @@ import { plannedCostItems } from "../domain/review";
 import { basisIssues } from "../domain/scenario";
 import { todayYmd } from "../today";
 import { isSameListing } from "../domain/compare";
+import { normalizeIsbn } from "../domain/isbn";
 import type { CsvPrice, ExportRow } from "../domain/csv";
 import type { ValidCostPreset } from "../domain/cost-preset";
 import type { ValidItemInput } from "../domain/item-input";
@@ -68,19 +69,18 @@ export type ItemFilter = {
 };
 
 export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
-  const conds = [live(isDemo)];
+  const conds: (SQL | undefined)[] = [live(isDemo)];
   if (f.category) conds.push(eq(items.category, f.category));
   if (f.status) conds.push(eq(items.status, f.status));
-  if (f.q && f.q.trim() !== "") {
-    // 이름·식별자·저자에 더해 출판사·구성품·하자·메모도 찾는다. 검색어의 %·_는 와일드카드로 쓰지 않는다.
-    const pat = `%${f.q.trim().replace(/[%_]/g, "")}%`;
-    const basic = [like(items.name, pat), like(items.identifier, pat), like(items.author, pat)];
-    conds.push(
-      or(
-        ...basic,
-        ...(f.basicSearch ? [] : [like(items.publisher, pat), like(items.components, pat), like(items.defects, pat), like(items.memo, pat)]),
-      )!,
-    );
+  const query = f.q?.trim();
+  if (query) {
+    const columns = [items.name, items.identifier, items.author, ...(f.basicSearch ? [] : [items.publisher, items.edition, items.components, items.defects, items.memo])];
+    const pattern = `%${query.replace(/[!%_]/g, "!$&")}%`;
+    const isbn = normalizeIsbn(query);
+    conds.push(or(
+      ...columns.map((column) => sql`${column} like ${pattern} escape '!'`),
+      isbn.ok ? and(eq(items.category, "BOOK"), eq(items.identifier, isbn.isbn13)) : undefined,
+    ));
   }
   return db
     .select({
@@ -121,8 +121,15 @@ export function createItem(db: Db, isDemo: boolean, v: ValidItemInput): number {
 }
 
 export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInput): void {
+  const hasResult = db.select({ id: saleResults.id }).from(saleResults).where(eq(saleResults.itemId, id));
   db.update(items)
-    .set({ ...v, purchaseAmount: v.purchaseAmount ?? null, purchaseDate: v.purchaseDate ?? null, updatedAt: now })
+    .set({
+      ...v,
+      status: sql`case when ${exists(hasResult)} then 'SOLD' else ${v.status} end`,
+      purchaseAmount: v.purchaseAmount ?? null,
+      purchaseDate: v.purchaseDate ?? null,
+      updatedAt: now,
+    })
     .where(and(eq(items.id, id), live(isDemo)))
     .run();
 }
@@ -132,13 +139,12 @@ export function updateItem(db: Db, isDemo: boolean, id: number, v: ValidItemInpu
  * 판매 완료는 판매 결과를 기록할 때만 되므로 여기서는 만들지 않고, 판매 결과가 있는 물건은 바꾸지 않는다.
  */
 export function setItemStatus(db: Db, isDemo: boolean, id: number, status: "OWNED" | "LISTED"): boolean {
-  const hasResult = db.select({ id: saleResults.id }).from(saleResults).where(eq(saleResults.itemId, id)).get();
-  if (hasResult) return false;
+  const result = db.select({ id: saleResults.id }).from(saleResults).where(eq(saleResults.itemId, id));
   return (
     db
       .update(items)
       .set({ status, updatedAt: now })
-      .where(and(eq(items.id, id), live(isDemo)))
+      .where(and(eq(items.id, id), live(isDemo), notExists(result)))
       .returning({ id: items.id })
       .all().length === 1
   );

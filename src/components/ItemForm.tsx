@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { saveItemAction, type FormState } from "@/app/actions";
 import { Field } from "./ui";
 import {
@@ -25,7 +25,7 @@ const TRI_OPTIONS = [
   { value: "NO", label: "없음" },
 ];
 
-export function ItemForm({ initial, itemId }: { initial: Record<string, string>; itemId?: number }) {
+export function ItemForm({ initial, itemId, hasSaleResult = false }: { initial: Record<string, string>; itemId?: number; hasSaleResult?: boolean }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveItemAction, {});
   const base = state.values ?? initial;
   // 제어 입력: 카테고리에 따라 보이는 항목이 달라지고, 서지정보 조회 결과로 값을 채워야 한다.
@@ -36,14 +36,26 @@ export function ItemForm({ initial, itemId }: { initial: Record<string, string>;
     if (state.values) setV(state.values);
   }
   const [lookup, setLookup] = useState<LookupState>({ kind: "idle" });
+  const lookupRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => lookupRequest.current?.abort(), []);
   const e = state.errors ?? {};
   const isBook = v.category === "BOOK";
-  const set = (k: string) => (ev: { target: { value: string } }) => setV((p) => ({ ...p, [k]: ev.target.value }));
+  const set = (k: string) => (ev: { target: { value: string } }) => {
+    if (k === "identifier" || k === "category") {
+      lookupRequest.current?.abort();
+      setLookup({ kind: "idle" });
+    }
+    const value = ev.target.value;
+    setV((p) => ({ ...p, [k]: value }));
+  };
 
   async function runLookup() {
+    lookupRequest.current?.abort();
+    const request = new AbortController();
+    lookupRequest.current = request;
     setLookup({ kind: "loading" });
     try {
-      const res = await fetch(`/api/books/lookup?isbn=${encodeURIComponent(v.identifier ?? "")}`);
+      const res = await fetch(`/api/books/lookup?isbn=${encodeURIComponent(v.identifier ?? "")}`, { signal: request.signal });
       const json = (await res.json()) as {
         status: string;
         message?: string;
@@ -51,17 +63,20 @@ export function ItemForm({ initial, itemId }: { initial: Record<string, string>;
         providerLabel?: string;
         data?: { title: string; author: string | null; publisher: string | null; edition: string | null };
       };
+      if (request.signal.aborted) return;
       if (json.status === "invalid") return setLookup({ kind: "error", text: json.message ?? "ISBN을 확인해 주세요." });
-      if (json.isbn13) setV((p) => ({ ...p, identifier: json.isbn13! }));
+      const isbn13 = json.isbn13;
+      if (isbn13) setV((p) => ({ ...p, identifier: isbn13 }));
       if (json.status === "found" && json.data) {
         const d = json.data;
-        setV((p) => ({
-          ...p,
-          name: d.title,
-          author: d.author ?? p.author ?? "",
-          publisher: d.publisher ?? p.publisher ?? "",
-          edition: d.edition ?? p.edition ?? "",
-        }));
+        setV((current) => {
+          const next = { ...current };
+          const fields = { name: d.title, author: d.author, publisher: d.publisher, edition: d.edition };
+          for (const [field, value] of Object.entries(fields)) {
+            if (value != null && current[field] === v[field]) next[field] = value;
+          }
+          return next;
+        });
         return setLookup({
           kind: "info",
           text: `${json.providerLabel}에서 서지정보를 가져왔습니다. 내 책의 제목·판본과 같은지 꼭 확인해 주세요. (가격 정보는 조회하지 않습니다)`,
@@ -76,6 +91,7 @@ export function ItemForm({ initial, itemId }: { initial: Record<string, string>;
         text: `서지정보 조회에 실패했습니다(${json.message ?? "알 수 없는 오류"}). 직접 입력으로 계속할 수 있습니다.`,
       });
     } catch {
+      if (request.signal.aborted) return;
       setLookup({ kind: "error", text: "서지정보 조회에 실패했습니다. 직접 입력으로 계속할 수 있습니다." });
     }
   }
@@ -112,8 +128,9 @@ export function ItemForm({ initial, itemId }: { initial: Record<string, string>;
             ))}
           </select>
         </Field>
-        <Field label="판매 진행 상태" name="status" error={e.status}>
-          <select id="status" name="status" className="input" value={v.status ?? "OWNED"} onChange={set("status")}>
+        <Field label="판매 진행 상태" name="status" error={e.status} hint={hasSaleResult ? "판매 결과를 기록한 물건입니다." : undefined}>
+          {hasSaleResult ? <input type="hidden" name="status" value="SOLD" /> : null}
+          <select id="status" name="status" className="input" disabled={hasSaleResult} value={hasSaleResult ? "SOLD" : v.status ?? "OWNED"} onChange={set("status")}>
             {ITEM_STATUSES.map((c) => (
               <option key={c} value={c}>
                 {ITEM_STATUS_LABEL[c]}
