@@ -1,4 +1,5 @@
 import { bunjang } from "./bunjang";
+import { cleanUrl, hasIdentityQuery } from "./common";
 import { daangn } from "./daangn";
 import { readGeneric } from "./generic";
 import { joongna } from "./joongna";
@@ -27,7 +28,7 @@ export function extract(doc: Document, href: string): ExtractResult {
     } catch {
       generic = null;
     }
-    return generic ? { supported: true, clip: generic } : { supported: false, url: `${url.protocol}//${url.host}${url.pathname}` };
+    return generic ? { supported: true, clip: generic } : { supported: false, url: hasIdentityQuery(url) ? "" : cleanUrl(url) };
   }
   try {
     return { supported: true, clip: parser.parse(doc, url) };

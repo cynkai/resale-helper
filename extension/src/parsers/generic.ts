@@ -2,7 +2,7 @@
 // schema.org Product 정보가 딱 하나 있을 때만 읽는다. 화면 글자에서 가격을 짐작하지 않는다.
 // 어떤 사이트인지 모르므로 출처 이름은 호스트 이름을 제안만 하고, 사용자가 확인·수정한다.
 
-import { cleanUrl, findProducts, readProduct } from "./common";
+import { cleanUrl, findProducts, hasIdentityQuery, QUERY_IDENTITY_NOTE, readProduct } from "./common";
 import type { ClipResult } from "./types";
 
 /** 전용 파서가 있는 사이트. 이 사이트들은 전용 파서의 규칙(매물 상세 주소만)을 따르고 여기로 오지 않는다. */
@@ -16,8 +16,11 @@ export function readGeneric(doc: Document, url: URL): ClipResult | null {
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   if (KNOWN_HOSTS.test(url.hostname)) return null;
   if (findProducts(doc).length !== 1) return null;
+  if (hasIdentityQuery(url)) {
+    return { sourceName: url.hostname.replace(/^www\./, ""), url: "", externalId: null, title: null, price: null, status: null, problems: [QUERY_IDENTITY_NOTE] };
+  }
   const clip = readProduct(doc, { sourceName: url.hostname.replace(/^www\./, ""), url: cleanUrl(url), externalId: null });
   // 가격도 상태도 못 읽으면 일반 상품 페이지로 볼 근거가 약하다.
-  if (clip.price === null && clip.status === null) return null;
+  if (clip.url !== "" && clip.price === null && clip.status === null) return null;
   return { ...clip, problems: [GENERIC_NOTE, ...clip.problems] };
 }
