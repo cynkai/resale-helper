@@ -402,7 +402,7 @@ describe("가격 자료 휴지통", () => {
     if (!r1.ok || !r2.ok) throw new Error("insert");
     deletePrices(db, id, [r1.id]);
     expect(insertPrice(db, item, priceInput("dup-1", "9000"), "MANUAL")).toEqual({ ok: false, reason: "DUPLICATE", inTrash: true });
-    expect(insertPrice(db, item, priceInput("dup-2"), "MANUAL")).toEqual({ ok: false, reason: "DUPLICATE", inTrash: false });
+    expect(insertPrice(db, item, priceInput("dup-2"), "MANUAL")).toMatchObject({ ok: false, reason: "DUPLICATE", inTrash: false, duplicate: { id: r2.id } });
     // 살아 있는 자료를 휴지통의 매물과 같게 고칠 수도 없다
     expect(updatePrice(db, item, r2.id, priceInput("dup-1"))).toEqual({ ok: false, reason: "DUPLICATE", inTrash: true });
     // 완전히 지우면 다시 넣을 수 있다

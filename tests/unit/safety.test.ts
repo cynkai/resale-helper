@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
-import { createItem, deletePrices, listItems, listPrices } from "@/lib/db/repo";
+import { createItem, deletePrices, listItems, listPrices, listPricesForDedup } from "@/lib/db/repo";
 import {
   authorizeImport,
   classifyOrigin,
@@ -14,7 +14,7 @@ import {
   verifyImportToken,
 } from "@/lib/import/access";
 import { readJsonBody } from "@/lib/import/http";
-import { importRecords, MAX_IMPORT_BODY_BYTES, MAX_IMPORT_RECORDS } from "@/lib/import/records";
+import { importRecords, MAX_IMPORT_BODY_BYTES, MAX_IMPORT_RECORDS, toPriceInputRaw } from "@/lib/import/records";
 import { buildComparison } from "@/lib/domain/compare";
 import { isLoopbackHost } from "@/lib/host";
 import { basisIssues, isChoiceOutdated } from "@/lib/domain/scenario";
@@ -254,6 +254,32 @@ describe("가져오기 API 본문 처리", () => {
     });
   });
 
+  it.each(["external_id", "product_identifier"])("정밀도를 잃은 숫자형 %s는 저장하지 않고 같은 배치의 문자열 ID는 보존한다", (field) => {
+    withDb((db, itemId) => {
+      // Given: JSON 숫자는 파싱 시 이미 반올림되지만 문자열 ID는 정확하다.
+      const numericRecord: unknown = JSON.parse(JSON.stringify(rec({ external_id: "numeric", [field]: "unsafe-integer" })).replace('"unsafe-integer"', "9007199254740993"));
+      const exactRecord = rec({ external_id: "exact", [field]: "9007199254740993" });
+
+      // When
+      const out = importRecords(db, { itemId, records: [numericRecord, exactRecord] }, "EXTERNAL", TODAY);
+
+      // Then
+      expect(out).toMatchObject({ ok: true, imported: 1, rejected: 1, results: [{ index: 0, ok: false }, { index: 1, ok: true }] });
+      const saved = listPrices(db, itemId);
+      expect(saved).toHaveLength(1);
+      expect(field === "external_id" ? saved[0]?.externalId : saved[0]?.productIdentifier).toBe("9007199254740993");
+    });
+  });
+
+  it("안전한 숫자형 ID와 소수 금액은 기존대로 문자열로 변환한다", () => {
+    // Given
+    const record = { external_id: Number.MAX_SAFE_INTEGER, product_identifier: 123, amount: 12.5 };
+    // When
+    const converted = toPriceInputRaw(record);
+    // Then
+    expect(converted).toEqual({ ok: true, raw: { externalId: "9007199254740991", productIdentifier: "123", amount: "12.5" } });
+  });
+
   it("본문 크기 상한을 넘으면 읽기 단계에서 413, JSON이 아니면 거부한다", async () => {
     const req = (body: string, headers: Record<string, string> = { "Content-Type": "application/json" }) =>
       new Request("http://127.0.0.1:3000/api/import/prices", { method: "POST", body, headers });
@@ -322,6 +348,27 @@ describe("가져오기 API 본문 처리", () => {
       expect(out.results[0]).toMatchObject({ ok: false, error: expect.stringContaining("휴지통") });
       expect(out.results[0]).not.toHaveProperty("duplicateOf");
       expect(listPrices(db, itemId)).toHaveLength(0);
+    });
+  });
+
+  it.each([false, true])("ID와 URL이 서로 다른 자료를 가리키면 임의의 수정 대상을 안내하지 않는다(휴지통: %s)", (trashSecond) => {
+    withDb((db, itemId) => {
+      // Given
+      importRecords(db, { itemId, records: [rec({ external_id: "A", source_url: "https://example.com/a" }), rec({ external_id: "B", source_url: "https://example.com/b" })] }, "CLIP", TODAY);
+      const second = listPrices(db, itemId).find((p) => p.externalId === "B");
+      if (!second) throw new Error("Missing fixture");
+      if (trashSecond) deletePrices(db, itemId, [second.id]);
+      const before = listPricesForDedup(db, itemId);
+
+      // When
+      const out = importRecords(db, { itemId, records: [rec({ external_id: "A", source_url: "https://example.com/b", amount: 13000 })] }, "CLIP", TODAY);
+
+      // Then
+      expect(out).toMatchObject({ ok: true, imported: 0, rejected: 1 });
+      if (!out.ok) throw new Error(out.error);
+      expect(out.results[0]).not.toHaveProperty("duplicateOf");
+      expect(out.results[0]).not.toHaveProperty("changed");
+      expect(listPricesForDedup(db, itemId)).toEqual(before);
     });
   });
 

@@ -1,8 +1,7 @@
 // 가져오기 API 본문 해석과 저장. 검증은 price-input.ts, 중복 판정과 저장은 기존 insertPrice를 그대로 쓴다.
 
 import type { Db } from "../db/client";
-import { getItem, insertPrice, listPricesForDedup } from "../db/repo";
-import { isSameListing } from "../domain/compare";
+import { getItem, insertPrice } from "../db/repo";
 import { CSV_COLUMNS } from "../domain/csv";
 import { validatePriceInput, type PriceField, type PriceInputRaw } from "../domain/price-input";
 
@@ -42,7 +41,12 @@ export function toPriceInputRaw(record: unknown): { ok: true; raw: PriceInputRaw
     }
     if (value === null || value === undefined) continue;
     if (typeof value === "string") raw[field] = value;
-    else if (typeof value === "number" && Number.isFinite(value)) raw[field] = String(value);
+    else if (typeof value === "number" && Number.isFinite(value)) {
+      if ((field === "externalId" || field === "productIdentifier") && Number.isInteger(value) && !Number.isSafeInteger(value)) {
+        return { ok: false, error: `${key}: 정확하게 표현할 수 없는 숫자 ID입니다. 원래 ID를 문자열로 보내 주세요.` };
+      }
+      raw[field] = String(value);
+    }
     else return { ok: false, error: `${key}: 문자열 또는 숫자여야 합니다.` };
   }
   if (unknown.length > 0) {
@@ -87,26 +91,27 @@ export function importRecords(db: Db, body: unknown, route: "CLIP" | "EXTERNAL",
       return;
     }
     const saved = insertPrice(db, item, v.value, route);
-    if (!saved.ok && saved.inTrash) {
-      // 휴지통의 자료는 고칠 수 없으므로 수정 화면 번호(duplicateOf)를 주지 않는다.
-      results.push({ index, ok: false, error: "같은 매물이 앱의 휴지통에 있습니다. 저장하지 않았습니다. 앱의 휴지통에서 되살리거나 완전히 지운 뒤 다시 보내 주세요." });
-      return;
-    }
     if (!saved.ok) {
-      const existing = listPricesForDedup(db, item.id).find((e) => e.deletedAt === null && isSameListing(e, v.value));
-      const changed = existing
-        ? existing.amountMinor !== v.value.amountMinor || existing.currency !== v.value.currency || existing.priceType !== v.value.priceType
-        : undefined;
+      if (saved.reason === "CONFLICT") {
+        results.push({ index, ok: false, error: "출처 ID와 원문 URL이 서로 다른 자료를 가리킵니다(휴지통 포함). 저장하지 않았습니다. 보낸 ID와 URL을 확인해 주세요." });
+        return;
+      }
+      if (saved.inTrash) {
+        // 휴지통의 자료는 고칠 수 없으므로 수정 화면 번호(duplicateOf)를 주지 않는다.
+        results.push({ index, ok: false, error: "같은 매물이 앱의 휴지통에 있습니다. 저장하지 않았습니다. 앱의 휴지통에서 되살리거나 완전히 지운 뒤 다시 보내 주세요." });
+        return;
+      }
+      const existing = saved.duplicate;
+      const changed = existing.amountMinor !== v.value.amountMinor || existing.currency !== v.value.currency || existing.priceType !== v.value.priceType;
       results.push({
         index,
         ok: false,
         error:
-          changed === true
+          changed
             ? "이미 등록된 매물인데 보낸 가격·유형이 저장된 값과 다릅니다. 저장하지 않았습니다. 가격이 바뀌었다면 앱에서 그 자료를 수정해 주세요(이전 값은 이력에 남습니다)."
-            : changed === false
-              ? "이미 등록된 매물이고 가격·유형이 저장된 값과 같습니다. 저장하지 않았습니다. 다시 확인한 것이라면 앱에서 '오늘 다시 확인함'을 눌러 주세요."
-              : "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음).",
-        ...(existing ? { duplicateOf: existing.id, changed } : {}),
+            : "이미 등록된 매물이고 가격·유형이 저장된 값과 같습니다. 저장하지 않았습니다. 다시 확인한 것이라면 앱에서 '오늘 다시 확인함'을 눌러 주세요.",
+        duplicateOf: existing.id,
+        changed,
       });
       return;
     }
