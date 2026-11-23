@@ -22,6 +22,7 @@ import {
   listChannelNames,
   listCheckupSources,
   listFullExportSources,
+  listImportTargets,
   listItems,
   listOffers,
   listPastSalesForSameIdentifier,
@@ -304,6 +305,7 @@ describe("물건 검색", () => {
     const book = createItem(db, false, { ...input("테스트 책"), category: "BOOK", identifier: "9780306406157" });
     for (const q of ["0-306-40615-2", "978-0-306-40615-7"]) {
       expect(listItems(db, false, { q }).map((r) => r.item.id)).toEqual([book]);
+      expect(listImportTargets(db, q).map((r) => r.id)).toEqual([book]);
     }
   });
 
@@ -320,10 +322,34 @@ describe("물건 검색", () => {
     expect(find("1!")).toEqual([a]);
     expect(find("없는말")).toEqual([]);
     // 가져오기 API용 검색은 메모·하자·구성품을 찾지 않는다
-    expect(listItems(db, false, { q: "서랍", basicSearch: true })).toHaveLength(0);
-    expect(listItems(db, false, { q: "G-1", basicSearch: true }).map((r) => r.item.id)).toEqual([a]);
+    expect(listImportTargets(db, "서랍")).toEqual([]);
+    expect(listImportTargets(db, "G-1").map((r) => r.id)).toEqual([a]);
+    expect(listImportTargets(db, "%").map((r) => r.id)).toEqual([a]);
     trashItem(db, false, a);
     expect(find("서랍")).toEqual([]);
+  });
+
+  it("가져오기 대상은 최근 수정한 실제 물건 50개를 필요한 필드만 돌려준다", () => {
+    const ids = Array.from({ length: 51 }, (_, i) => createItem(db, false, {
+      ...input(`대상 ${i}`), author: "공통 저자", memo: "내 메모",
+    }));
+    createItem(db, true, { ...input("데모 대상"), author: "공통 저자" });
+    const trashed = createItem(db, false, { ...input("삭제한 대상"), author: "공통 저자" });
+    trashItem(db, false, trashed);
+    // 같은 수정 시각에는 새로 등록한 물건부터 표시한다.
+    db.run(sql`update items set updated_at = '2000-01-01 00:00:00'`);
+    updateItem(db, false, ids[0]!, { ...input("먼저 수정한 대상"), author: "공통 저자" });
+
+    const result = listImportTargets(db, "공통 저자");
+    expect(result.map((r) => r.id)).toEqual([ids[0], ...ids.slice(2).reverse()]);
+    expect(result[0]).toEqual({
+      id: ids[0],
+      name: "먼저 수정한 대상",
+      identifier: "ABC-1",
+      category: "CONSOLE",
+      condition: "GOOD",
+      status: "OWNED",
+    });
   });
 });
 

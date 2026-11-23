@@ -64,24 +64,33 @@ export type ItemFilter = {
   category?: Category;
   status?: ItemStatus;
   sort?: ItemSort;
-  /** true면 이름·식별자·저자만 찾는다(가져오기 API용: 메모·하자 같은 내용을 검색으로 알아낼 수 없게). */
-  basicSearch?: boolean;
 };
 
+const basicItemSearchColumns = [items.name, items.identifier, items.author];
+const fullItemSearchColumns = [
+  ...basicItemSearchColumns,
+  items.publisher,
+  items.edition,
+  items.components,
+  items.defects,
+  items.memo,
+];
+
+function itemSearch(q: string | undefined, columns: typeof fullItemSearchColumns): SQL | undefined {
+  const query = q?.trim();
+  if (!query) return;
+  const pattern = `%${query.replace(/[!%_]/g, "!$&")}%`;
+  const isbn = normalizeIsbn(query);
+  return or(
+    ...columns.map((column) => sql`${column} like ${pattern} escape '!'`),
+    isbn.ok ? and(eq(items.category, "BOOK"), eq(items.identifier, isbn.isbn13)) : undefined,
+  );
+}
+
 export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
-  const conds: (SQL | undefined)[] = [live(isDemo)];
+  const conds: (SQL | undefined)[] = [live(isDemo), itemSearch(f.q, fullItemSearchColumns)];
   if (f.category) conds.push(eq(items.category, f.category));
   if (f.status) conds.push(eq(items.status, f.status));
-  const query = f.q?.trim();
-  if (query) {
-    const columns = [items.name, items.identifier, items.author, ...(f.basicSearch ? [] : [items.publisher, items.edition, items.components, items.defects, items.memo])];
-    const pattern = `%${query.replace(/[!%_]/g, "!$&")}%`;
-    const isbn = normalizeIsbn(query);
-    conds.push(or(
-      ...columns.map((column) => sql`${column} like ${pattern} escape '!'`),
-      isbn.ok ? and(eq(items.category, "BOOK"), eq(items.identifier, isbn.isbn13)) : undefined,
-    ));
-  }
   return db
     .select({
       item: items,
@@ -100,6 +109,24 @@ export function listItems(db: Db, isDemo: boolean, f: ItemFilter = {}) {
           ? [desc(items.id)]
           : [desc(items.updatedAt), desc(items.id)]),
     )
+    .all();
+}
+
+/** 가져오기 대상 선택에 필요한 실제 물건 정보만 최근 수정 순으로 반환한다. */
+export function listImportTargets(db: Db, q: string) {
+  return db
+    .select({
+      id: items.id,
+      name: items.name,
+      identifier: items.identifier,
+      category: items.category,
+      condition: items.condition,
+      status: items.status,
+    })
+    .from(items)
+    .where(and(live(false), itemSearch(q, basicItemSearchColumns)))
+    .orderBy(desc(items.updatedAt), desc(items.id))
+    .limit(50)
     .all();
 }
 

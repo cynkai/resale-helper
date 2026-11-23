@@ -459,7 +459,9 @@ test("가격 자료를 고치면 바뀌기 전 값이 '이전 값'으로 남는�
   await addPrice(page, { type: "ASKING", amount: "20000", source: "가상장터", externalId: "hist-1" });
   await expect(page.locator('[data-testid^="price-history-"]')).toHaveCount(0);
   // 오늘 확인한 자료에는 "오늘 다시 확인함" 단추가 없다
-  await expect(page.getByRole("button", { name: "오늘 다시 확인함" })).toHaveCount(0);
+  const priceRow = page.getByRole("row").filter({ hasText: "가상장터" });
+  await expect(priceRow.getByText("오늘 확인", { exact: true })).toBeVisible();
+  await expect(priceRow.getByRole("button", { name: "오늘 다시 확인함" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "수정", exact: true }).click();
   await page.locator("#amount").fill("17000");
