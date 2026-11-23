@@ -18,7 +18,7 @@ export function PricesSection({ v }: { v: ItemView }) {
     const age = daysBetween(p.checkedDate, today);
     const expired = isQuoteExpired(p, today);
     return (
-      <tr key={p.id} className={c.eligible ? "" : "bg-stone-50 text-stone-600"}>
+      <tr id={`price-${p.id}`} key={p.id} className={`scroll-mt-4 target:bg-amber-50 ${c.eligible ? "" : "bg-stone-50 text-stone-600"}`}>
         <td className="whitespace-nowrap px-2 py-2 align-top font-medium">
           {formatMoney(p.amountMinor, p.currency)}
           {p.currency !== "KRW" && p.fxRateE4 !== null && p.fxDate !== null ? (
