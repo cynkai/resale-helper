@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { parseCsv } from "../../src/lib/domain/csv";
 
 // 핵심 흐름: 물건 등록 → 가격 자료 추가 → 비교·비용 입력 → 판매 방법 저장 → 판매글 복사 → 판매 결과 기록
 test.describe.configure({ mode: "serial" });
@@ -42,6 +43,27 @@ test("물건 등록: 잘못된 ISBN은 필드 옆에 오류를 보여주고, 올
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("선형대수학 입문");
   await expect(page.locator("#info")).toContainText("9780306406157");
   await expect(page.locator("#prices")).toContainText("가격 자료 없음");
+});
+
+test("서지정보 응답을 기다리며 직접 고친 제목을 보존한다", async ({ page }) => {
+  const lookupStarted = Promise.withResolvers<void>();
+  const reply = Promise.withResolvers<void>();
+  await page.route("**/api/books/lookup?*", async (route) => {
+    lookupStarted.resolve();
+    await reply.promise;
+    await route.fulfill({ json: {
+      status: "found", isbn13: "9780306406157", providerLabel: "테스트 서지정보",
+      data: { title: "조회된 제목", author: "조회된 저자", publisher: null, edition: null },
+    } });
+  });
+  await page.goto("/items/new");
+  await page.getByLabel("ISBN", { exact: true }).fill("0-306-40615-2");
+  await page.getByRole("button", { name: "서지정보 조회" }).click();
+  await lookupStarted.promise;
+  await page.locator("#name").fill("내가 확인한 제목");
+  reply.resolve();
+  await expect(page.locator("#author")).toHaveValue("조회된 저자");
+  await expect(page.locator("#name")).toHaveValue("내가 확인한 제목");
 });
 
 test("가격 자료: 유형별로 나뉘고, 중복·검증된 체결가 직접 입력을 막는다", async ({ page }) => {
@@ -161,16 +183,20 @@ test("CSV: 오류 행은 행 번호와 함께 건너뛰고, 내보내기에는 �
   await page.goto(itemUrl);
   await page.getByText("CSV로 한꺼번에 가져오기").click();
   const csv = [
-    "price_type,amount,source_name,external_id,checked_date",
-    "SOLD_LISTING,16000,테스트마켓,S-1,2026-01-05",
-    "VERIFIED_SALE,16000,테스트마켓,S-2,2026-01-05",
-    "ASKING,1.5만,테스트마켓,S-3,2026-01-05",
+    "price_type,amount,source_name,external_id,checked_date,is_demo,item_name",
+    "SOLD_LISTING,16000,테스트마켓,S-1,2026-01-05,false,",
+    "VERIFIED_SALE,16000,테스트마켓,S-2,2026-01-05,false,",
+    "ASKING,1.5만,테스트마켓,S-3,2026-01-05,false,",
+    "ASKING,12000,테스트마켓,S-4,2026-01-05,false,다른 책",
+    "ASKING,13000,테스트마켓,S-5,2026-01-05,true,",
   ].join("\n");
   await page.locator("#csv-file").setInputFiles({ name: "prices.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await page.getByRole("button", { name: "가져오기" }).click();
-  await expect(page.getByText("1건을 가져왔고, 2건은 오류로 건너뛰었습니다.")).toBeVisible();
+  await expect(page.getByText("1건을 가져왔고, 4건은 오류로 건너뛰었습니다.")).toBeVisible();
   await expect(page.locator("#prices")).toContainText("3행");
   await expect(page.locator("#prices")).toContainText("4행");
+  await expect(page.locator("#prices")).toContainText("다른 책");
+  await expect(page.locator("#prices")).toContainText("데모 자료");
   await expect(page.getByTestId("group-SOLD_LISTING")).toContainText("CSV 가져오기");
 
   const res = await page.request.get(`/api/export/prices`);
@@ -178,7 +204,8 @@ test("CSV: 오류 행은 행 번호와 함께 건너뛰고, 내보내기에는 �
   const text = await res.text();
   expect(text).toContain("price_type,amount,currency");
   expect(text.trim().split("\r\n")).toHaveLength(6); // 머리글 + 5건
-  expect(text).not.toContain("true"); // is_demo=true 행 없음
+  const [columns = [], ...records] = parseCsv(text);
+  expect(records.map((row) => row[columns.indexOf("is_demo")])).toEqual(Array(5).fill("false"));
 });
 
 test("데모는 명시적으로 들어가야 하고, 가상 데이터 표시가 붙으며 실제 자료와 섞이지 않는다", async ({ page }) => {
@@ -553,6 +580,9 @@ test("물건 목록은 물건마다 다음에 할 일 한 가지를 보여 준�
   const id = page.url().split("/").pop();
   await page.goto("/");
   await expect(page.getByTestId(`next-step-${id}`)).toHaveText("다음: 가격 자료 넣기");
+  await page.getByTestId(`next-step-${id}`).click();
+  await expect(page).toHaveURL(new RegExp(`/items/${id}/prices/new$`));
+  await page.goBack();
   // 할 일로 걸러 보기
   const filter = page.getByTestId("step-filter");
   await filter.getByRole("link", { name: /^가격 자료 넣기 \d+$/ }).click();
@@ -752,6 +782,7 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await direct.locator("#direct-saleAmount").fill("20000");
   await direct.locator("#direct-feeAmount").fill("0");
   await direct.locator("#direct-shipping").fill("3000");
+  await direct.locator("#direct-expectedMinutes").fill("30");
   await direct.locator("#direct-packing").fill("500");
   await direct.locator("#direct-transport").fill("0");
   await direct.getByRole("button", { name: "금액·비용 저장" }).click();
@@ -760,6 +791,7 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await expect(page.getByTestId("chosen")).toContainText("16,500원");
 
   await page.locator("#result-channel").fill("가 장터");
+  await page.locator("#result-minutesSpent").fill("45");
   await page.locator("#result-amount").fill("19000");
   await page.getByText("실제 비용을 항목별로 적기 (선택)").click();
   await page.locator("#result-feeActual").fill("0");
@@ -774,11 +806,18 @@ test("판매 결과: 실제 비용을 항목별로 적으면 어림과 항목별
   await page.getByRole("button", { name: "판매 결과 저장" }).click();
 
   await expect(page.getByTestId("result-summary")).toContainText("실제 비용 4,500원");
+  // 합계는 그대로 두고 시간과 비용 배분만 바꿔도 결과 비교는 선택 당시 값을 쓴다.
+  await direct.locator("#direct-shipping").fill("500");
+  await direct.locator("#direct-packing").fill("3000");
+  await direct.locator("#direct-expectedMinutes").fill("60");
+  await direct.getByRole("button", { name: "금액·비용 저장" }).click();
+  await expect(page.getByTestId("choice-outdated")).toBeVisible();
   const items = page.getByTestId("result-cost-items");
   await expect(items).toContainText("판매자 부담 배송비: 3,000원 → 4,000원 (+1,000원)");
   await expect(items).toContainText("포장비: 500원 → 500원 (같음)");
 
   await page.goto("/results");
+  await expect(page.getByRole("row").filter({ hasText: "비용 항목 게임기" })).toContainText("30분 → 45분");
   await expect(page.getByTestId("cost-item-shipping")).toContainText("판매자 부담 배송비");
   const cells = page.getByTestId("cost-item-shipping").locator("td");
   await expect(cells.nth(0)).toHaveText("1"); // 어림보다 더 듦
@@ -1235,6 +1274,9 @@ test("물건 상태 빠른 변경: 판매 중으로 표시하고 되돌리며, �
   await expect(page.getByTestId("result-summary")).toBeVisible();
   await expect(page.getByTestId("set-status-OWNED")).toHaveCount(0);
   await expect(page.getByTestId("set-status-LISTED")).toHaveCount(0);
+  await page.goto(`${page.url().split("#")[0]}/edit`);
+  await expect(page.locator("#status")).toBeDisabled();
+  await expect(page.locator("#status")).toHaveValue("SOLD");
 });
 
 test("연달아 입력: 가격 자료를 저장하고 하나 더 넣을 때 유형·출처만 이어 주고, 이전·다음 물건으로 이동한다", async ({ page }) => {
@@ -1443,7 +1485,10 @@ test("물건 한꺼번에: 고른 물건을 판매 중으로 표시하고 휴지
   await expect(page.getByTestId("bulk-items-notice")).toHaveCount(0);
 
   // 모두 선택 → 선택 해제 → 다시 모두 선택(검색 결과인 두 물건만 화면에 있다)
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("bulk-items").locator('[value="TRASH"]')).toBeHidden();
   await page.getByTestId("bulk-items").getByRole("button", { name: "모두 선택" }).click();
+  await expect(page.getByTestId("bulk-items").getByRole("button", { name: "휴지통으로" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 가 선택" })).toBeChecked();
   await page.getByTestId("bulk-items").getByRole("button", { name: "선택 해제" }).click();
   await expect(page.getByRole("checkbox", { name: "한꺼번에 물건 나 선택" })).not.toBeChecked();

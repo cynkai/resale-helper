@@ -8,12 +8,10 @@ import { countPurchaseOutcomes, vsPurchase } from "@/lib/domain/purchase";
 import { countSoldVsFirstPosted, daysFromFirstPost, soldVsFirstPosted, summarizePosted } from "@/lib/domain/posted-price";
 import { formatMoney } from "@/lib/domain/money";
 import { COST_LABEL } from "@/lib/domain/net";
-import { isChoiceOutdated } from "@/lib/domain/scenario";
 import {
   COST_KEYS,
   costItemDiffs,
   countCostItemOutcomes,
-  plannedCostItems,
 } from "@/lib/domain/review";
 import { isMonthKey, monthsWithRecords, soldMonth } from "@/lib/domain/review";
 import { channelKey, channelOutcome, countChannelOutcomes, countOutcomes, countTimeOutcomes, groupOutcomes, reviewRow, type OutcomeGroup } from "@/lib/domain/review";
@@ -84,13 +82,12 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
     }),
   }));
   const counts = countOutcomes(rows.map((r) => r.review));
-  // 비용 항목별: 실제 비용을 항목별로 적은 기록만 본다. 고른 계산이 선택 뒤에 바뀌었으면 어림값과 비교하지 않는다.
+  // 비용 항목별: 실제 비용을 항목별로 적은 기록만 선택 당시 어림값과 견준다.
   const costRows = rows
     .map((r) => {
       const actual = { fee: r.result.feeActual, shipping: r.result.shippingActual, packing: r.result.packingActual, transport: r.result.transportActual };
       if (!COST_KEYS.some((k) => actual[k] !== null)) return null;
-      const usable = r.scenario && !isChoiceOutdated(r.item, r.scenario);
-      return costItemDiffs(usable ? plannedCostItems(r.scenario!) : null, actual);
+      return costItemDiffs(r.item.chosenEstimate?.costs ?? null, actual);
     })
     .filter((x) => x !== null);
   const costCounts = countCostItemOutcomes(costRows);
@@ -111,8 +108,7 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
   });
   const purchaseCounts = countPurchaseOutcomes(purchaseDiffs);
   const timeCounts = countTimeOutcomes(rows.map((r) => r.review));
-  const planned = (r: { item: { chosenMethod: string | null; chosenChannel: string | null } }) => (r.item.chosenMethod ? r.item.chosenChannel : null);
-  const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(planned(r), r.result.channel)));
+  const channelCounts = countChannelOutcomes(rows.map((r) => channelOutcome(r.plannedChannel, r.result.channel)));
   type Row = (typeof rows)[number];
   const review = (r: Row) => r.review;
   const byCategory = groupOutcomes(rows, (r) => r.item.category, review);
@@ -268,7 +264,7 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-200">
-                {rows.map(({ item, result, expectedMinutes, review }) => (
+                {rows.map(({ item, result, expectedMinutes, plannedChannel, review }) => (
                   <tr key={result.id} data-testid={`review-${item.id}`}>
                     <td className="px-3 py-2 align-top">
                       <Link href={`/items/${item.id}#result`} className="font-medium underline">
@@ -283,9 +279,9 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
                       {result.soldDate}
                       <div className="text-xs text-stone-600">{result.channel}</div>
                       <div className="text-xs text-stone-600">
-                        {item.chosenMethod ? `선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], item.chosenChannel ?? "")}` : "방법 선택 안 함"}
+                        {item.chosenMethod ? `선택: ${scenarioLabel(SALE_METHOD_LABEL[item.chosenMethod], plannedChannel ?? "")}` : "방법 선택 안 함"}
                       </div>
-                      {channelOutcome(item.chosenMethod ? item.chosenChannel : null, result.channel) === "DIFFERENT" ? (
+                      {channelOutcome(plannedChannel, result.channel) === "DIFFERENT" ? (
                         <div className="text-xs text-amber-900">적어 둔 판매처와 다른 곳에서 판매</div>
                       ) : null}
                     </td>

@@ -43,7 +43,7 @@ describe("예전 DB에 새 마이그레이션 올리기", () => {
     // 예전 스키마에 있던 칸만 써서 자료를 넣는다.
     old.exec(`
       insert into items (id, is_demo, category, status, name, identifier, condition, chosen_method, chosen_sale_amount, chosen_net_amount, chosen_at)
-        values (1, 0, 'CONSOLE', 'SOLD', '예전 게임기', 'OLD-1', 'GOOD', 'DIRECT', 20000, 17000, '2026-11-10 01:00:00'),
+        values (1, 0, 'CONSOLE', 'OWNED', '예전 게임기', 'OLD-1', 'GOOD', 'DIRECT', 20000, 17000, '2026-11-10 01:00:00'),
                (2, 0, 'BOOK', 'OWNED', '예전 책', '9780306406157', 'FAIR', null, null, null, null),
                (3, 1, 'CONSOLE', 'OWNED', '(데모) 예전 물건', null, 'GOOD', null, null, null, null);
       insert into price_records (id, item_id, is_demo, price_type, amount_minor, currency, source_name, external_id, checked_date, input_route)
@@ -74,7 +74,7 @@ describe("예전 DB에 새 마이그레이션 올리기", () => {
       expect(real.map((r) => r.item.name).sort()).toEqual(["예전 게임기", "예전 책"]);
       expect(listItems(db, true).map((r) => r.item.name)).toEqual(["(데모) 예전 물건"]);
       const sold = getItem(db, false, 1)!;
-      expect(sold).toMatchObject({ deletedAt: null, purchaseAmount: null, purchaseDate: null, chosenMethod: "DIRECT", chosenChannel: null, chosenSaleAmount: 20000 });
+      expect(sold).toMatchObject({ status: "SOLD", deletedAt: null, purchaseAmount: null, purchaseDate: null, chosenMethod: "DIRECT", chosenChannel: null, chosenSaleAmount: 20000 });
 
       // 가격 자료: 금액·유형 그대로, 새 칸(환율, 구성 일치)은 모름
       const prices = listPrices(db, 1);
@@ -97,11 +97,12 @@ describe("예전 DB에 새 마이그레이션 올리기", () => {
       expect(isChoiceOutdated(sold, chosen)).toBe(false);
       expect(listScenarios(db, 2)[0]).toMatchObject({ transport: null, expectedMinutes: null }); // 모름은 모름으로 남는다
 
-      // 판매 결과: 합계 그대로, 항목별 칸은 비어 있고, 돌아보기가 고른 계산의 예상 시간을 찾는다
+      // 예전 선택에는 당시 시간·항목별 비용이 없다. 현재 계산으로 과거 어림을 추측하지 않는다.
       const reviews = listSaleReviews(db, false);
       expect(reviews).toHaveLength(1);
       expect(reviews[0]!.result).toMatchObject({ amount: 19000, costTotal: 3000, feeActual: null, shippingActual: null });
-      expect(reviews[0]!.expectedMinutes).toBe(80);
+      expect(reviews[0]!.expectedMinutes).toBeNull();
+      expect(sold.chosenEstimate).toBeNull();
 
       // 배분: 아직 팔지 않은 물건만
       expect(listTriageCandidates(db, false).map((c) => c.item.name)).toEqual(["예전 책"]);

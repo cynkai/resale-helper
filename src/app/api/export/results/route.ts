@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     category: r.item.category,
     soldDate: r.result.soldDate,
     channel: r.result.channel,
-    chosen: r.item.chosenMethod ? scenarioLabel(SALE_METHOD_LABEL[r.item.chosenMethod], r.item.chosenChannel ?? "") : "",
+    chosen: r.item.chosenMethod ? scenarioLabel(SALE_METHOD_LABEL[r.item.chosenMethod], r.plannedChannel ?? "") : "",
     chosenSaleAmount: r.item.chosenSaleAmount,
     chosenNetAmount: r.item.chosenNetAmount,
     expectedMinutes: r.expectedMinutes,

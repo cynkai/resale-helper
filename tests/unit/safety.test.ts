@@ -62,6 +62,9 @@ describe("저장된 계산의 기준 자료 확인", () => {
   it("기준 자료 금액이 바뀌면 저장된 금액을 그대로 믿지 않는다", () => {
     expect(basisIssues(sc, { ...basis, amountMinor: 6000 }, TODAY)).toEqual(["BASIS_AMOUNT_CHANGED"]);
   });
+  it("금액이 그대로여도 매입 견적이 희망가로 바뀌면 기준을 다시 확인한다", () => {
+    expect(basisIssues(sc, { ...basis, priceType: "ASKING" }, TODAY)).toEqual(["BASIS_TYPE_CHANGED"]);
+  });
   it("기준 자료가 외화로 바뀌거나 견적이 만료되면 알린다", () => {
     expect(basisIssues(sc, { ...basis, currency: "USD" }, TODAY)).toEqual(["BASIS_NOT_KRW"]);
     expect(basisIssues(sc, { ...basis, quoteValidUntil: "2026-11-10" }, TODAY)).toEqual(["BASIS_EXPIRED"]);

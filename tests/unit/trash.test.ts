@@ -42,6 +42,7 @@ import {
   setItemStatus,
   setPricesIncluded,
   trashItem,
+  updateItem,
   updatePrice,
   upsertSaleResult,
   upsertScenario,
@@ -291,16 +292,32 @@ describe("같은 식별자로 전에 판 기록", () => {
   });
 });
 
+it("판매 기록 전 열어 둔 수정 화면에서 저장해도 판매 완료 상태가 유지된다", () => {
+  const id = fullItem("판매한 게임기", true);
+  updateItem(db, false, id, { ...input("고친 이름"), status: "LISTED" });
+  expect(getItem(db, false, id)).toMatchObject({ name: "고친 이름", status: "SOLD" });
+  expect(listTriageCandidates(db, false)).toHaveLength(0);
+});
+
 describe("물건 검색", () => {
+  it("ISBN-10과 하이픈 있는 ISBN-13으로 등록된 책을 찾는다", () => {
+    const book = createItem(db, false, { ...input("테스트 책"), category: "BOOK", identifier: "9780306406157" });
+    for (const q of ["0-306-40615-2", "978-0-306-40615-7"]) {
+      expect(listItems(db, false, { q }).map((r) => r.item.id)).toEqual([book]);
+    }
+  });
+
   it("이름·식별자·저자·출판사·구성품·하자·메모에서 찾고, %·_는 글자로만 본다", () => {
-    const a = createItem(db, false, { ...input("게임기"), identifier: "G-1", components: "본체, 충전 독", memo: "책상 서랍" });
+    const a = createItem(db, false, { ...input("게임기 50%"), identifier: "G-1", components: "본체, 충전 독", memo: "책상 서랍_1!" });
     const b = createItem(db, false, { ...input("책"), category: "BOOK", identifier: null, publisher: "가나출판", defects: "표지 얼룩" });
     const find = (q: string) => listItems(db, false, { q }).map((r) => r.item.id).sort();
     expect(find("충전 독")).toEqual([a]);
     expect(find("서랍")).toEqual([a]);
     expect(find("가나출판")).toEqual([b]);
     expect(find("얼룩")).toEqual([b]);
-    expect(find("%")).toEqual([a, b].sort()); // %는 지워져 빈 검색어처럼 모두 찾는다
+    expect(find("%")).toEqual([a]);
+    expect(find("_")).toEqual([a]);
+    expect(find("1!")).toEqual([a]);
     expect(find("없는말")).toEqual([]);
     // 가져오기 API용 검색은 메모·하자·구성품을 찾지 않는다
     expect(listItems(db, false, { q: "서랍", basicSearch: true })).toHaveLength(0);

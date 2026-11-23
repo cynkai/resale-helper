@@ -116,7 +116,7 @@ export function ChooseSection({ v }: { v: ItemView }) {
           </div>
           {item.chosenMethod && choiceOutdated ? (
             <p className="warn" data-testid="choice-outdated">
-              선택한 뒤 이 방법의 금액이나 비용을 바꿨거나 그 계산을 지웠습니다. 아래 숫자는 선택 당시 값입니다. 지금 계산으로 바꾸려면 다시 선택해 주세요.
+              선택한 뒤 금액·비용·예상 시간이 바뀌었거나 그 계산을 지웠습니다. 아래 숫자는 선택 당시 값입니다. 지금 계산으로 바꾸려면 다시 선택해 주세요.
             </p>
           ) : null}
           {item.chosenMethod ? (

@@ -4,42 +4,31 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 
-const SQLITE_HEADER = "SQLite format 3\u0000";
 const REQUIRED_TABLES = ["items", "price_records", "cost_scenarios", "sale_results", "__drizzle_migrations"];
 
 export type BackupCheck = { ok: true; items: number; prices: number } | { ok: false; error: string };
 
-/** 파일이 이 앱의 SQLite DB인지 확인한다. 읽기 전용으로 열며 파일을 바꾸지 않는다. */
-export function validateBackup(file: string): BackupCheck {
-  if (!fs.existsSync(file)) return { ok: false, error: `파일이 없습니다: ${file}` };
-  const fd = fs.openSync(file, "r");
-  const head = Buffer.alloc(16);
-  fs.readSync(fd, head, 0, 16, 0);
-  fs.closeSync(fd);
-  if (head.toString("latin1") !== SQLITE_HEADER) return { ok: false, error: "SQLite 데이터베이스 파일이 아닙니다." };
+function checkContents(db: Database.Database): BackupCheck {
+  const integrity = db.pragma("integrity_check", { simple: true });
+  if (integrity !== "ok") return { ok: false, error: `파일이 손상되었습니다(integrity_check: ${String(integrity)}).` };
+  const tables = new Set(db.prepare<[], string>("select name from sqlite_master where type = 'table'").pluck().all());
+  const missing = REQUIRED_TABLES.filter((t) => !tables.has(t));
+  if (missing.length > 0) return { ok: false, error: `이 앱의 백업 파일이 아닙니다(없는 테이블: ${missing.join(", ")}).` };
+  const count = (table: "items" | "price_records") =>
+    db.prepare<[], number>(`select count(*) from ${table} where is_demo = 0`).pluck().get() ?? 0;
+  return { ok: true, items: count("items"), prices: count("price_records") };
+}
 
-  // WAL 방식 DB는 읽기 전용으로 열어도 -shm/-wal 보조 파일이 생긴다. 확인하려고 연 것 때문에 생긴 파일은 치운다.
-  const sidecars = ["-wal", "-shm"].map((x) => `${file}${x}`);
-  const existedBefore = sidecars.map((f) => fs.existsSync(f));
-  let db: Database.Database | null = null;
+export function validateBackup(file: string): BackupCheck {
   try {
-    db = new Database(file, { readonly: true, fileMustExist: true });
-    const integrity = db.pragma("integrity_check", { simple: true });
-    if (integrity !== "ok") return { ok: false, error: `파일이 손상되었습니다(integrity_check: ${String(integrity)}).` };
-    const tables = new Set(
-      (db.prepare("select name from sqlite_master where type = 'table'").all() as { name: string }[]).map((r) => r.name),
-    );
-    const missing = REQUIRED_TABLES.filter((t) => !tables.has(t));
-    if (missing.length > 0) return { ok: false, error: `이 앱의 백업 파일이 아닙니다(없는 테이블: ${missing.join(", ")}).` };
-    const count = (t: string) => (db!.prepare(`select count(*) as n from ${t} where is_demo = 0`).get() as { n: number }).n;
-    return { ok: true, items: count("items"), prices: count("price_records") };
-  } catch (e) {
-    return { ok: false, error: `파일을 열 수 없습니다(${e instanceof Error ? e.message : String(e)}).` };
-  } finally {
-    db?.close();
-    sidecars.forEach((f, i) => {
-      if (!existedBefore[i]) fs.rmSync(f, { force: true });
-    });
+    const source = new Database(file, { readonly: true, fileMustExist: true });
+    try {
+      return checkContents(source);
+    } finally {
+      source.close();
+    }
+  } catch (error) {
+    return { ok: false, error: `SQLite 백업 파일을 확인할 수 없습니다(${error instanceof Error ? error.message : String(error)}).` };
   }
 }
 
@@ -47,29 +36,58 @@ export type RestoreResult =
   | { ok: true; safetyCopy: string | null; items: number; prices: number }
   | { ok: false; error: string };
 
-/**
- * 백업 파일로 현재 DB를 바꾼다. 바꾸기 전에 현재 DB를 safety copy로 남긴다.
- * 앱이 켜져 있으면 열린 연결이 옛 파일을 계속 쓰므로, 반드시 앱을 끈 상태에서 실행한다.
- */
-export function restoreBackup(source: string, target: string, now: Date = new Date()): RestoreResult {
-  const check = validateBackup(source);
-  if (!check.ok) return check;
-  if (path.resolve(source) === path.resolve(target)) return { ok: false, error: "백업 파일과 현재 DB가 같은 파일입니다." };
-
-  let safetyCopy: string | null = null;
-  if (fs.existsSync(target)) {
-    const stamp = now.toISOString().replace(/[:.]/g, "-");
-    safetyCopy = path.join(path.dirname(target), `${path.basename(target, ".db")}.before-restore-${stamp}.db`);
-    // WAL 내용까지 합친 일관된 사본을 만든다.
-    const current = new Database(target, { fileMustExist: true });
+function saveCurrent(target: string, now: Date): string {
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  const safetyCopy = path.join(path.dirname(target), `${path.basename(target, ".db")}.before-restore-${stamp}.db`);
+  const current = new Database(target, { readonly: true, fileMustExist: true });
+  try {
+    const contents = current.serialize();
+    const fd = fs.openSync(safetyCopy, "wx", 0o600);
     try {
-      current.pragma("wal_checkpoint(TRUNCATE)");
-      fs.writeFileSync(safetyCopy, current.serialize());
+      fs.writeFileSync(fd, contents);
+      fs.fsyncSync(fd);
+    } catch (error) {
+      fs.rmSync(safetyCopy);
+      throw error;
     } finally {
-      current.close();
+      fs.closeSync(fd);
     }
+  } finally {
+    current.close();
   }
-  for (const suffix of ["-wal", "-shm"]) fs.rmSync(`${target}${suffix}`, { force: true });
-  fs.copyFileSync(source, target);
-  return { ok: true, safetyCopy, items: check.items, prices: check.prices };
+  return safetyCopy;
+}
+
+/** 검증한 읽기 트랜잭션의 내용(WAL 포함)을 SQLite가 한 번에 복구한다. */
+export async function restoreBackup(source: string, target: string, now: Date = new Date()): Promise<RestoreResult> {
+  let safetyCopy: string | null = null;
+  try {
+    const sourceStat = fs.statSync(source, { bigint: true });
+    const targetStat = fs.statSync(target, { bigint: true, throwIfNoEntry: false });
+    if (sourceStat.dev === targetStat?.dev && sourceStat.ino === targetStat.ino) {
+      return { ok: false, error: "백업 파일과 현재 DB가 같은 파일입니다." };
+    }
+    const input = new Database(source, { readonly: true, fileMustExist: true });
+    try {
+      input.exec("BEGIN");
+      const check = checkContents(input);
+      if (!check.ok) return check;
+
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      if (targetStat) safetyCopy = saveCurrent(target, now);
+      const copied = await input.backup(target);
+      // SQLite가 대상의 쓰기 잠금을 얻지 못한 첫 단계에서는 0페이지가 반환될 수 있다.
+      if (copied.totalPages === 0) {
+        const saved = safetyCopy ? ` 복구 전 DB 사본: ${safetyCopy}` : "";
+        return { ok: false, error: `현재 DB가 사용 중입니다. 앱과 DB를 사용하는 프로그램을 끈 뒤 다시 시도해 주세요.${saved}` };
+      }
+      return { ...check, safetyCopy };
+    } finally {
+      input.close();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const saved = safetyCopy ? ` 복구 전 DB 사본: ${safetyCopy}` : "";
+    return { ok: false, error: `SQLite 백업을 복구할 수 없습니다(${message}).${saved}` };
+  }
 }

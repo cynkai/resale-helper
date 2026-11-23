@@ -66,7 +66,7 @@ export default async function ItemPage({
       </nav>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">{item.name}</h1>
+          <h1 className="wrap-anywhere text-xl font-bold">{item.name}</h1>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {item.isDemo ? <Badge tone="amber">가상 데이터</Badge> : null}
             <Badge>{CATEGORY_LABEL[item.category]}</Badge>
@@ -87,7 +87,7 @@ export default async function ItemPage({
               : null}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
           <Link href={`/items/${item.id}/edit`} className="btn">
             물건 수정
           </Link>

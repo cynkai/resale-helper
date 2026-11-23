@@ -81,7 +81,7 @@ export default async function ItemSummaryPage({ params }: { params: Promise<{ id
         </dl>
       </section>
 
-      <section className="card" aria-labelledby="s-quotes">
+      <section className="card overflow-x-auto print:overflow-visible" aria-labelledby="s-quotes">
         <h2 id="s-quotes" className="mb-2 font-semibold">받은 매입 견적</h2>
         {quotes.length === 0 ? (
           <p className="text-sm text-stone-600">기록한 매입 견적이 없습니다.</p>

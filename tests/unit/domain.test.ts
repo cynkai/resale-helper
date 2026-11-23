@@ -44,6 +44,10 @@ describe("금액 파싱과 반올림", () => {
     expect(parseAmount("0.07", "USD")).toEqual({ ok: true, minor: 7 });
     expect(parseAmount("12.345", "USD").ok).toBe(false);
   });
+  it("잘못된 쉼표나 통화 단위를 숫자로 바꾸지 않는다", () => {
+    expect(parseAmount("1,234.50", "USD")).toEqual({ ok: true, minor: 123450 });
+    for (const raw of ["12,50", "1,,000", "1.0,5", "10원"]) expect(parseAmount(raw, "USD").ok).toBe(false);
+  });
   it("음수·지수 표기·빈 값·문자를 거부한다", () => {
     for (const bad of ["-100", "1e5", "", "만원", "12 000원쯤"]) expect(parseAmount(bad, "KRW").ok).toBe(false);
   });
@@ -396,7 +400,15 @@ describe("손익분기 개인 판매금액", () => {
     expect(breakEvenDirectSale({ ...amount, packing: null }, 6500)).toEqual({ ok: false, reason: "DIRECT_COST_UNKNOWN" });
     expect(breakEvenDirectSale({ ...amount, feeMode: "RATE", feeRateBp: null }, 6500)).toEqual({ ok: false, reason: "DIRECT_COST_UNKNOWN" });
   });
-  it("수수료율이 100% 이상이면 도달할 수 없다", () => {
+  it("입력 가능한 가장 큰 판매금액도 손익분기 후보에 포함한다", () => {
+    const costs = { ...amount, feeAmount: 0, shipping: 1, packing: 0 };
+    expect(breakEvenDirectSale(costs, 999_999_999_999)).toEqual({ ok: true, saleAmount: 1_000_000_000_000 });
+    expect(breakEvenDirectSale(costs, 1_000_000_000_000)).toEqual({ ok: false, reason: "UNREACHABLE" });
+  });
+  it("100% 수수료여도 고정비만 뺀 금액이 이미 업체 실수령액이면 0원에서 도달한다", () => {
+    expect(breakEvenDirectSale({ ...amount, feeMode: "RATE", feeRateBp: 10000 }, -3500)).toEqual({ ok: true, saleAmount: 0 });
+  });
+  it("수수료율이 100%이고 업체 실수령액이 더 높으면 도달할 수 없다", () => {
     expect(breakEvenDirectSale({ ...amount, feeMode: "RATE", feeRateBp: 10000 }, 6500)).toEqual({ ok: false, reason: "UNREACHABLE" });
   });
   it("비용이 모두 0이면 업체 실수령액과 같고, 업체 실수령액이 0 이하이면 0원", () => {

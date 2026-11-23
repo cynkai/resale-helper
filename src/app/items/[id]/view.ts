@@ -6,14 +6,14 @@ import { countTrashedPrices, getSaleResult, listSameIdentifierItems, listChannel
 import { presetFormValues } from "@/lib/domain/cost-preset";
 import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
-import { COST_KEYS, costItemDiffs, plannedCostItems } from "@/lib/domain/review";
+import { COST_KEYS, costItemDiffs } from "@/lib/domain/review";
 import { countOfferStatuses } from "@/lib/domain/offer";
 import type { PriceRecord } from "@/lib/db/schema";
 import { buildComparison, isQuoteExpired, PRICE_SORTS, type PriceSort } from "@/lib/domain/compare";
 import { buildListingDraft } from "@/lib/domain/listing";
 import { formatMoney } from "@/lib/domain/money";
 import { computeNet, netDifference, type NetResult } from "@/lib/domain/net";
-import { basisIssues, chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel, type BasisIssue } from "@/lib/domain/scenario";
+import { basisIssues, chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel, usableBasisType, type BasisIssue } from "@/lib/domain/scenario";
 import { PRICE_TYPE_INFO, SALE_METHOD_LABEL, SALE_METHODS, type SaleMethod } from "@/lib/domain/types";
 import type { Db } from "@/lib/db/client";
 import type { Item } from "@/lib/db/schema";
@@ -98,13 +98,13 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const breakEven =
     directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
   const choiceOutdated = isChoiceOutdated(item, chosenSc);
-  // 실제 비용을 항목별로 적었을 때만: 고른 계산의 어림값과 항목별로 비교한다(선택 뒤 계산이 바뀌었으면 비교하지 않는다).
+  // 실제 비용을 항목별로 적으면 선택할 때 저장해 둔 어림값과 견준다.
   const resultActual = result
     ? { fee: result.feeActual, shipping: result.shippingActual, packing: result.packingActual, transport: result.transportActual }
     : null;
   const resultCostDiffs =
     resultActual && COST_KEYS.some((k) => resultActual[k] !== null)
-      ? costItemDiffs(chosenSc && !choiceOutdated ? plannedCostItems(chosenSc) : null, resultActual)
+      ? costItemDiffs(item.chosenEstimate?.costs ?? null, resultActual)
       : null;
   const templates = listTemplates(db, demo);
   const posted = listPostedPrices(db, item.id);
@@ -122,10 +122,10 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     `[${PRICE_TYPE_INFO[p.priceType].label}] ${p.sourceName} ${formatMoney(p.amountMinor)} (확인 ${p.checkedDate})`;
   const basisOptions: Record<SaleMethod, BasisOption[]> = {
     BUYBACK: usable
-      .filter((p) => p.priceType === "BUYBACK_QUOTE")
+      .filter((p) => usableBasisType("BUYBACK", p.priceType))
       .map((p) => ({ id: p.id, label: optionLabel(p), amount: p.amountMinor })),
     DIRECT: usable
-      .filter((p) => p.priceType !== "BUYBACK_QUOTE")
+      .filter((p) => usableBasisType("DIRECT", p.priceType))
       .map((p) => ({ id: p.id, label: optionLabel(p), amount: p.amountMinor })),
   };
 

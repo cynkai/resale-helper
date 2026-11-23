@@ -11,6 +11,7 @@ import type {
   SaleMethod,
   TriState,
 } from "../domain/types";
+import type { ChosenEstimate } from "../domain/scenario";
 import type { OfferStatus } from "../domain/offer";
 import type { ImportOutcome } from "../import/events";
 
@@ -51,6 +52,7 @@ export const items = sqliteTable(
     chosenSaleAmount: integer("chosen_sale_amount"),
     chosenNetAmount: integer("chosen_net_amount"), // 선택 당시 비용이 불완전했으면 null
     chosenAt: text("chosen_at"),
+    chosenEstimate: text("chosen_estimate", { mode: "json" }).$type<ChosenEstimate>(),
     // 휴지통에 넣은 시각(UTC). null = 살아 있음. 휴지통의 물건은 목록·계산·내보내기 어디에도 나오지 않는다.
     deletedAt: text("deleted_at"),
     ...timestamps,

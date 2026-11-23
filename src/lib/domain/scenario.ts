@@ -3,18 +3,26 @@
 
 import { isQuoteExpired } from "./compare";
 import { computeNet, type CostInputs } from "./net";
-import type { Currency, PriceType } from "./types";
+import { COST_KEYS, plannedCostItems, type CostItems } from "./review";
+import type { Currency, PriceType, SaleMethod } from "./types";
 
-export type BasisIssue = "BASIS_DELETED" | "BASIS_AMOUNT_CHANGED" | "BASIS_NOT_KRW" | "BASIS_EXPIRED";
+export type BasisIssue = "BASIS_DELETED" | "BASIS_TYPE_CHANGED" | "BASIS_WRONG_METHOD" | "BASIS_AMOUNT_CHANGED" | "BASIS_NOT_KRW" | "BASIS_EXPIRED";
 
 export const BASIS_ISSUE_LABEL: Record<BasisIssue, string> = {
+  BASIS_TYPE_CHANGED: "기준 자료의 가격 유형이 선택할 때와 달라졌습니다.",
+  BASIS_WRONG_METHOD: "기준 자료의 가격 유형이 판매 방식과 맞지 않습니다.",
   BASIS_DELETED: "기준으로 삼은 가격 자료가 삭제되었습니다.",
   BASIS_AMOUNT_CHANGED: "기준으로 삼은 가격 자료의 금액이 저장 후 바뀌었습니다.",
   BASIS_NOT_KRW: "기준으로 삼은 가격 자료가 원화가 아닙니다.",
   BASIS_EXPIRED: "기준으로 삼은 견적의 유효기간이 지났습니다. 지금 받을 수 있는 금액이 아닐 수 있습니다.",
 };
 
+export function usableBasisType(method: SaleMethod, priceType: PriceType): boolean {
+  return method === "BUYBACK" ? priceType === "BUYBACK_QUOTE" : priceType !== "BUYBACK_QUOTE";
+}
+
 export type ScenarioBasis = {
+  method?: SaleMethod;
   saleAmount: number;
   basisPriceRecordId: number | null;
   /** 저장 당시 기준 자료의 유형. 자료가 삭제되어도 남는다. */
@@ -34,13 +42,22 @@ export function basisIssues(sc: ScenarioBasis, basis: BasisRecord | undefined, t
   }
   if (!basis) return ["BASIS_DELETED"];
   const issues: BasisIssue[] = [];
+  if (sc.basisPriceType !== basis.priceType) issues.push("BASIS_TYPE_CHANGED");
+  else if (sc.method && !usableBasisType(sc.method, basis.priceType)) issues.push("BASIS_WRONG_METHOD");
   if (basis.currency !== "KRW") issues.push("BASIS_NOT_KRW");
   else if (basis.amountMinor !== sc.saleAmount) issues.push("BASIS_AMOUNT_CHANGED");
   if (isQuoteExpired(basis, today)) issues.push("BASIS_EXPIRED");
   return issues;
 }
 
+export type ChosenEstimate = {
+  readonly channel: string;
+  readonly expectedMinutes: number | null;
+  readonly costs: CostItems;
+};
+
 export type ChosenSnapshot = {
+  chosenEstimate?: ChosenEstimate | null;
   chosenMethod: string | null;
   chosenChannel?: string | null;
   chosenSaleAmount: number | null;
@@ -48,10 +65,14 @@ export type ChosenSnapshot = {
 };
 
 /** 판매 방법을 고른 뒤 그 방법의 금액·비용을 바꿨는지. 바뀌었으면 선택 당시 숫자는 지금 계산과 다르다. */
-export function isChoiceOutdated(item: ChosenSnapshot, scenario: (CostInputs & { method: string }) | undefined): boolean {
+export function isChoiceOutdated(item: ChosenSnapshot, scenario: (CostInputs & { method: string; expectedMinutes?: number | null }) | undefined): boolean {
   if (!item.chosenMethod) return false;
   if (!scenario || scenario.method !== item.chosenMethod) return true;
-  return scenario.saleAmount !== item.chosenSaleAmount || computeNet(scenario).net !== item.chosenNetAmount;
+  if (scenario.saleAmount !== item.chosenSaleAmount || computeNet(scenario).net !== item.chosenNetAmount) return true;
+  const estimate = item.chosenEstimate;
+  if (!estimate) return false;
+  const costs = plannedCostItems(scenario);
+  return scenario.expectedMinutes !== estimate.expectedMinutes || COST_KEYS.some((key) => costs[key] !== estimate.costs[key]);
 }
 
 /** 판매처 이름 최대 길이(판매 결과의 판매처 칸과 같다). */

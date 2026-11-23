@@ -52,17 +52,30 @@ export type SnapshotResult = { ok: true; snapshot: Snapshot; items: number; pric
 /** 지금 DB의 일관된 사본을 만든다(WAL에만 있는 내용도 포함). 만든 뒤 열어서 온전한지 확인한다. */
 export function createSnapshot(sqlite: Database.Database, dbPath: string, now: Date = new Date()): SnapshotResult {
   const dir = snapshotDir(dbPath);
-  fs.mkdirSync(dir, { recursive: true });
   const name = `${prefix(dbPath)}-${stamp(now)}.db`;
   const file = path.join(dir, name);
-  if (fs.existsSync(file)) return { ok: false, error: "방금 만든 사본과 이름이 같습니다. 잠시 뒤에 다시 해 주세요." };
-  fs.writeFileSync(file, sqlite.serialize(), { flag: "wx" });
-  const check = validateBackup(file);
-  if (!check.ok) {
-    fs.rmSync(file, { force: true });
-    return { ok: false, error: `사본을 만들었지만 확인에 실패해 지웠습니다: ${check.error}` };
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const staging = fs.mkdtempSync(path.join(dir, ".snapshot-"));
+    try {
+      const copy = path.join(staging, name);
+      // 개인 폴더에서 완성된 단일 파일만 공개한다. 최종 파일 이름은 기존 사본과 겹칠 수 있다.
+      sqlite.prepare("VACUUM INTO ?").run(copy);
+      fs.chmodSync(copy, 0o600);
+      const check = validateBackup(copy);
+      if (!check.ok) return check;
+      const bytes = fs.statSync(copy).size;
+      fs.linkSync(copy, file);
+      return { ...check, snapshot: { name, bytes, createdLabel: label(name) } };
+    } finally {
+      fs.rmSync(staging, { recursive: true, force: true });
+    }
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+      return { ok: false, error: "방금 만든 사본과 이름이 같습니다. 잠시 뒤에 다시 해 주세요." };
+    }
+    return { ok: false, error: `사본을 만들 수 없습니다(${error instanceof Error ? error.message : String(error)}).` };
   }
-  return { ok: true, snapshot: { name, bytes: fs.statSync(file).size, createdLabel: label(name) }, items: check.items, prices: check.prices };
 }
 
 /** 사본 파일의 전체 경로. 형식이 맞지 않거나 없는 이름이면 null. */

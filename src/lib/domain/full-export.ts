@@ -8,7 +8,6 @@ import type { ValidCostPreset } from "./cost-preset";
 import { convertToKrw, fxRateToPlain } from "./fx";
 import { computeNet } from "./net";
 import { reviewRow } from "./review";
-import { chosenScenario } from "./scenario";
 
 export const FULL_EXPORT_VERSION = 1;
 
@@ -61,7 +60,6 @@ export function buildFullExport(input: {
     })),
     itemCount: input.sources.length,
     items: input.sources.map(({ item, prices, history, scenarios, saleResult, offers, postedPrices }) => {
-      const chosen = chosenScenario(item, scenarios);
       return {
         id: item.id,
         category: item.category,
@@ -144,7 +142,14 @@ export function buildFullExport(input: {
         chosen:
           item.chosenMethod === null
             ? null
-            : { method: item.chosenMethod, channel: item.chosenChannel ?? "", saleAmount: item.chosenSaleAmount, netAmount: item.chosenNetAmount, chosenAt: item.chosenAt },
+            : {
+                method: item.chosenMethod,
+                channel: item.chosenEstimate?.channel ?? item.chosenChannel ?? "",
+                saleAmount: item.chosenSaleAmount,
+                netAmount: item.chosenNetAmount,
+                chosenAt: item.chosenAt,
+                estimate: item.chosenEstimate,
+              },
         // 받은 제안은 사용자가 적은 기록이며 가격 자료가 아니다.
         offers: (offers ?? []).map((o) => ({ receivedDate: o.receivedDate, amount: o.amount, channel: o.channel, status: o.status, memo: o.memo })),
         // 내 판매글에 올린 가격 기록. 사용자가 적은 값이며 가격 자료가 아니다.
@@ -167,7 +172,7 @@ export function buildFullExport(input: {
               review: reviewRow({
                 chosenSaleAmount: item.chosenSaleAmount,
                 chosenNetAmount: item.chosenNetAmount,
-                expectedMinutes: chosen?.expectedMinutes ?? null,
+                expectedMinutes: item.chosenEstimate?.expectedMinutes ?? null,
                 amount: saleResult.amount,
                 costTotal: saleResult.costTotal,
                 minutesSpent: saleResult.minutesSpent,

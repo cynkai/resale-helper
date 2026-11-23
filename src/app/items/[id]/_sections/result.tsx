@@ -9,7 +9,7 @@ import { signed } from "./shared";
 import type { ItemView } from "../view";
 
 export function ResultSection({ v }: { v: ItemView }) {
-  const { item, today, result, chosenSc, choiceOutdated, resultCostDiffs, acceptedOffer } = v;
+  const { item, today, result, resultCostDiffs, acceptedOffer } = v;
 
   return (
     <Section id="result" step={5} title="실제 판매 결과">
@@ -71,8 +71,8 @@ export function ResultSection({ v }: { v: ItemView }) {
                   );
                 })}
               </ul>
-              {choiceOutdated || !chosenSc ? (
-                <p className="text-stone-600">고른 계산이 없거나 선택 뒤에 바뀌어 어림값과는 비교하지 않았습니다.</p>
+              {!item.chosenEstimate ? (
+                <p className="text-stone-600">선택 당시의 항목별 비용 기록이 없습니다.</p>
               ) : null}
             </div>
           ) : null}

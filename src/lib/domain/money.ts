@@ -5,11 +5,18 @@ import { CURRENCY_EXPONENT, type Currency } from "./types";
 
 export type ParseResult = { ok: true; minor: number } | { ok: false; error: string };
 
-const MAX_MINOR = 1_000_000_000_000; // 1조 최소단위: 입력 실수 방지용 상한
+export const MAX_MINOR = 1_000_000_000_000; // 1조 최소단위: 입력 실수 방지용 상한
+
+/** 천 단위로 정확하게 묶은 쉼표만 제거한다. 잘못된 구분 기호는 남겨 검증에서 거부한다. */
+export function normalizeMoneyInput(raw: string, currency: Currency = "KRW"): string {
+  const trimmed = raw.trim();
+  const value = currency === "KRW" ? trimmed.replace(/원$/, "").trimEnd() : trimmed;
+  return /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(value) ? value.replaceAll(",", "") : value;
+}
 
 /** "12,000" / "12.50" 같은 문자열을 최소단위 정수로 변환한다. 음수·지수표기·초과 소수 자릿수는 거부한다. */
 export function parseAmount(raw: string, currency: Currency): ParseResult {
-  const s = raw.trim().replace(/,/g, "").replace(/원$/, "");
+  const s = normalizeMoneyInput(raw, currency);
   if (s === "") return { ok: false, error: "금액을 입력해 주세요." };
   const m = /^(\d+)(?:\.(\d+))?$/.exec(s);
   if (!m) return { ok: false, error: "금액은 0 이상의 숫자로 입력해 주세요." };

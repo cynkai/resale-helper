@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { restoreBackup, validateBackup } from "@/lib/db/backup";
 import { openDb } from "@/lib/db/client";
 import { seedDemo } from "@/lib/db/demo-seed";
-import { createItem, listItems, listSaleReviews, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
+import { createItem, listItems, listSaleReviews, listScenarios, setChosenMethod, upsertSaleResult, upsertScenario } from "@/lib/db/repo";
 import type { ValidItemInput } from "@/lib/domain/item-input";
 import { channelKey, countOutcomes, countTimeOutcomes, timeOutcome, groupOutcomes, reviewRow } from "@/lib/domain/review";
 
@@ -112,7 +112,7 @@ describe("판매 결과 조회", () => {
       expectedMinutes: 60,
       memo: null,
     });
-    setChosenMethod(db, false, id, { method: "DIRECT", saleAmount: 19000, netAmount: 19000 });
+    setChosenMethod(db, false, id, listScenarios(db, id)[0]!.id);
     upsertSaleResult(db, false, id, { channel: "직거래", soldDate: "2026-11-10", amount: 18000, costTotal: 0, minutesSpent: 40, memo: null });
     seedDemo(db, "2026-11-11");
     const demoId = listItems(db, true)[0]!.item.id;
@@ -153,13 +153,13 @@ describe("백업 검증과 복구", () => {
     expect(validateBackup(path.join(dir, "none.db")).ok).toBe(false);
   });
 
-  it("복구하면 현재 DB를 안전 사본으로 남기고 백업 내용으로 바꾼다", () => {
+  it("복구하면 현재 DB를 안전 사본으로 남기고 백업 내용으로 바꾼다", async () => {
     const current = path.join(dir, "resale.db");
     const backup = path.join(dir, "backup.db");
     makeDb(current, "지금 책");
     makeDb(backup, "백업 책");
 
-    const r = restoreBackup(backup, current, new Date("2026-11-11T00:00:00Z"));
+    const r = await restoreBackup(backup, current, new Date("2026-11-11T00:00:00Z"));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.safetyCopy).toContain("before-restore-2026-11-11");
@@ -172,13 +172,70 @@ describe("백업 검증과 복구", () => {
     safety.close();
   });
 
-  it("검증에 실패한 파일로는 현재 DB를 건드리지 않는다", () => {
+  it.each(["resale.db", "new/resale.db"])("WAL에만 기록된 물건까지 %s에 복구한다", async (target) => {
+    const source = path.join(dir, "backup.db");
+    const current = path.join(dir, target);
+    const live = openDb(source);
+    try {
+      live.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+      createItem(live.db, false, { ...book, name: "최근에 등록한 책" });
+      expect(await restoreBackup(source, current)).toEqual({ ok: true, safetyCopy: null, items: 1, prices: 0 });
+      const restored = openDb(current);
+      try {
+        expect(listItems(restored.db, false).map((x) => x.item.name)).toEqual(["최근에 등록한 책"]);
+      } finally {
+        restored.close();
+      }
+    } finally {
+      live.close();
+    }
+  });
+
+  it("안전 사본 이름이 겹치면 원래 사본과 현재 자료를 모두 보존한다", async () => {
+    const backup = path.join(dir, "backup.db");
+    const current = path.join(dir, "resale.db");
+    const time = new Date("2026-11-11T00:00:00Z");
+    makeDb(backup, "백업 책");
+    makeDb(current, "처음 책");
+    const first = await restoreBackup(backup, current, time);
+    if (!first.ok || !first.safetyCopy) throw new Error("첫 복구 실패");
+
+    const edited = openDb(current);
+    createItem(edited.db, false, { ...book, name: "새 책" });
+    edited.close();
+    expect((await restoreBackup(backup, current, time)).ok).toBe(false);
+    expect(validateBackup(current)).toMatchObject({ ok: true, items: 2 });
+    const saved = openDb(first.safetyCopy);
+    try {
+      expect(listItems(saved.db, false).map((x) => x.item.name)).toEqual(["처음 책"]);
+    } finally {
+      saved.close();
+    }
+  });
+
+  it("현재 DB를 다른 연결이 쓰고 있으면 복구 성공을 보고하지 않고 자료를 보존한다", async () => {
+    const backup = path.join(dir, "backup.db");
+    const current = path.join(dir, "resale.db");
+    makeDb(backup, "백업 책");
+    makeDb(current, "지금 책");
+    const busy = openDb(current);
+    try {
+      busy.sqlite.exec("BEGIN IMMEDIATE");
+      expect((await restoreBackup(backup, current)).ok).toBe(false);
+      busy.sqlite.exec("ROLLBACK");
+      expect(listItems(busy.db, false).map((x) => x.item.name)).toEqual(["지금 책"]);
+    } finally {
+      busy.close();
+    }
+  });
+
+  it("검증에 실패한 파일로는 현재 DB를 건드리지 않는다", async () => {
     const current = path.join(dir, "resale.db");
     makeDb(current, "지금 책");
     const before = fs.readFileSync(current);
     const bad = path.join(dir, "bad.db");
     fs.writeFileSync(bad, "not sqlite");
-    expect(restoreBackup(bad, current).ok).toBe(false);
+    expect((await restoreBackup(bad, current)).ok).toBe(false);
     expect(fs.readFileSync(current).equals(before)).toBe(true);
     expect(fs.readdirSync(dir).some((f) => f.includes("before-restore"))).toBe(false);
   });
