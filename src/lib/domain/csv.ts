@@ -232,7 +232,11 @@ export function planCsvImport(
     if (!result.ok) return {
       messages: Object.entries(result.errors).map(([f, m]) => `${headerLabel.get(f as PriceField) ?? f}: ${m}`),
     };
-    if (seen.some((s) => isSameListing(s, result.value))) {
+    const matches = seen.filter((s) => isSameListing(s, result.value));
+    if (matches.length > 1) {
+      return { messages: ["출처 ID와 원문 URL이 서로 다른 자료를 가리켜 건너뜁니다(충돌, 휴지통 포함). 입력한 ID와 URL을 확인해 주세요."] };
+    }
+    if (matches.length === 1) {
       return { messages: ["이미 등록된 매물(휴지통 포함)과 출처 ID 또는 URL이 같아 건너뜁니다(중복)."] };
     }
     seen.push(result.value);
