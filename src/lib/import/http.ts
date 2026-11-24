@@ -52,17 +52,33 @@ export type BodyResult = { ok: true; body: unknown } | { ok: false; status: 400 
 
 /** JSON 본문을 크기 상한 안에서 읽는다. */
 export async function readJsonBody(req: Request): Promise<BodyResult> {
-  if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
+  const mediaType = req.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") {
     return { ok: false, status: 415, error: "Content-Type은 application/json이어야 합니다." };
   }
   const tooLarge = { ok: false as const, status: 413 as const, error: `본문이 너무 큽니다(최대 ${MAX_IMPORT_BODY_BYTES}바이트).` };
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > MAX_IMPORT_BODY_BYTES) return tooLarge;
-  const text = await req.text();
-  if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BODY_BYTES) return tooLarge;
+  const reader = req.body?.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
   try {
-    return { ok: true, body: JSON.parse(text) as unknown };
+    if (reader) {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        bytes += chunk.value.byteLength;
+        if (bytes > MAX_IMPORT_BODY_BYTES) return tooLarge;
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+    }
+    return { ok: true, body: JSON.parse(text + decoder.decode()) as unknown };
   } catch {
-    return { ok: false, status: 400, error: "본문이 올바른 JSON이 아닙니다." };
+    return { ok: false, status: 400, error: "본문을 올바른 UTF-8 JSON으로 읽을 수 없습니다." };
+  } finally {
+    // 응답은 스트림 취소 완료를 기다리지 않는다.
+    void reader?.cancel().catch(() => undefined);
+    reader?.releaseLock();
   }
 }
