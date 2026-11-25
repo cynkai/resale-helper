@@ -52,15 +52,9 @@ async function readActiveTab(): Promise<ExtractResult> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return { supported: false, url: "" };
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["extract.js"] });
     const [res] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => {
-        const g = globalThis as { __resaleHelperClip?: unknown };
-        const v = g.__resaleHelperClip;
-        delete g.__resaleHelperClip;
-        return v;
-      },
+      files: ["extract.js"],
     });
     const r = res?.result as ExtractResult | undefined;
     if (r && typeof r === "object" && "supported" in r) return r;
