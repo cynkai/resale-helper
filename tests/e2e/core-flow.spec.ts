@@ -294,6 +294,10 @@ test("보안 헤더: CSP는 nonce로만 스크립트를 허용하고, 화면들�
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["x-frame-options"]).toBe("DENY");
   expect(h["referrer-policy"]).toBe("no-referrer");
+  expect(h["cross-origin-resource-policy"]).toBe("same-origin");
+  // 내려받는 응답(내보내기)에도 같은 헤더가 붙는다
+  const exported = await request.get("/api/export/items");
+  expect(exported.headers()["cross-origin-resource-policy"]).toBe("same-origin");
   // nonce는 요청마다 다르다
   const csp2 = (await request.get("/")).headers()["content-security-policy"] ?? "";
   expect(csp2.match(/nonce-[^']+/)?.[0]).not.toBe(csp.match(/nonce-[^']+/)?.[0]);

@@ -25,5 +25,9 @@ export const STATIC_SECURITY_HEADERS: Record<string, string> = {
   // 원문 URL을 눌러 매물 사이트로 나갈 때 이 앱의 주소(물건 번호 등)를 넘기지 않는다.
   "Referrer-Policy": "no-referrer",
   "Cross-Origin-Opener-Policy": "same-origin",
+  // 다른 웹사이트가 <img>·<script> 같은 태그로 이 앱의 응답(백업 파일, 내보내기 등)을 끌어다 쓰지 못하게 한다.
+  // 본문은 원래도 동일 출처 정책으로 읽을 수 없지만, 브라우저가 응답 자체를 넘겨주지 않게 해 부채널을 한 번 더 막는다.
+  // 확장의 가져오기 요청은 CORS 요청이라 영향을 받지 않는다.
+  "Cross-Origin-Resource-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 };
