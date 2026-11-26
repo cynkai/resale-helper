@@ -298,6 +298,13 @@ test("보안 헤더: CSP는 nonce로만 스크립트를 허용하고, 화면들�
   // 내려받는 응답(내보내기)에도 같은 헤더가 붙는다
   const exported = await request.get("/api/export/items");
   expect(exported.headers()["cross-origin-resource-policy"]).toBe("same-origin");
+  // 다른 웹사이트에서 온 API 요청은 서버가 일하기 전에 거절한다(가져오기 API는 자체 검사)
+  for (const path of ["/api/export/items", "/api/backup", "/api/books/lookup?isbn=9788966260959"]) {
+    expect((await request.get(path, { headers: { "Sec-Fetch-Site": "cross-site" } })).status()).toBe(403);
+  }
+  expect((await request.get("/api/export/items", { headers: { "Sec-Fetch-Site": "same-origin" } })).status()).toBe(200);
+  expect((await request.get("/api/export/items", { headers: { "Sec-Fetch-Site": "none" } })).status()).toBe(200);
+  expect((await request.get("/api/import/items", { headers: { "Sec-Fetch-Site": "cross-site" } })).status()).not.toBe(200);
   // nonce는 요청마다 다르다
   const csp2 = (await request.get("/")).headers()["content-security-policy"] ?? "";
   expect(csp2.match(/nonce-[^']+/)?.[0]).not.toBe(csp.match(/nonce-[^']+/)?.[0]);
