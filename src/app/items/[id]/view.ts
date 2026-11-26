@@ -1,6 +1,7 @@
 // 물건 화면의 조회·계산.
 
 import { breakEvenDirectSale } from "@/lib/domain/break-even";
+import { buildPriceStrip } from "@/lib/domain/price-strip";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { countTrashedPrices, getSaleResult, listSameIdentifierItems, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
@@ -97,6 +98,12 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const directSc = byMethod("DIRECT");
   const breakEven =
     directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
+  // 가격 자료 분포 그림: 유형별 줄, 내 개인 판매 계산 금액과 손익분기 금액을 함께 표시(둘 다 내가 넣은 숫자에서 나온 값).
+  const priceStrip = buildPriceStrip(comparison, {
+    hideExcluded,
+    saleAmount: directSc?.saleAmount ?? null,
+    breakEven: breakEven?.ok ? breakEven.saleAmount : null,
+  });
   const choiceOutdated = isChoiceOutdated(item, chosenSc);
   // 실제 비용을 항목별로 적으면 선택할 때 저장해 둔 어림값과 견준다.
   const resultActual = result
@@ -169,6 +176,7 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     diff,
     directSc,
     breakEven,
+    priceStrip,
     choiceOutdated,
     resultActual,
     resultCostDiffs,

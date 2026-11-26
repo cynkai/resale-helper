@@ -8,11 +8,12 @@ import { daysBetween, EXCLUSION_LABEL, isQuoteExpired, PRICE_SORT_LABEL, PRICE_S
 import { CSV_COLUMNS } from "@/lib/domain/csv";
 import { formatMoney } from "@/lib/domain/money";
 import { BUNDLE_LABEL, CONDITION_LABEL, DISCLAIMER, INPUT_ROUTE_LABEL, MIN_SAMPLES_FOR_SUMMARY, PRICE_TYPE_INFO, PRICE_TYPES } from "@/lib/domain/types";
+import { PriceStripFigure } from "./price-strip";
 import { WINDOWS } from "./shared";
 import type { ItemView } from "../view";
 
 export function PricesSection({ v }: { v: ItemView }) {
-  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison, pastSales, trashedPriceCount } = v;
+  const { item, today, windowParam, priceSort, hideExcluded, pricesHref, prices, history, comparison, pastSales, trashedPriceCount, priceStrip } = v;
   const priceRow = (c: Classified<PriceRecord>) => {
     const p = c.record;
     const age = daysBetween(p.checkedDate, today);
@@ -252,6 +253,7 @@ export function PricesSection({ v }: { v: ItemView }) {
           <p className="mt-2 text-sm text-stone-700">
             전체 {prices.length}건 중 비교에 포함 {comparison.eligibleCount}건, 제외 {comparison.excludedCount}건. 유형이 다른 가격은 서로 합치지 않습니다.
           </p>
+          {priceStrip ? <PriceStripFigure strip={priceStrip} /> : null}
 
           <form id="bulk-prices" action={bulkPriceAction} className="mt-3 flex flex-wrap items-center gap-2 text-sm" data-testid="bulk-prices">
             <input type="hidden" name="itemId" value={item.id} />

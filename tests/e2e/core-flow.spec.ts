@@ -1128,6 +1128,9 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   }
   const group = page.getByTestId("group-ASKING");
   await expect(group).toContainText("포함 4건");
+  // 가격 자료 분포 그림: 유형마다 한 줄, 자료 한 건이 점 하나
+  await expect(page.getByTestId("price-strip")).toBeVisible();
+  await expect(page.getByTestId("strip-ASKING").getByTestId("strip-point")).toHaveCount(4);
 
   // 아무것도 고르지 않으면 아무 일도 없다
   await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
@@ -1137,6 +1140,7 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await page.getByRole("checkbox", { name: "나 장터 9,000원 선택" }).check();
   await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
   await expect(group).toContainText("포함 2건 · 제외 2건");
+  await expect(page.getByTestId("strip-ASKING").locator('[data-eligible="no"]')).toHaveCount(2);
 
   await page.getByRole("checkbox", { name: "가 장터 15,000원 선택" }).check();
   await page.getByTestId("bulk-prices").getByRole("button", { name: "다시 포함" }).click();
