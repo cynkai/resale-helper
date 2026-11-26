@@ -76,14 +76,15 @@ describe("가격 자료 분포 그림", () => {
 
   it("제외된 자료 숨기기를 따르고, 내 계산 금액·손익분기는 축 범위에 넣는다", () => {
     const records = [rec({ amountMinor: 20000 }), rec({ amountMinor: 22000 }), rec({ amountMinor: 90000, includedInComparison: false })];
-    const hidden = buildPriceStrip(buildComparison(item, records, TODAY, null), { hideExcluded: true, saleAmount: 25000, breakEven: 12000 })!;
+    const hidden = buildPriceStrip(buildComparison(item, records, TODAY, null), { hideExcluded: true, saleAmount: 25000, breakEven: 12000, posted: 31000 })!;
     expect(hidden.rows[0]!.points.map((p) => p.amount)).toEqual([20000, 22000]);
     expect(hidden.markers.map((m) => [m.key, m.amount])).toEqual([
       ["SALE", 25000],
       ["BREAK_EVEN", 12000],
+      ["POSTED", 31000],
     ]);
     expect(hidden.lo).toBeLessThanOrEqual(12000);
-    expect(hidden.hi).toBeGreaterThanOrEqual(25000);
+    expect(hidden.hi).toBeGreaterThanOrEqual(31000);
     for (const m of hidden.markers) {
       expect(m.x).toBeGreaterThanOrEqual(0);
       expect(m.x).toBeLessThanOrEqual(1);

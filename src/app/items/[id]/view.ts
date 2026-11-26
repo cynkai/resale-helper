@@ -5,7 +5,7 @@ import { buildPriceStrip } from "@/lib/domain/price-strip";
 import { type BasisOption, type CopyOption } from "@/components/ScenarioForm";
 import { countTrashedPrices, getSaleResult, listSameIdentifierItems, listChannelNames, listCostPresets, listOffers, listPastSalesForSameIdentifier, listPostedPrices, listPriceHistory, listPrices, listScenarios, listTemplates } from "@/lib/db/repo";
 import { presetFormValues } from "@/lib/domain/cost-preset";
-import { postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
+import { positionAmong, postedDeltas, summarizePosted } from "@/lib/domain/posted-price";
 import { buildTimeline } from "@/lib/domain/timeline";
 import { COST_KEYS, costItemDiffs } from "@/lib/domain/review";
 import { countOfferStatuses } from "@/lib/domain/offer";
@@ -15,7 +15,7 @@ import { buildListingDraft } from "@/lib/domain/listing";
 import { formatMoney } from "@/lib/domain/money";
 import { computeNet, netDifference, type NetResult } from "@/lib/domain/net";
 import { basisIssues, chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel, usableBasisType, type BasisIssue } from "@/lib/domain/scenario";
-import { PRICE_TYPE_INFO, SALE_METHOD_LABEL, SALE_METHODS, type SaleMethod } from "@/lib/domain/types";
+import { MIN_SAMPLES_FOR_SUMMARY, PRICE_TYPE_INFO, SALE_METHOD_LABEL, SALE_METHODS, type SaleMethod } from "@/lib/domain/types";
 import type { Db } from "@/lib/db/client";
 import type { Item } from "@/lib/db/schema";
 import { scenarioInitial, WINDOWS } from "./_sections/shared";
@@ -98,12 +98,6 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const directSc = byMethod("DIRECT");
   const breakEven =
     directSc && byMethod("BUYBACK") && issuesByMethod.BUYBACK.length === 0 ? breakEvenDirectSale(directSc, nets.BUYBACK?.net ?? null) : null;
-  // 가격 자료 분포 그림: 유형별 줄, 내 개인 판매 계산 금액과 손익분기 금액을 함께 표시(둘 다 내가 넣은 숫자에서 나온 값).
-  const priceStrip = buildPriceStrip(comparison, {
-    hideExcluded,
-    saleAmount: directSc?.saleAmount ?? null,
-    breakEven: breakEven?.ok ? breakEven.saleAmount : null,
-  });
   const choiceOutdated = isChoiceOutdated(item, chosenSc);
   // 실제 비용을 항목별로 적으면 선택할 때 저장해 둔 어림값과 견준다.
   const resultActual = result
@@ -117,6 +111,17 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   const posted = listPostedPrices(db, item.id);
   const postedSummary = summarizePosted(posted);
   const postedDelta = postedDeltas(posted);
+  // 가격 자료 분포 그림: 유형별 줄, 내 개인 판매 계산 금액·손익분기 금액·지금 올린 가격을 함께 표시(모두 내가 넣은 숫자에서 나온 값).
+  const priceStrip = buildPriceStrip(comparison, {
+    hideExcluded,
+    saleAmount: directSc?.saleAmount ?? null,
+    breakEven: breakEven?.ok ? breakEven.saleAmount : null,
+    posted: postedSummary?.latest ?? null,
+  });
+  // 지금 올린 가격이 비교에 포함된 판매 중 희망가 사이에서 어디쯤인지(건수만). 요약처럼 3건 이상일 때만.
+  const askingAmounts = comparison.groups.find((g) => g.priceType === "ASKING")?.eligible.map((c) => c.record.amountMinor) ?? [];
+  const postedVsAsking =
+    postedSummary && askingAmounts.length >= MIN_SAMPLES_FOR_SUMMARY ? positionAmong(postedSummary.latest, askingAmounts) : null;
   const offers = listOffers(db, item.id);
   const offerCounts = countOfferStatuses(offers.map((o) => o.status));
   // 제안을 받았을 때 비교할 업체 실수령액: 업체 기준 계산이 완전하고 기준 자료 문제가 없을 때만.
@@ -184,6 +189,8 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
     posted,
     postedSummary,
     postedDelta,
+    postedVsAsking,
+    askingEligibleCount: askingAmounts.length,
     offers,
     offerCounts,
     offerBuybackNet,

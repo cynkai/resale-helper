@@ -928,6 +928,8 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   // 손익분기: 15,000 + 배송비 3,000 = 18,000 → 17,000은 그보다 낮다
   await expect(page.getByTestId("posted-summary")).toContainText("처음 24,000원 → 지금 17,000원 · 내린 횟수 1번, 올린 횟수 0번");
   await expect(page.getByTestId("posted-summary")).toContainText("손익분기 개인 판매금액(18,000원)보다 낮음");
+  // 판매 중 희망가가 3건 미만이면 내 가격과 견주지 않는다
+  await expect(page.getByTestId("posted-vs-asking")).toContainText("0건이라 지금 가격과 견주지 않습니다");
   await expect(posted).toContainText("직전보다 -7,000원");
   await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
 

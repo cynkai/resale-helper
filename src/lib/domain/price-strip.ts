@@ -8,7 +8,7 @@ import type { PriceType } from "./types";
 /** lane: 금액이 거의 같은 점이 겹쳐 가려지지 않도록 위아래로 비켜 그릴 칸(0 = 가운데, 1 = 위, 2 = 아래, 3 = 가운데 …). */
 export type StripPoint = { id: number; amount: number; eligible: boolean; x: number; lane: number };
 export type StripRow = { priceType: PriceType; points: StripPoint[]; eligibleCount: number; median: { amount: number; x: number } | null };
-export type StripMarker = { key: "SALE" | "BREAK_EVEN"; amount: number; x: number };
+export type StripMarker = { key: "SALE" | "BREAK_EVEN" | "POSTED"; amount: number; x: number };
 export type PriceStrip = { lo: number; hi: number; ticks: { amount: number; x: number }[]; rows: StripRow[]; markers: StripMarker[]; omittedForeign: number };
 
 /** 이보다 가까운(축 길이 대비) 점끼리는 겹친다고 보고 다른 칸에 놓는다. */
@@ -43,12 +43,12 @@ export function niceStep(range: number, maxTicks = 5): number {
 
 /**
  * 원화 자료가 2건 이상일 때만 그림을 만든다(1건이면 분포가 없다).
- * markers: 내 개인 판매 계산의 금액, 손익분기 개인 판매금액(둘 다 내가 넣은 숫자에서 나온 값). 축 범위에 함께 넣는다.
+ * markers: 내 개인 판매 계산의 금액, 손익분기 개인 판매금액, 지금 올린 내 판매글 가격(모두 내가 넣은 숫자에서 나온 값). 축 범위에 함께 넣는다.
  * hideExcluded면 비교에서 제외된 자료는 그리지 않는다(목록의 "제외된 자료 숨기기"와 같게).
  */
 export function buildPriceStrip<R extends ComparableRecord>(
   comparison: Comparison<R>,
-  opts: { hideExcluded?: boolean; saleAmount?: number | null; breakEven?: number | null } = {},
+  opts: { hideExcluded?: boolean; saleAmount?: number | null; breakEven?: number | null; posted?: number | null } = {},
 ): PriceStrip | null {
   const krw = (c: { record: R }) => c.record.currency === "KRW";
   let omittedForeign = 0;
@@ -59,7 +59,7 @@ export function buildPriceStrip<R extends ComparableRecord>(
   });
   const amounts = rowsRaw.flatMap((r) => r.shown.map((c) => c.record.amountMinor));
   if (amounts.length < 2) return null;
-  const markerAmounts = [opts.saleAmount, opts.breakEven].filter((v): v is number => typeof v === "number" && v >= 0);
+  const markerAmounts = [opts.saleAmount, opts.breakEven, opts.posted].filter((v): v is number => typeof v === "number" && v >= 0);
   const min = Math.min(...amounts, ...markerAmounts);
   const max = Math.max(...amounts, ...markerAmounts);
   const step = niceStep(max > min ? max - min : Math.max(1000, Math.round(min * 0.2)));
@@ -84,5 +84,6 @@ export function buildPriceStrip<R extends ComparableRecord>(
   const markers: StripMarker[] = [];
   if (typeof opts.saleAmount === "number") markers.push({ key: "SALE", amount: opts.saleAmount, x: x(opts.saleAmount) });
   if (typeof opts.breakEven === "number") markers.push({ key: "BREAK_EVEN", amount: opts.breakEven, x: x(opts.breakEven) });
+  if (typeof opts.posted === "number") markers.push({ key: "POSTED", amount: opts.posted, x: x(opts.posted) });
   return { lo, hi, ticks, rows, markers, omittedForeign };
 }
