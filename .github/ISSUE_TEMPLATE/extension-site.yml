@@ -1,0 +1,73 @@
+name: 확장이 매물 페이지를 못 읽어요
+description: 브라우저 확장 "직접 담기"가 매물 페이지의 가격·판매 상태 등을 읽지 못하거나 잘못 읽을 때
+title: "[확장] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제보 전에 확인해 주세요.
+        - **번개장터는 원래 매물 번호와 주소만 읽습니다.** 가격·제목을 읽지 않는 것은 정상 동작이고, 가격은 직접 입력합니다.
+        - 사이트 구조가 바뀌면 확장이 값을 읽지 못하는 것은 알려진 한계입니다. 그동안에도 직접 입력과 CSV 가져오기는 그대로 쓸 수 있습니다.
+        - 자동 수집·크롤러 기능 요청은 받지 않습니다(이 저장소는 사용자가 누른 페이지 한 건만 읽습니다).
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 개인정보 확인 (필수)
+      options:
+        - label: 가져오기 토큰, 판매자 닉네임·연락처·프로필·채팅, 내 메모를 적지 않았고, 화면 캡처를 붙인다면 그 부분을 가렸습니다.
+          required: true
+  - type: dropdown
+    id: site
+    attributes:
+      label: 사이트
+      options:
+        - 당근
+        - 번개장터
+        - 중고나라
+        - 그 밖의 사이트
+    validations:
+      required: true
+  - type: input
+    id: url-shape
+    attributes:
+      label: 페이지 주소의 모양
+      description: 매물 번호와 제목은 지워도 됩니다. 추적용 쿼리(?utm_… 등)는 빼 주세요.
+      placeholder: "예: https://www.daangn.com/kr/buy-sell/…-(번호)/"
+    validations:
+      required: true
+  - type: dropdown
+    id: fields
+    attributes:
+      label: 못 읽었거나 잘못 읽은 값
+      multiple: true
+      options:
+        - 가격
+        - 판매 상태(판매 중·판매 완료)
+        - 제목
+        - 매물 번호
+        - 원문 URL
+        - 출처 이름
+        - 전부(읽지 못한다는 안내가 뜸)
+    validations:
+      required: true
+  - type: textarea
+    id: popup
+    attributes:
+      label: 팝업에 보인 내용
+      description: 미리보기 위에 뜬 안내 문구나 오류 문구를 그대로 적어 주세요.
+  - type: input
+    id: extension-version
+    attributes:
+      label: 확장 버전
+      description: chrome://extensions 에서 "얼마에 팔까 — 직접 담기" 카드에 보이는 버전
+      placeholder: "예: 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: 브라우저와 버전
+      placeholder: "예: Chrome 142, macOS"
+    validations:
+      required: true

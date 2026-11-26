@@ -83,3 +83,16 @@ pnpm dev
 - 브라우저 확장은 버튼 클릭 시 현재 페이지의 구조를 읽으므로 **대상 사이트의 구조가 바뀌면 값을 읽지 못할 수 있습니다.** 이 경우 직접 입력이나 CSV 가져오기를 사용합니다.
 - 단일 사용자 로컬(`127.0.0.1`) 도구로 설계되어 로그인 계정이 없으므로 인터넷이나 공유 네트워크에 공개 배포하지 마세요.
 - 코드는 [MIT 라이선스](LICENSE)를 따르며, 앱에 입력하는 외부 가격 자료의 이용·재배포 권한은 각 출처의 약관을 따릅니다. 전체 한계 목록은 [docs/data-sources.md](docs/data-sources.md)와 [docs/pricing-methodology.md](docs/pricing-methodology.md)에서 확인할 수 있습니다.
+
+---
+
+## English Overview
+
+`resale-helper` is a single-user, local-only web app (Next.js + SQLite) for deciding how to sell used books, consoles and electronics. It compares selling to a person yourself with selling to a buyback shop, using only numbers you enter. It does not predict prices or recommend what to do.
+
+- **No scrapers.** Price records come from manual entry, CSV import, a token-protected local API (`POST /api/import/prices`), or a browser extension that reads only the open tab when you click it and sends nothing to marketplaces.
+- **Conservative math.** Price types (asking price, sold listing, buyback quote, user-reported sale) are never averaged together. A blank cost means "unknown", not 0, so the result is shown as incomplete. The `/triage` view compares the extra money per extra hour of direct selling with your own hourly value, and withholds a verdict when any cost, time or hourly value is missing.
+- **Local security.** The server listens on `127.0.0.1` only and rejects requests whose `Host` is not `localhost`, `*.localhost`, `127.0.0.1` or `[::1]` (DNS rebinding). The import API checks a token (stored only as a hash) and the request `Origin`. Scripts run only with a per-request CSP nonce (no `unsafe-eval` in production builds), and CSV exports escape text cells that a spreadsheet could run as formulas.
+- **Language and sites.** The UI is in Korean. The extension has site-specific parsers for Daangn, Bunjang (listing number and URL only) and Joongna; on other sites it reads a page only when it publishes a single schema.org Product.
+
+Quick start: Node.js 22.13+ and pnpm 11, then `pnpm install`, `pnpm db:migrate`, `pnpm dev`, and open <http://127.0.0.1:3000>. "가상 데이터로 둘러보기" at the bottom of the page opens demo data that is kept apart from your own records. Licensed under MIT.
