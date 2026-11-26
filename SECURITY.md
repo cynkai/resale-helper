@@ -11,6 +11,7 @@
 | 토큰 유출 | 원문은 만든 직후 한 번만 표시, DB에는 SHA-256 해시만, 상수 시간 비교, 응답·오류·로그·내보내기에 넣지 않음 | `tests/unit/safety.test.ts`, `tests/unit/full-export.test.ts` |
 | 주입된 스크립트 실행, 외부로의 전송 | 요청마다 새 nonce로만 스크립트를 허용하는 CSP(스크립트에 `unsafe-inline` 없음, 운영 빌드에 `unsafe-eval` 없음. 스타일은 Next.js 때문에 인라인 허용), `connect-src 'self'` (`src/lib/security-headers.ts`) | `tests/unit/safety.test.ts`, E2E "보안 헤더…" |
 | 다른 사이트가 이 앱을 프레임에 넣어 클릭 유도 | `frame-ancestors 'none'`, `X-Frame-Options: DENY` | E2E "보안 헤더…" |
+| 다른 웹사이트가 `<img>`·`<script>` 태그로 이 앱의 응답(백업 파일, 내보내기 등)을 끌어다 쓰기 | 모든 응답에 `Cross-Origin-Resource-Policy: same-origin`. 본문은 원래도 동일 출처 정책으로 읽을 수 없지만, 브라우저가 응답 자체를 다른 사이트에 넘겨주지 않게 해 부채널을 한 번 더 막는다 | `tests/unit/security-headers.test.ts`, E2E "보안 헤더…" |
 | 원문 URL로 나갈 때 이 앱의 주소 노출 | `Referrer-Policy: no-referrer`, 링크에 `noopener noreferrer` | E2E "보안 헤더…" |
 | 서버가 임의 주소로 요청(SSRF) | 사용자가 넣은 원문 URL을 서버가 요청하지 않는다. 서버가 접속하는 곳은 코드에 고정된 서지정보 API 두 곳(`openlibrary.org`, `www.nl.go.kr`)뿐 | `tests/unit/safety.test.ts` "서버가 밖으로 나가는 곳" |
 | CSV·가져오기로 잘못된 자료 유입 | 모든 경로가 같은 검증(`price-input.ts`)과 저장 함수(`insertPrice`)를 거친다. `VERIFIED_SALE`은 어떤 입력 경로로도 만들 수 없다 | `tests/unit/data.test.ts`, `tests/unit/safety.test.ts` |
