@@ -9,7 +9,7 @@ import { signed } from "./shared";
 import type { ItemView } from "../view";
 
 export function ListingSection({ v }: { v: ItemView }) {
-  const { item, today, channelNames, breakEven, templates, posted, postedSummary, postedDelta, direct, draft } = v;
+  const { item, today, channelNames, breakEven, templates, posted, postedSummary, postedDelta, postedVsAsking, askingEligibleCount, direct, draft } = v;
 
   return (
     <Section id="listing" step={4} title="판매글 초안">
@@ -87,6 +87,13 @@ export function ListingSection({ v }: { v: ItemView }) {
                         postedSummary.latest >= breakEven.saleAmount ? " 이상" : "보다 낮음"
                       }`
                     : ""}
+                </p>
+              ) : null}
+              {postedSummary ? (
+                <p className="mt-1 text-sm text-stone-700" data-testid="posted-vs-asking">
+                  {postedVsAsking
+                    ? `비교에 포함된 판매 중 희망가 ${postedVsAsking.total}건 가운데 지금 가격보다 낮은 것 ${postedVsAsking.below}건, 같은 것 ${postedVsAsking.equal}건, 높은 것 ${postedVsAsking.above}건(가격 자료의 기준 기간 안). 다른 판매글이 그 가격에 팔렸다는 뜻은 아닙니다.`
+                    : `비교에 포함된 판매 중 희망가가 ${askingEligibleCount}건이라 지금 가격과 견주지 않습니다(3건 이상일 때 견줍니다).`}
                 </p>
               ) : null}
               <ul className="mt-2 divide-y divide-stone-200 text-sm">

@@ -27,6 +27,7 @@ const LANE_TOP = ["50%", "calc(50% - 7px)", "calc(50% + 7px)"];
 export function PriceStripFigure({ strip }: { strip: PriceStrip }) {
   const sale = strip.markers.find((m) => m.key === "SALE");
   const even = strip.markers.find((m) => m.key === "BREAK_EVEN");
+  const posted = strip.markers.find((m) => m.key === "POSTED");
   return (
     <figure className="mt-3" data-testid="price-strip" aria-labelledby="price-strip-title">
       <figcaption id="price-strip-title" className="text-sm font-medium">
@@ -52,6 +53,7 @@ export function PriceStripFigure({ strip }: { strip: PriceStrip }) {
             <div className="relative h-7 rounded bg-stone-100" data-testid={`strip-${r.priceType}`}>
               {sale ? <span className="absolute inset-y-0 w-0 border-l-2 border-teal-700" style={{ left: pct(sale.x) }} /> : null}
               {even ? <span className="absolute inset-y-0 w-0 border-l-2 border-dashed border-red-700" style={{ left: pct(even.x) }} /> : null}
+              {posted ? <span className="absolute inset-y-0 w-0 border-l-2 border-dotted border-stone-900" style={{ left: pct(posted.x) }} /> : null}
               {r.median ? (
                 <span className="absolute inset-y-1 w-0.5 -translate-x-1/2 bg-stone-900" style={{ left: pct(r.median.x) }} title={`중앙값 ${formatMoney(r.median.amount)}`} />
               ) : null}
@@ -86,6 +88,7 @@ export function PriceStripFigure({ strip }: { strip: PriceStrip }) {
         <span>┃ 중앙값(적합 자료 3건 이상일 때)</span>
         {sale ? <span data-testid="strip-sale">초록 선: 내 개인 판매 계산 {formatMoney(sale.amount)}</span> : null}
         {even ? <span data-testid="strip-break-even">빨간 점선: 손익분기 개인 판매금액 {formatMoney(even.amount)}</span> : null}
+        {posted ? <span data-testid="strip-posted">검은 점선: 지금 올린 내 판매글 가격 {formatMoney(posted.amount)}</span> : null}
       </p>
       {strip.omittedForeign > 0 ? (
         <p className="mt-1 text-xs text-stone-600">외화 자료 {strip.omittedForeign}건은 원화 축에 놓을 수 없어 그림에서 뺐습니다(아래 표에는 있습니다).</p>

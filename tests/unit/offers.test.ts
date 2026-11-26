@@ -30,6 +30,7 @@ import {
   postedDeltas,
   soldVsFirstPosted,
   daysFromFirstPost,
+  positionAmong,
   summarizePosted,
   validatePostedPriceInput,
 } from "@/lib/domain/posted-price";
@@ -206,6 +207,9 @@ describe("내 판매글에 올린 가격", () => {
     expect(daysFromFirstPost("2026-11-01", "2026-11-01")).toBe(0);
     expect(daysFromFirstPost("2026-11-01", "2026-10-31")).toBeNull();
     expect(daysFromFirstPost("2026-02-28", "2026-03-01")).toBe(1);
+    // 내 가격이 다른 판매 중 희망가 사이에서 어디쯤인지: 건수만
+    expect(positionAmong(20000, [18000, 20000, 20000, 24000, 45000])).toEqual({ below: 1, equal: 2, above: 2, total: 5 });
+    expect(positionAmong(20000, [])).toEqual({ below: 0, equal: 0, above: 0, total: 0 });
     const d = postedDeltas(rows);
     expect([d.get(1), d.get(2), d.get(3), d.get(4)]).toEqual([null, 0, -2000, 1000]);
   });

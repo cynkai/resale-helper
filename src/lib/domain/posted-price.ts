@@ -76,6 +76,19 @@ export function daysFromFirstPost(firstDate: string, soldDate: string): number |
   return Math.round((b - a) / 86_400_000);
 }
 
+/**
+ * 내 판매글 가격이 다른 금액들 사이에서 어디쯤인지: 더 낮은 것·같은 것·더 높은 것의 건수.
+ * 순위나 권장 가격을 만들지 않고 건수만 센다.
+ */
+export function positionAmong(amount: number, amounts: number[]): { below: number; equal: number; above: number; total: number } {
+  return {
+    below: amounts.filter((a) => a < amount).length,
+    equal: amounts.filter((a) => a === amount).length,
+    above: amounts.filter((a) => a > amount).length,
+    total: amounts.length,
+  };
+}
+
 export type SoldVsFirstPosted = "BELOW" | "EQUAL" | "ABOVE";
 
 /** 실제 판매금액이 처음 올린 가격보다 낮았는지. */
