@@ -185,7 +185,9 @@ export async function savePriceAction(_prev: FormState, fd: FormData): Promise<F
   if (!saved.ok) {
     return {
       values: values(fd),
-      message: saved.inTrash
+      message: saved.reason === "CONFLICT"
+        ? "출처 ID와 원문 URL이 서로 다른 자료를 가리킵니다(휴지통 포함). 입력한 ID와 URL을 확인해 주세요."
+        : saved.inTrash
         ? "같은 매물(출처 ID 또는 원문 URL이 같음)이 휴지통에 있습니다. 휴지통에서 되살리거나 완전히 지운 뒤 다시 넣어 주세요."
         : "이미 등록된 매물입니다(출처 ID 또는 원문 URL이 같음). 가격이 바뀌었다면 기존 자료를 수정해 주세요.",
     };

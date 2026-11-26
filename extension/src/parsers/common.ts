@@ -64,6 +64,16 @@ export function cleanUrl(url: URL): string {
   return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
+const TRACKING_KEYS = new Set(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "msclkid"]);
+
+/** 알려진 추적값 외의 쿼리는 매물 식별자일 수 있으므로 지운 주소를 대신 제안하지 않는다. */
+export function hasIdentityQuery(url: URL): boolean {
+  return Array.from(url.searchParams.keys()).some((key) => !TRACKING_KEYS.has(key));
+}
+
+export const QUERY_IDENTITY_NOTE =
+  "주소의 쿼리를 지우면 다른 매물과 구분할 수 없어 주소와 상품 정보를 비웠습니다. 쿼리 값은 자동으로 가져오지 않습니다. 매물을 확인하고 필요한 값과 안전한 매물별 주소를 직접 입력해 주세요.";
+
 /** JSON-LD Product 하나에서 제목·가격·상태를 읽는다. seller 등 다른 항목은 건드리지 않는다. */
 export function readProduct(doc: Document, base: Pick<ClipResult, "sourceName" | "url" | "externalId">): ClipResult {
   const result: ClipResult = { ...base, title: null, price: null, status: null, problems: [] };
@@ -77,10 +87,32 @@ export function readProduct(doc: Document, base: Pick<ClipResult, "sourceName" |
     return result;
   }
   const product = products[0]!;
+  const offer = firstOffer(product);
+  // 다른 매물의 구조화 정보가 한 개만 있어도 현재 매물의 값으로 쓰지 않는다.
+  for (const address of [product["url"], offer?.["url"]]) {
+    if (address === undefined) continue;
+    let matches = false;
+    if (typeof address === "string" && address.trim()) {
+      try {
+        const linkedUrl = new URL(address, base.url);
+        if (base.externalId === null && hasIdentityQuery(linkedUrl)) {
+          result.url = "";
+          result.problems.push(QUERY_IDENTITY_NOTE);
+          return result;
+        }
+        matches = cleanUrl(linkedUrl).replace(/\/$/, "") === base.url.replace(/\/$/, "");
+      } catch (error) {
+        if (!(error instanceof TypeError)) throw error;
+      }
+    }
+    if (!matches) {
+      result.problems.push("상품 정보의 주소가 현재 매물과 일치하는지 확인할 수 없습니다. 가격과 판매 상태를 직접 입력해 주세요.");
+      return result;
+    }
+  }
   const name = product["name"];
   if (typeof name === "string" && name.trim() !== "") result.title = name.trim().slice(0, 200);
 
-  const offer = firstOffer(product);
   const currency = offer?.["priceCurrency"];
   if (!offer) result.problems.push("가격 정보를 찾지 못했습니다. 직접 입력해 주세요.");
   else if (currency !== "KRW") result.problems.push("원화 가격이 아니거나 통화를 알 수 없습니다. 직접 입력해 주세요.");

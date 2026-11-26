@@ -315,13 +315,22 @@ export function listPricesForDedup(db: Db, itemId: number): PriceRecord[] {
   return db.select().from(priceRecords).where(eq(priceRecords.itemId, itemId)).all();
 }
 
-/** 같은 매물이 있는지. 휴지통에 있는 자료와 겹치면 inTrash가 true다. */
-function findDuplicate(db: Db, itemId: number, v: Parameters<typeof isSameListing>[1], exceptId?: number) {
-  const dup = listPricesForDedup(db, itemId).find((e) => e.id !== exceptId && isSameListing(e, v));
-  return dup ? { ok: false as const, reason: "DUPLICATE" as const, inTrash: dup.deletedAt !== null } : null;
+/** 한 번 읽은 자료로 충돌·휴지통·수정 가능한 단일 중복을 구분한다. */
+function findDuplicate(db: Db, itemId: number, v: Parameters<typeof isSameListing>[1], exceptId?: number): Exclude<SaveResult, { ok: true }> | null {
+  const matches = listPricesForDedup(db, itemId).filter((e) => e.id !== exceptId && isSameListing(e, v));
+  if (matches.length > 1) return { ok: false, reason: "CONFLICT" };
+  const duplicate = matches[0];
+  if (!duplicate) return null;
+  if (duplicate.deletedAt !== null) return { ok: false, reason: "DUPLICATE", inTrash: true };
+  const { id, amountMinor, currency, priceType } = duplicate;
+  return { ok: false, reason: "DUPLICATE", inTrash: false, duplicate: { id, amountMinor, currency, priceType } };
 }
 
-export type SaveResult = { ok: true; id: number } | { ok: false; reason: "DUPLICATE"; inTrash: boolean };
+export type SaveResult =
+  | { readonly ok: true; readonly id: number }
+  | { readonly ok: false; readonly reason: "CONFLICT" }
+  | { readonly ok: false; readonly reason: "DUPLICATE"; readonly inTrash: true }
+  | { readonly ok: false; readonly reason: "DUPLICATE"; readonly inTrash: false; readonly duplicate: Readonly<Pick<PriceRecord, "id" | "amountMinor" | "currency" | "priceType">> };
 
 /** 같은 매물(출처+외부 ID 또는 정규화 URL)이 이미 있으면(휴지통 포함) 저장하지 않는다. */
 export function insertPrice(db: Db, item: Item, v: ValidPriceInput, route: InputRoute): SaveResult {

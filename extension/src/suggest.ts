@@ -1,6 +1,7 @@
 // 미리보기 초기값 만들기(순수 함수). 유형은 제안일 뿐이고 저장 전에 사용자가 확인하고 고른다.
 
 import type { ExtractResult } from "./parsers";
+import { cleanUrl, hasIdentityQuery, QUERY_IDENTITY_NOTE } from "./parsers/common";
 
 export const CLIP_PRICE_TYPES = ["ASKING", "SOLD_LISTING"] as const;
 export type ClipPriceType = (typeof CLIP_PRICE_TYPES)[number];
@@ -21,17 +22,28 @@ export type PreviewDraft = {
 
 export function buildDraft(r: ExtractResult, today: string): PreviewDraft {
   if (!r.supported) {
+    let sourceUrl = "";
+    let queryIdentity = false;
+    try {
+      const url = new URL(r.url);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        queryIdentity = hasIdentityQuery(url);
+        if (!queryIdentity) sourceUrl = cleanUrl(url);
+      }
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+    }
     return {
       priceType: "",
       amount: "",
       sourceName: "",
       // 브라우저 내부 페이지(chrome:// 등)의 주소는 원문 URL이 될 수 없으므로 넣지 않는다.
-      sourceUrl: /^https?:\/\//i.test(r.url) ? r.url : "",
+      sourceUrl,
       externalId: "",
       memo: "",
       condition: "",
       checkedDate: today,
-      problems: ["이 페이지에서 매물 정보를 읽지 못했습니다(당근·번개장터·중고나라는 매물 한 건 페이지, 그 밖의 사이트는 상품 정보를 공개한 페이지만 읽습니다). 값을 직접 입력해 주세요."],
+      problems: [queryIdentity ? QUERY_IDENTITY_NOTE : "이 페이지에서 매물 정보를 읽지 못했습니다(당근·번개장터·중고나라는 매물 한 건 페이지, 그 밖의 사이트는 상품 정보를 공개한 페이지만 읽습니다). 값을 직접 입력해 주세요."],
     };
   }
   const c = r.clip;

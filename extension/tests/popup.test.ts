@@ -1,13 +1,28 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { setImmediate } from "node:timers/promises";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createContext, runInContext } from "node:vm";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 
 const html = readFileSync(path.resolve(import.meta.dirname, "../static/popup.html"), "utf8");
 const storage: Record<string, unknown> = {};
 const request = vi.fn<typeof fetch>();
 const button = (id: string) => document.querySelector<HTMLButtonElement>(`#${id}`);
 const radio = () => document.querySelector<HTMLInputElement>('input[name="item"]');
+let extractScript = "";
+
+beforeAll(() => {
+  const root = path.resolve(import.meta.dirname, "..");
+  const output = mkdtempSync(path.join(tmpdir(), "resale-extract-test-"));
+  try {
+    execFileSync(process.execPath, ["build.mjs", output], { cwd: root });
+    extractScript = readFileSync(path.join(output, "extract.js"), "utf8");
+  } finally {
+    rmSync(output, { recursive: true, force: true });
+  }
+});
 
 beforeEach(async () => {
   vi.resetModules();
@@ -35,6 +50,43 @@ beforeEach(async () => {
   radio()?.click();
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("겹친 페이지 읽기가 먼저 완료되어도 마지막 요청의 매물 정보를 유지한다", async () => {
+  // Given: 같은 탭의 문서가 바뀌며 두 번 읽고, 첫 주입의 응답은 지연된다.
+  const context = createContext({ URL });
+  const completions: (() => void)[] = [];
+  vi.spyOn(chrome.scripting, "executeScript").mockImplementation((injection) => {
+    const result: unknown = runInContext(
+      injection.files ? extractScript : `(${injection.func?.toString()})()`, context,
+    );
+    if (!injection.files) return Promise.resolve([{ frameId: 0, result }]);
+    return new Promise((resolve) => {
+      completions.push(() => resolve([{ frameId: 0, result }]));
+    });
+  });
+  const first = document.implementation.createHTMLDocument();
+  first.head.innerHTML = '<script type="application/ld+json">{"@type":"Product","name":"첫 매물","offers":{"price":1000,"priceCurrency":"KRW"}}</script>';
+  Object.assign(context, { document: first, location: { href: "https://fixture.example/items/101" } });
+
+  // When: 이전 응답부터 도착하는 동안 새 매물 읽기가 진행된다.
+  button("readPage")?.click();
+  await vi.waitFor(() => expect(completions).toHaveLength(1));
+  const latest = document.implementation.createHTMLDocument();
+  latest.head.innerHTML = '<script type="application/ld+json">{"@type":"Product","name":"마지막 매물","offers":{"price":2000,"priceCurrency":"KRW"}}</script>';
+  Object.assign(context, { document: latest, location: { href: "https://fixture.example/items/202" } });
+  button("readPage")?.click();
+  await vi.waitFor(() => expect(completions).toHaveLength(2));
+  completions[0]?.();
+  await setImmediate();
+  completions[1]?.();
+
+  // Then: 마지막 클릭의 문서만 미리보기에 남고 자동 저장되지 않는다.
+  await vi.waitFor(() => expect(document.querySelector<HTMLInputElement>("#amount")?.value).toBe("2000"));
+  expect(document.querySelector<HTMLInputElement>("#sourceUrl")?.value).toBe("https://fixture.example/items/202");
+  expect(document.querySelector<HTMLInputElement>("#memo")?.value).toBe("마지막 매물");
+  expect(request).not.toHaveBeenCalled();
+  expect(radio()?.checked).toBe(false);
+});
 
 it("새 매물을 읽으면 구성 판단과 물건 선택을 다시 받는다", async () => {
   const match = document.querySelector<HTMLSelectElement>("#componentsMatch");

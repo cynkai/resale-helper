@@ -169,7 +169,7 @@ describe("미리보기 초기값", () => {
   });
   it("판매 상태를 못 읽으면 유형을 비워 사용자가 고르게 한다. 지원하지 않는 페이지는 주소만 넘긴다", () => {
     expect(buildDraft(extract(page(""), BUNJANG), TODAY)).toMatchObject({ priceType: "", amount: "" });
-    const other = buildDraft(extract(page(""), "https://example.com/a?b=1"), TODAY);
+    const other = buildDraft(extract(page(""), "https://example.com/a?utm_source=fixture"), TODAY);
     expect(other).toMatchObject({ priceType: "", amount: "", sourceName: "", sourceUrl: "https://example.com/a" });
     expect(other.problems).toHaveLength(1);
     // 브라우저 내부 페이지 주소는 원문 URL로 넣지 않는다

@@ -2,4 +2,4 @@
 // 네트워크 요청, 페이지 이동, 반복 실행을 하지 않는다.
 import { extract } from "./parsers";
 
-(globalThis as { __resaleHelperClip?: unknown }).__resaleHelperClip = extract(document, location.href);
+export const result = extract(document, location.href);

@@ -18,6 +18,7 @@ import {
   listPriceHistory,
   listFullExportSources,
   listPrices,
+  listPricesForDedup,
   listScenarios,
   recheckPrice,
   setChosenMethod,
@@ -98,6 +99,32 @@ describe("물건 입력 검증", () => {
 });
 
 describe("중복 저장 방지", () => {
+  it.each([
+    ["insert", false, false], ["insert", true, false], ["insert", false, true], ["insert", true, true],
+    ["update", false, false], ["update", true, false], ["update", false, true], ["update", true, true],
+  ] as const)("%s는 충돌하는 ID와 URL을 순서와 휴지통 상태에 관계없이 구분한다(휴지통 %s, 역순 %s)", (operation, trash, reverse) => {
+    // Given
+    const item = getItem(db, false, createItem(db, false, bookInput));
+    if (!item) throw new Error("Missing item fixture");
+    for (const key of reverse ? ["B", "A"] : ["A", "B"]) {
+      const saved = insertPrice(db, item, price({ externalId: key, sourceUrl: `https://example.com/${key}` }), "MANUAL");
+      if (!saved.ok) throw new Error("Missing price fixture");
+      if (trash && key === "B") deletePrice(db, item.id, saved.id);
+    }
+    const target = insertPrice(db, item, price({ externalId: "C" }), "MANUAL");
+    if (!target.ok) throw new Error("Missing update fixture");
+    const before = listPricesForDedup(db, item.id);
+    const input = price({ externalId: "A", sourceUrl: "https://example.com/B", amount: "13000" });
+
+    // When
+    const result = operation === "insert" ? insertPrice(db, item, input, "MANUAL") : updatePrice(db, item, target.id, input);
+
+    // Then
+    expect(result).toEqual({ ok: false, reason: "CONFLICT" });
+    expect(listPricesForDedup(db, item.id)).toEqual(before);
+    expect(listPriceHistory(db, item.id).size).toBe(0);
+  });
+
   it("같은 출처 ID·같은 URL은 거부하고, 금액만 같은 다른 매물은 저장한다", () => {
     const item = getItem(db, false, createItem(db, false, bookInput))!;
     expect(insertPrice(db, item, price({ externalId: "A1" }), "MANUAL").ok).toBe(true);
@@ -105,6 +132,7 @@ describe("중복 저장 방지", () => {
       ok: false,
       reason: "DUPLICATE",
       inTrash: false,
+      duplicate: { id: listPrices(db, item.id)[0]?.id, amountMinor: 10000, currency: "KRW", priceType: "ASKING" },
     });
     expect(insertPrice(db, item, price({ sourceUrl: "https://example.com/p/1?utm_source=a" }), "MANUAL").ok).toBe(true);
     expect(insertPrice(db, item, price({ sourceUrl: "https://www.example.com/p/1/" }), "MANUAL").ok).toBe(false);
@@ -169,7 +197,7 @@ describe("같은 매물의 가격 변동 이력", () => {
     const a = insertPrice(db, item, price({ externalId: "A", amount: "1000" }), "MANUAL");
     const b = insertPrice(db, item, price({ externalId: "B", amount: "2000" }), "MANUAL");
     if (!a.ok || !b.ok) throw new Error("insert");
-    expect(updatePrice(db, item, b.id, price({ externalId: "A", amount: "3000" }))).toEqual({ ok: false, reason: "DUPLICATE", inTrash: false });
+    expect(updatePrice(db, item, b.id, price({ externalId: "A", amount: "3000" }))).toEqual({ ok: false, reason: "DUPLICATE", inTrash: false, duplicate: { id: a.id, amountMinor: 1000, currency: "KRW", priceType: "ASKING" } });
     expect(listPriceHistory(db, item.id).size).toBe(0);
   });
 });
