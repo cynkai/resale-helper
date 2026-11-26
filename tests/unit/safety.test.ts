@@ -378,8 +378,8 @@ describe("서버가 밖으로 나가는 곳", () => {
         .readFileSync(path.join(root, f), "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^\s*\/\/.*$/gm, "");
-    // 네트워크로 나갈 수 있는 수단을 쓰는 서버 파일
-    const outbound = files.filter((f) => /\bfetch\b|node:https?|node:net|undici|XMLHttpRequest|WebSocket/.test(code(f))).sort();
+    // 네트워크로 나갈 수 있는 수단을 쓰는 서버 파일. "sec-fetch-site" 같은 헤더 이름 속 fetch는 요청이 아니므로 세지 않는다.
+    const outbound = files.filter((f) => /(?<!-)\bfetch\b|node:https?|node:net|undici|XMLHttpRequest|WebSocket/.test(code(f))).sort();
     // ItemForm은 브라우저에서 이 앱 자신의 /api/books/lookup만 부른다.
     expect(outbound).toEqual(["components/ItemForm.tsx", "lib/providers/bibliographic.ts"]);
     expect(code("components/ItemForm.tsx")).toMatch(/fetch\(`\/api\/books\/lookup\?/);
