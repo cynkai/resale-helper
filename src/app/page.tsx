@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { scenarioLabel } from "@/lib/domain/scenario";
 import Link from "next/link";
-import { bulkItemsAction } from "@/app/actions";
+import { bulkItemsAction, enterDemoAction } from "@/app/actions";
 import { ConfirmSubmit, SelectAllToggle } from "@/components/client-bits";
 import { Badge } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
@@ -177,7 +177,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <>
               <p className="font-medium">아직 등록한 물건이 없습니다.</p>
               <p className="mt-1 text-sm text-stone-600">팔고 싶은 책이나 기기를 등록하면 가격 자료를 모으고 실수령액을 비교할 수 있습니다.</p>
-              <Link href="/items/new" className="btn-primary mt-4">첫 물건 등록하기</Link>
+              <div className="mt-4 flex flex-wrap justify-center gap-2" data-testid="first-run">
+                <Link href="/items/new" className="btn-primary">첫 물건 등록하기</Link>
+                {!demo ? (
+                  <form action={enterDemoAction}>
+                    <button type="submit" className="btn">가상 데이터로 먼저 둘러보기</button>
+                  </form>
+                ) : null}
+              </div>
+              <ol className="mx-auto mt-5 max-w-lg list-decimal space-y-1 pl-5 text-left text-sm text-stone-700">
+                <li>물건 등록: 이름, 상태, ISBN이나 모델명</li>
+                <li>가격 자료: 판매 중 희망가·판매완료 게시가·매입 견적을 유형별로(직접 입력, CSV, 브라우저 확장)</li>
+                <li>실수령액: 수수료·배송비·포장비·교통비를 빼고 업체와 직접 판매를 견주기(모르는 칸은 비워 두면 &lsquo;모름&rsquo;)</li>
+                <li>판매 방법을 고르고 판매글 초안을 복사, 판 뒤에는 판매 결과를 기록</li>
+              </ol>
+              {!demo ? <p className="mt-3 text-xs text-stone-600">가상 데이터는 내 자료와 섞이지 않고, 언제든 실제 사용으로 돌아올 수 있습니다.</p> : null}
             </>
           )}
         </div>

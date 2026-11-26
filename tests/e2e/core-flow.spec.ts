@@ -294,6 +294,17 @@ test("보안 헤더: CSP는 nonce로만 스크립트를 허용하고, 화면들�
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["x-frame-options"]).toBe("DENY");
   expect(h["referrer-policy"]).toBe("no-referrer");
+  expect(h["cross-origin-resource-policy"]).toBe("same-origin");
+  // 내려받는 응답(내보내기)에도 같은 헤더가 붙는다
+  const exported = await request.get("/api/export/items");
+  expect(exported.headers()["cross-origin-resource-policy"]).toBe("same-origin");
+  // 다른 웹사이트에서 온 API 요청은 서버가 일하기 전에 거절한다(가져오기 API는 자체 검사)
+  for (const path of ["/api/export/items", "/api/backup", "/api/books/lookup?isbn=9788966260959"]) {
+    expect((await request.get(path, { headers: { "Sec-Fetch-Site": "cross-site" } })).status()).toBe(403);
+  }
+  expect((await request.get("/api/export/items", { headers: { "Sec-Fetch-Site": "same-origin" } })).status()).toBe(200);
+  expect((await request.get("/api/export/items", { headers: { "Sec-Fetch-Site": "none" } })).status()).toBe(200);
+  expect((await request.get("/api/import/items", { headers: { "Sec-Fetch-Site": "cross-site" } })).status()).not.toBe(200);
   // nonce는 요청마다 다르다
   const csp2 = (await request.get("/")).headers()["content-security-policy"] ?? "";
   expect(csp2.match(/nonce-[^']+/)?.[0]).not.toBe(csp.match(/nonce-[^']+/)?.[0]);
@@ -928,6 +939,8 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   // 손익분기: 15,000 + 배송비 3,000 = 18,000 → 17,000은 그보다 낮다
   await expect(page.getByTestId("posted-summary")).toContainText("처음 24,000원 → 지금 17,000원 · 내린 횟수 1번, 올린 횟수 0번");
   await expect(page.getByTestId("posted-summary")).toContainText("손익분기 개인 판매금액(18,000원)보다 낮음");
+  // 판매 중 희망가가 3건 미만이면 내 가격과 견주지 않는다
+  await expect(page.getByTestId("posted-vs-asking")).toContainText("0건이라 지금 가격과 견주지 않습니다");
   await expect(posted).toContainText("직전보다 -7,000원");
   await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
 
@@ -1128,6 +1141,9 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   }
   const group = page.getByTestId("group-ASKING");
   await expect(group).toContainText("포함 4건");
+  // 가격 자료 분포 그림: 유형마다 한 줄, 자료 한 건이 점 하나
+  await expect(page.getByTestId("price-strip")).toBeVisible();
+  await expect(page.getByTestId("strip-ASKING").getByTestId("strip-point")).toHaveCount(4);
 
   // 아무것도 고르지 않으면 아무 일도 없다
   await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
@@ -1137,6 +1153,7 @@ test("가격 자료 한꺼번에: 고른 자료를 비교에서 빼고 다시 �
   await page.getByRole("checkbox", { name: "나 장터 9,000원 선택" }).check();
   await page.getByTestId("bulk-prices").getByRole("button", { name: "비교에서 빼기" }).click();
   await expect(group).toContainText("포함 2건 · 제외 2건");
+  await expect(page.getByTestId("strip-ASKING").locator('[data-eligible="no"]')).toHaveCount(2);
 
   await page.getByRole("checkbox", { name: "가 장터 15,000원 선택" }).check();
   await page.getByTestId("bulk-prices").getByRole("button", { name: "다시 포함" }).click();
