@@ -101,6 +101,18 @@ export function needsPrimary(scenarios: Pickable[], method: string): boolean {
   return scenarios.filter((s) => s.method === method).length > 1 && primaryScenario(scenarios, method) === undefined;
 }
 
+/**
+ * 판매글에 쓸 개인 판매 계산: 개인 판매 계산을 골랐으면 그것, 아니면 개인 판매의 기준 계산(없으면 undefined).
+ * 물건 화면의 판매글 초안·템플릿과 템플릿 화면의 미리보기가 같은 금액을 쓰도록 한곳에 둔다.
+ */
+export function listingScenario<T extends Pickable & { channel: string }>(
+  item: { chosenMethod: string | null; chosenChannel?: string | null },
+  scenarios: T[],
+): T | undefined {
+  const chosen = chosenScenario(item, scenarios);
+  return chosen?.method === "DIRECT" ? chosen : primaryScenario(scenarios, "DIRECT");
+}
+
 /** 사용자가 고른 계산(방식과 판매처 이름이 모두 같은 것). */
 export function chosenScenario<T extends { method: string; channel: string }>(
   item: { chosenMethod: string | null; chosenChannel?: string | null },
