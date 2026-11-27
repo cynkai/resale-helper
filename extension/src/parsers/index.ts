@@ -9,8 +9,11 @@ export const parsers: Parser[] = [daangn, bunjang, joongna];
 
 export type ExtractResult =
   | { supported: true; clip: ClipResult }
-  /** 지원하는 사이트의 매물 상세 페이지가 아니다. 주소만 넘기고 나머지는 사용자가 입력한다. */
-  | { supported: false; url: string };
+  /**
+   * 지원하는 사이트의 매물 상세 페이지가 아니다. 주소만 넘기고 나머지는 사용자가 입력한다.
+   * queryIdentity: 쿼리를 지우면 어느 매물인지 구분할 수 없어 주소도 비웠다(미리보기가 그 이유를 알린다).
+   */
+  | { supported: false; url: string; queryIdentity?: true };
 
 /** 현재 문서 한 건을 읽는다. 파서가 예외를 던지면 읽기 실패로 처리하고 값은 채우지 않는다. */
 export function extract(doc: Document, href: string): ExtractResult {
@@ -28,7 +31,8 @@ export function extract(doc: Document, href: string): ExtractResult {
     } catch {
       generic = null;
     }
-    return generic ? { supported: true, clip: generic } : { supported: false, url: hasIdentityQuery(url) ? "" : cleanUrl(url) };
+    if (generic) return { supported: true, clip: generic };
+    return hasIdentityQuery(url) ? { supported: false, url: "", queryIdentity: true } : { supported: false, url: cleanUrl(url) };
   }
   try {
     return { supported: true, clip: parser.parse(doc, url) };
