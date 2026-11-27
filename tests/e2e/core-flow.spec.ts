@@ -1573,3 +1573,36 @@ test("가격 자료 폼: 원문 URL을 붙이면 비어 있는 출처 이름·�
   await expect(page.locator("#sourceName")).toHaveValue("내가 적은 출처");
   await expect(page.locator("#externalId")).toHaveValue("987654");
 });
+
+test("CSRF: 다른 사이트에서 보낸 화면 폼 제출(서버 액션)은 물건을 바꾸지 못한다", async ({ page, request }) => {
+  await page.goto("/items/new");
+  await page.locator("#category").selectOption("CONSOLE");
+  await page.locator("#name").fill("CSRF 테스트 게임기");
+  await page.locator("#condition").selectOption("GOOD");
+  await page.getByRole("button", { name: "저장" }).click();
+  await expect(page).toHaveURL(/\/items\/\d+$/);
+  const id = page.url().split("/").pop()!;
+  await page.goto("/?q=CSRF 테스트");
+  // 목록의 일괄 작업 폼이 쓰는 서버 액션 필드(자바스크립트 없이 제출할 때의 모양)를 그대로 쓴다
+  const actionField = (await page.locator('#bulk-items input[type="hidden"][name^="$ACTION_ID_"]').getAttribute("name"))!;
+  const origin = new URL(page.url()).origin;
+  const trash = (headers: Record<string, string>) =>
+    request.post("/", { multipart: { [actionField]: "", back: "", itemIds: id, op: "TRASH" }, headers, maxRedirects: 0 });
+  const listed = async () => {
+    await page.goto("/?q=CSRF 테스트");
+    return page.getByRole("link", { name: /CSRF 테스트 게임기/ }).count();
+  };
+
+  // 브라우저가 다른 사이트라고 알린 쓰기 요청은 프록시가 먼저 403으로 거절한다
+  expect((await trash({ Origin: "https://evil.example", "Sec-Fetch-Site": "cross-site" })).status()).toBe(403);
+  expect(await listed()).toBe(1);
+  // 그 헤더가 없어도 Origin이 다르면 Next.js가 서버 액션을 중단한다
+  expect((await trash({ Origin: "https://evil.example" })).status()).toBeGreaterThanOrEqual(400);
+  expect(await listed()).toBe(1);
+  // 대조: 이 앱 화면에서 보낸 것과 같은 요청은 처리된다(위 거절이 잘못 만든 요청 때문이 아니라는 확인)
+  expect((await trash({ Origin: origin, "Sec-Fetch-Site": "same-origin" })).status()).toBe(303);
+  expect(await listed()).toBe(0);
+  await page.goto("/trash");
+  await page.getByTestId(`trashed-${id}`).getByRole("button", { name: "되살리기" }).click();
+  await expect(page.getByTestId(`trashed-${id}`)).toHaveCount(0);
+});
