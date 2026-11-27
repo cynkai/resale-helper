@@ -23,7 +23,8 @@ export type PreviewDraft = {
 export function buildDraft(r: ExtractResult, today: string): PreviewDraft {
   if (!r.supported) {
     let sourceUrl = "";
-    let queryIdentity = false;
+    // 읽는 쪽에서 이미 주소를 비웠다면(쿼리로만 매물을 구분하는 주소) 그 이유를 그대로 알린다.
+    let queryIdentity = r.queryIdentity === true;
     try {
       const url = new URL(r.url);
       if (url.protocol === "http:" || url.protocol === "https:") {

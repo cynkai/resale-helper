@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extract } from "../src/parsers";
+import { QUERY_IDENTITY_NOTE } from "../src/parsers/common";
 import { buildDraft, toRecord } from "../src/suggest";
 
 const CURRENT = "https://web.joongna.com/product/123456789";
@@ -111,5 +112,27 @@ describe("일반 사이트의 쿼리 매물 번호", () => {
     // Then
     expect(draft.sourceUrl).toBe(sourceUrl);
     expect(JSON.stringify(draft)).not.toContain("synthetic-private");
+  });
+});
+
+describe("상품 정보가 없는 페이지의 쿼리 주소", () => {
+  it("쿼리로만 매물을 구분하는 주소는 비우고, 미리보기는 일반 안내 대신 그 이유를 알린다", () => {
+    // Given: 상품 정보가 없는(지원하지 않는) 페이지
+    const doc = new DOMParser().parseFromString("<!doctype html><html><head></head><body></body></html>", "text/html");
+    // When
+    const result = extract(doc, "https://used.example/view?item=synthetic-private-42");
+    const draft = buildDraft(result, "2026-11-27");
+    // Then
+    expect(result).toEqual({ supported: false, url: "", queryIdentity: true });
+    expect(draft.sourceUrl).toBe("");
+    expect(draft.problems).toEqual([QUERY_IDENTITY_NOTE]);
+    expect(JSON.stringify(draft)).not.toContain("synthetic-private");
+  });
+
+  it("추적값만 있는 주소는 쿼리를 빼고 넘기며 일반 안내를 보인다", () => {
+    const doc = new DOMParser().parseFromString("<!doctype html><html><head></head><body></body></html>", "text/html");
+    const result = extract(doc, "https://used.example/item/42?utm_source=x");
+    expect(result).toEqual({ supported: false, url: "https://used.example/item/42" });
+    expect(buildDraft(result, "2026-11-27").problems[0]).toContain("읽지 못했습니다");
   });
 });
