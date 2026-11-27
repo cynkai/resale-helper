@@ -979,11 +979,13 @@ export function listCheckupSources(db: Db, isDemo: boolean) {
   const pricesBy = byItem(prices);
   const scsBy = byItem(scs);
   const offersBy = byItem(offerRows);
+  const posted = listPostedPricesByItem(db, isDemo);
   return its.map((item) => ({
     item,
     prices: pricesBy.get(item.id) ?? [],
     scenarios: scsBy.get(item.id) ?? [],
     offers: offersBy.get(item.id) ?? [],
+    posted: posted.get(item.id) ?? [],
   }));
 }
 

@@ -18,6 +18,7 @@ const FINDING_FILTERS = [
   { kind: "OLD_DATA", label: "오래된 자료" },
   { kind: "BASIS_ISSUE", label: "다시 확인할 계산" },
   { kind: "OPEN_OFFERS", label: "답하지 않은 제안" },
+  { kind: "POSTED_BELOW_BREAK_EVEN", label: "손익분기보다 낮게 올린 가격" },
   { kind: "QUOTE_VALID", label: "유효기간이 남은 견적" },
 ] as const satisfies readonly { kind: CheckupFinding["kind"]; label: string }[];
 
@@ -57,6 +58,14 @@ function findingLine(f: CheckupFinding, itemId: number) {
           <strong>답하지 않은 제안 {f.count}건</strong> — 가장 오래된 것: {f.oldestReceivedDate}
           {f.oldestDays === 0 ? " (오늘)" : ` (${f.oldestDays}일 전)`}.{" "}
           <a href={`${itemHref}#offers`} className="underline">받은 제안 보기</a>
+        </>
+      );
+    case "POSTED_BELOW_BREAK_EVEN":
+      return (
+        <>
+          <strong>올린 가격이 손익분기보다 낮음</strong> — 지금 올린 가격 {formatMoney(f.posted)}이 손익분기 개인 판매금액 {formatMoney(f.breakEven)}보다
+          낮습니다. 내가 입력한 비용대로라면 이 가격에 팔 때 업체에 넘기는 것보다 덜 남습니다.{" "}
+          <a href={`${itemHref}#listing`} className="underline">판매글·올린 가격 보기</a>
         </>
       );
     case "BASIS_ISSUE":
@@ -104,7 +113,8 @@ export default async function CheckupPage({
         <div className="card py-10 text-center" data-testid="checkup-empty">
           <p className="font-medium">다시 확인할 자료가 없습니다.</p>
           <p className="mt-1 text-sm text-stone-600">
-            유효기간이 있는 매입 견적, 확인한 지 {OLD_DATA_DAYS}일이 넘은 자료, 기준 자료가 바뀐 계산, 답하지 않은 제안이 생기면 여기에 나옵니다.
+            유효기간이 있는 매입 견적, 확인한 지 {OLD_DATA_DAYS}일이 넘은 자료, 기준 자료가 바뀐 계산, 답하지 않은 제안, 손익분기보다 낮게 올린 가격이 생기면
+            여기에 나옵니다.
           </p>
         </div>
       ) : (

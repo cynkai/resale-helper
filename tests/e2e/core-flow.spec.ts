@@ -943,6 +943,10 @@ test("올린 가격 기록: 가격을 바꿔 온 과정과 손익분기 대비�
   await expect(page.getByTestId("posted-vs-asking")).toContainText("0건이라 지금 가격과 견주지 않습니다");
   await expect(posted).toContainText("직전보다 -7,000원");
   await expect(page.locator("#prices").getByText("가격 자료 없음")).toBeVisible();
+  // 자료 점검도 같은 사실을 모아 보여 준다(올린 17,000원 < 손익분기 18,000원)
+  await page.goto("/checkup?kind=POSTED_BELOW_BREAK_EVEN");
+  await expect(page.getByTestId(`checkup-${id}`)).toContainText("지금 올린 가격 17,000원이 손익분기 개인 판매금액 18,000원보다");
+  await page.goto(`/items/${id}`);
 
   await page.locator("#result-channel").fill("가 장터");
   await page.locator("#result-amount").fill("17000");
