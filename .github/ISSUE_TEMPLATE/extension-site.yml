@@ -60,7 +60,7 @@ body:
     id: extension-version
     attributes:
       label: 확장 버전
-      description: chrome://extensions 에서 "얼마에 팔까 — 직접 담기" 카드에 보이는 버전
+      description: 확장 팝업의 토큰 칸 아래(확장 ID 옆)나 chrome://extensions의 "얼마에 팔까 — 직접 담기" 카드에 보이는 버전
       placeholder: "예: 0.1.0"
     validations:
       required: true
