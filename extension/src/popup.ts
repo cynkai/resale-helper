@@ -181,6 +181,8 @@ async function save(ev: Event): Promise<void> {
 }
 
 $("extId").textContent = chrome.runtime.id;
+// 문제를 제보할 때 적을 수 있도록 확장 버전을 보여 준다.
+$("extVersion").textContent = chrome.runtime.getManifest().version;
 void refreshTokenStatus();
 
 async function updateToken(token: string | null): Promise<void> {

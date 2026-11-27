@@ -35,7 +35,7 @@ beforeEach(async () => {
   document.body.replaceChildren(template.content);
   vi.stubGlobal("fetch", request);
   vi.stubGlobal("chrome", {
-    runtime: { id: "fixture" },
+    runtime: { id: "fixture", getManifest: () => ({ version: "0.1.0" }) },
     tabs: { query: async () => [{ id: 1 }] },
     scripting: { executeScript: async () => [{ result: { supported: false, url: "https://example.com/fixture" } }] },
     storage: { local: {
@@ -145,4 +145,9 @@ it("사용자가 새 검색으로 고른 물건과 다시 확인한 구성만 �
   if (typeof body !== "string") throw new Error("저장 요청 본문 누락");
   expect(JSON.parse(body)).toMatchObject({ itemId: 8, records: [{ amount: "1000" }] });
   expect(JSON.parse(body).records[0]).not.toHaveProperty("components_match");
+});
+
+it("팝업에 확장 ID와 버전을 보여 준다(문제 제보용)", () => {
+  expect(document.getElementById("extId")?.textContent).toBe("fixture");
+  expect(document.getElementById("extVersion")?.textContent).toBe("0.1.0");
 });
