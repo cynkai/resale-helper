@@ -859,6 +859,20 @@ test("판매글 템플릿: 내가 쓴 틀을 물건 정보로 채우고, 값이 
   await expect(rendered.locator("pre")).toHaveText("템플릿 테스트 게임기 팝니다.\n상태: 사용감 적음\n직거래만 합니다.");
   await expect(rendered).toContainText("값을 입력하지 않아 뺀 줄 2개: {구성품}, {가격}");
 
+  // 템플릿 화면에서도 물건을 골라 바로 채워 볼 수 있다(물건 화면과 같은 결과)
+  const templateItemId = page.url().split("/").pop()!;
+  await page.goto("/templates");
+  await page.locator("#preview-item").selectOption(templateItemId);
+  await page.getByTestId("preview-picker").getByRole("button", { name: "미리보기" }).click();
+  await expect(page).toHaveURL(new RegExp(`preview=${templateItemId}`));
+  const preview = page.locator('[data-testid^="template-preview-"]').filter({ hasText: "템플릿 테스트 게임기" });
+  await expect(preview.locator("pre")).toHaveText("템플릿 테스트 게임기 팝니다.\n상태: 사용감 적음\n직거래만 합니다.");
+  await expect(preview).toContainText("값을 입력하지 않아 뺀 줄 2개: {구성품}, {가격}");
+  // 없는 물건 번호는 무시한다
+  await page.goto("/templates?preview=999999");
+  await expect(page.locator('[data-testid^="template-preview-"]')).toHaveCount(0);
+  await page.goto(`/items/${templateItemId}`);
+
   // 데모 모드에는 실제 모드의 템플릿이 보이지 않는다
   await page.getByRole("button", { name: /가상 데이터로 둘러보기/ }).click();
   await expect(page.getByRole("status").filter({ hasText: "데모 모드" })).toContainText("가상 데이터");

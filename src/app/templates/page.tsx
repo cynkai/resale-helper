@@ -3,15 +3,26 @@ import { deleteTemplateAction } from "@/app/actions";
 import { ConfirmSubmit, TemplateForm } from "@/components/client-bits";
 import { Section } from "@/components/ui";
 import { getDb } from "@/lib/db/client";
-import { listTemplates } from "@/lib/db/repo";
-import { TEMPLATE_TOKENS } from "@/lib/domain/listing-template";
+import { getItem, listItems, listScenarios, listTemplates } from "@/lib/db/repo";
+import { charCount } from "@/lib/domain/listing";
+import { renderTemplate, TEMPLATE_TOKENS } from "@/lib/domain/listing-template";
+import { listingScenario } from "@/lib/domain/scenario";
 import { isDemoMode } from "@/lib/mode";
 
 export const metadata: Metadata = { title: "판매글 템플릿" };
 
-export default async function TemplatesPage() {
+export default async function TemplatesPage({ searchParams }: { searchParams: Promise<{ preview?: string | string[] }> }) {
   const demo = await isDemoMode();
-  const templates = listTemplates(getDb(), demo);
+  const db = getDb();
+  const templates = listTemplates(db, demo);
+  // 미리보기: 고른 물건(현재 모드, 휴지통 제외)의 정보와 판매글 금액으로 저장한 템플릿을 채워 본다.
+  const { preview: previewParam } = await searchParams;
+  const previewId = typeof previewParam === "string" && /^\d+$/.test(previewParam) ? Number(previewParam) : null;
+  const previewItem = previewId !== null ? getItem(db, demo, previewId) : undefined;
+  const preview = previewItem
+    ? { item: previewItem, price: listingScenario(previewItem, listScenarios(db, previewItem.id))?.saleAmount ?? null }
+    : null;
+  const choices = templates.length > 0 ? listItems(db, demo, { sort: "name" }).map((r) => r.item) : [];
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">판매글 템플릿{demo ? " (데모)" : ""}</h1>
@@ -42,6 +53,29 @@ export default async function TemplatesPage() {
       </Section>
 
       <Section id="list" title={`내 템플릿 ${templates.length}개`}>
+        {templates.length > 0 && choices.length > 0 ? (
+          <form method="get" className="mb-2 flex flex-wrap items-end gap-2 text-sm" data-testid="preview-picker">
+            <div>
+              <label htmlFor="preview-item" className="block text-stone-700">
+                미리보기할 물건
+              </label>
+              <select id="preview-item" name="preview" defaultValue={preview ? String(preview.item.id) : ""} className="input">
+                <option value="">고르지 않음</option>
+                {choices.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn">
+              미리보기
+            </button>
+            <p className="w-full text-xs text-stone-600">
+              저장한 템플릿을 그 물건의 정보와 판매글 금액(물건 화면의 ‘4. 판매글’과 같은 금액)으로 채워 보여 줍니다. 고치는 중인 내용은 저장한 뒤에 보입니다.
+            </p>
+          </form>
+        ) : null}
         {templates.length === 0 ? (
           <p className="text-sm text-stone-600">아직 만든 템플릿이 없습니다.</p>
         ) : (
@@ -49,6 +83,25 @@ export default async function TemplatesPage() {
             {templates.map((t) => (
               <li key={t.id} className="space-y-3 py-4" data-testid={`template-${t.id}`}>
                 <TemplateForm templateId={t.id} initial={{ name: t.name, body: t.body }} />
+                {preview
+                  ? (() => {
+                      const r = renderTemplate(t.body, preview.item, preview.price);
+                      return (
+                        <div className="rounded-md border border-dashed border-stone-300 p-3" data-testid={`template-preview-${t.id}`}>
+                          <p className="mb-1 text-sm font-medium">
+                            미리보기: {preview.item.name} <span className="font-normal text-stone-600">({charCount(r.text)}자)</span>
+                          </p>
+                          <pre className="whitespace-pre-wrap rounded-md border border-stone-300 bg-stone-50 px-3 py-2 font-sans text-sm">{r.text}</pre>
+                          {r.dropped.length > 0 ? (
+                            <p className="warn mt-1">
+                              값을 입력하지 않아 뺀 줄 {r.dropped.length}개:{" "}
+                              {[...new Set(r.dropped.flatMap((d) => d.missing))].map((n) => `{${n}}`).join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })()
+                  : null}
                 <form action={deleteTemplateAction}>
                   <input type="hidden" name="templateId" value={t.id} />
                   <ConfirmSubmit message={`‘${t.name}’ 템플릿을 지울까요?`} className="btn-danger px-2 py-1 text-xs">

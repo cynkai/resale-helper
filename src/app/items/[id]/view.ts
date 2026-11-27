@@ -14,7 +14,7 @@ import { buildComparison, isQuoteExpired, PRICE_SORTS, type PriceSort } from "@/
 import { buildListingDraft } from "@/lib/domain/listing";
 import { formatMoney } from "@/lib/domain/money";
 import { computeNet, netDifference, type NetResult } from "@/lib/domain/net";
-import { basisIssues, chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel, usableBasisType, type BasisIssue } from "@/lib/domain/scenario";
+import { basisIssues, chosenScenario, isChoiceOutdated, needsPrimary, primaryScenario, scenarioLabel, usableBasisType, type BasisIssue, listingScenario } from "@/lib/domain/scenario";
 import { MIN_SAMPLES_FOR_SUMMARY, PRICE_TYPE_INFO, SALE_METHOD_LABEL, SALE_METHODS, type SaleMethod } from "@/lib/domain/types";
 import type { Db } from "@/lib/db/client";
 import type { Item } from "@/lib/db/schema";
@@ -142,7 +142,7 @@ export function loadItemView(db: Db, demo: boolean, item: Item, sp: Record<strin
   };
 
   // 판매글 금액: 개인 판매 계산을 골랐으면 그 계산, 아니면 개인 판매의 기준 계산.
-  const direct = chosenSc?.method === "DIRECT" ? chosenSc : byMethod("DIRECT");
+  const direct = listingScenario(item, scenarios);
   const draft = buildListingDraft(item, direct?.saleAmount ?? null);
 
   // 같은 ISBN·모델명의 물건을 전에 판 내 기록(보여 주기만, 비교에는 넣지 않는다).
