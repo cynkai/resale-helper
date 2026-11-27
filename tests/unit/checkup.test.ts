@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkupItem, countFindings, needsAttention, type CheckupPrice, type CheckupScenario } from "@/lib/domain/checkup";
+import { breakEvenFor, checkupItem, countFindings, needsAttention, type CheckupPrice, type CheckupScenario } from "@/lib/domain/checkup";
 import { OLD_DATA_DAYS } from "@/lib/domain/compare";
 
 const TODAY = "2026-11-14";
@@ -88,7 +88,7 @@ describe("자료 점검", () => {
     expect(needsAttention(valid)).toBe(false);
     const old = checkupItem({ prices: [price({ id: 1, checkedDate: "2026-01-01" }), price({ id: 2, checkedDate: "2026-02-01" })], scenarios: [] }, TODAY);
     expect(needsAttention(old)).toBe(true);
-    expect(countFindings([valid, old])).toEqual({ QUOTE_EXPIRED: 0, QUOTE_VALID: 1, OLD_DATA: 2, BASIS_ISSUE: 0, OPEN_OFFERS: 0 });
+    expect(countFindings([valid, old])).toEqual({ QUOTE_EXPIRED: 0, QUOTE_VALID: 1, OLD_DATA: 2, BASIS_ISSUE: 0, OPEN_OFFERS: 0, POSTED_BELOW_BREAK_EVEN: 0 });
   });
 
   it("외화 견적은 통화를 함께 알려 준다(원화로 바꿔 보이지 않게)", () => {
@@ -117,5 +117,39 @@ describe("자료 점검", () => {
     expect(needsAttention(f)).toBe(true);
     expect(countFindings([f]).OPEN_OFFERS).toBe(2);
     expect(checkupItem({ prices: [], scenarios: [], offers: [{ status: "ACCEPTED", receivedDate: "2026-11-05" }] }, "2026-11-11")).toEqual([]);
+  });
+});
+
+describe("올린 가격이 손익분기보다 낮음", () => {
+  // 업체: 견적 15,000원, 비용 0 → 업체 실수령 15,000원. 개인: 수수료 0, 배송비 3,000원 → 손익분기 18,000원.
+  const costs = { feeMode: "AMOUNT" as const, feeAmount: 0, feeRateBp: null, shipping: 0, packing: 0, transport: 0 };
+  const quote = price({ id: 7, priceType: "BUYBACK_QUOTE", amountMinor: 15000 });
+  const buyback = scenario({ method: "BUYBACK", saleAmount: 15000, basisPriceRecordId: 7, basisPriceType: "BUYBACK_QUOTE", ...costs });
+  const direct = scenario({ method: "DIRECT", saleAmount: 24000, ...costs, shipping: 3000 });
+  const posted = (amount: number, id = 1, postedDate = "2026-11-10") => ({ id, postedDate, amount });
+
+  it("물건 화면과 같은 규칙으로 손익분기를 구한다", () => {
+    expect(breakEvenFor([buyback, direct], [quote], TODAY)).toBe(18000);
+    // 개인 판매 비용을 모르면(배송비 빈칸) 구하지 않는다
+    expect(breakEvenFor([buyback, { ...direct, shipping: null }], [quote], TODAY)).toBeNull();
+    // 업체 계산의 기준 자료에 문제가 있으면(금액이 바뀜) 구하지 않는다
+    expect(breakEvenFor([buyback, direct], [{ ...quote, amountMinor: 16000 }], TODAY)).toBeNull();
+    // 한쪽 계산이 없거나 비용 칸 자체가 없으면(옛 점검 입력) 구하지 않는다
+    expect(breakEvenFor([direct], [quote], TODAY)).toBeNull();
+    expect(breakEvenFor([scenario({ method: "BUYBACK" }), scenario({ method: "DIRECT" })], [], TODAY)).toBeNull();
+  });
+
+  it("지금(가장 최근) 올린 가격이 손익분기보다 낮을 때만 알린다", () => {
+    const below = checkupItem({ prices: [quote], scenarios: [buyback, direct], posted: [posted(24000, 1, "2026-11-01"), posted(17000, 2)] }, TODAY);
+    expect(below).toContainEqual({ kind: "POSTED_BELOW_BREAK_EVEN", posted: 17000, breakEven: 18000 });
+    expect(needsAttention(below)).toBe(true);
+    expect(countFindings([below]).POSTED_BELOW_BREAK_EVEN).toBe(1);
+    // 같거나 높으면 알리지 않는다(처음에 낮았다가 올린 경우 포함)
+    for (const list of [[posted(18000)], [posted(17000, 1, "2026-11-01"), posted(19000, 2)]]) {
+      expect(checkupItem({ prices: [quote], scenarios: [buyback, direct], posted: list }, TODAY).some((f) => f.kind === "POSTED_BELOW_BREAK_EVEN")).toBe(false);
+    }
+    // 올린 가격이 없거나 손익분기를 구할 수 없으면 알리지 않는다
+    expect(checkupItem({ prices: [quote], scenarios: [buyback, direct] }, TODAY).some((f) => f.kind === "POSTED_BELOW_BREAK_EVEN")).toBe(false);
+    expect(checkupItem({ prices: [quote], scenarios: [buyback, { ...direct, shipping: null }], posted: [posted(100)] }, TODAY).some((f) => f.kind === "POSTED_BELOW_BREAK_EVEN")).toBe(false);
   });
 });
